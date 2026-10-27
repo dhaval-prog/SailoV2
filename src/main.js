@@ -412,6 +412,7 @@ function stepEnv(t, dt) {
 // HUD: account panel (time of day, weather, export) + camera dock
 const hud = initHud({
   stage, getState: () => state, setView, zoomBy, faceNorth, recenter,
+  pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
   setNight: n => { state.night = n; }, setWeather: w => { if (PRESET[w]) state.w = w; },
   exportModel: f => stage._runExport(f),
 });
@@ -599,14 +600,16 @@ const markRings = [0, 1].map(i => { const r = new THREE.Mesh(new THREE.RingGeome
 const DASHN = 90, dashes = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.1, 0.34).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.92, depthWrite: false }), DASHN);
 dashes.frustumCulled = false; dashes.count = 0; dashes.renderOrder = 5; stage._scene.add(dashes);
 const dashM = new THREE.Matrix4(), dashQ = new THREE.Quaternion(), dashS = new THREE.Vector3(1, 1, 1), dashP = new THREE.Vector3(), yAxis = new THREE.Vector3(0, 1, 0);
-function setCourse(p) {
-  if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return; }
-  const off = p.clone().sub(boat.position).setY(0); if (off.length() > 150) off.setLength(150);
-  if (off.length() < 5) return;
+// taps on the water reach up to 150 m; map pins (far) can go anywhere in the ocean
+function setCourse(p, far = false) {
+  if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; }
+  const off = p.clone().sub(boat.position).setY(0); if (!far && off.length() > 150) off.setLength(150);
+  if (off.length() < 5) return false;
   course.p.copy(boat.position).add(off).setY(WL); [course.p.x, course.p.z] = clampToWorld(course.p.x, course.p.z, 30); course.on = true; course.k = 0; course.out = false;
   markG.visible = true; markG.position.copy(course.p);
   splash(course.p.x, course.p.z, 14, 0.7); document.body.classList.add('has-course');
   if (ACT.fish !== 'off') stopFishing();
+  return true;
 }
 function clearCourse(arrived) {
   if (!course.on) return;

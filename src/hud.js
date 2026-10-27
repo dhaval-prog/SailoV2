@@ -3,6 +3,7 @@
 // callbacks; this module only touches the DOM.
 
 import { WORLD, formatPosition } from './world.js';
+import { PLACE, clock, fetchWeather, isNight } from './live.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -22,7 +23,7 @@ function ripple(el, e) {
 export function initHud(api) {
   const $ = id => document.getElementById(id);
   const saved = load();
-  const prefs = { name: saved.name || 'Captain', night: !!saved.night, w: saved.w || 'clear' };
+  const prefs = { name: saved.name || 'Captain', night: !!saved.night, w: saved.w || 'clear', live: saved.live !== false };
 
   // ---- account panel ----
   const btn = $('acct-btn'), panel = $('acct-panel'), nameIn = $('acct-name');
@@ -51,8 +52,9 @@ export function initHud(api) {
     document.querySelectorAll('#dock [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view));
     document.body.classList.toggle('view-top', st.view === 'top');
   };
-  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; api.setNight(prefs.night); save(prefs); paint(); }));
-  document.querySelectorAll('.wx').forEach(b => b.addEventListener('click', () => { prefs.w = b.dataset.w; api.setWeather(prefs.w); save(prefs); paint(); }));
+  // picking a time of day or weather by hand switches live mode off
+  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; setLive(false); api.setNight(prefs.night); save(prefs); paint(); }));
+  document.querySelectorAll('.wx').forEach(b => b.addEventListener('click', () => { prefs.w = b.dataset.w; setLive(false); api.setWeather(prefs.w); save(prefs); paint(); }));
   document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => api.exportModel(b.dataset.export)));
   if (matchMedia('(pointer: coarse)').matches) document.querySelector('.acct-panel .export').hidden = true;
 
@@ -61,7 +63,7 @@ export function initHud(api) {
   dock.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => ripple(b, e)));
   dock.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { api.setView(b.dataset.v); paint(); }));
   dock.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => api.zoomBy(b.dataset.z === 'in' ? 0.7 : 1.45)));
-  $('dk-compass').addEventListener('click', () => api.faceNorth());
+  $('dk-compass').addEventListener('click', () => setMap(true));
   const center = $('dk-center');
   center.addEventListener('click', () => { api.recenter(); center.classList.remove('pulse'); void center.offsetWidth; center.classList.add('pulse'); });
   $('dk-shot').addEventListener('click', () => {
@@ -77,13 +79,43 @@ export function initHud(api) {
     }, 'image/png');
   });
 
-  // apply saved preferences
+  // ---- live time & weather (Pune) ----
+  const liveSw = $('live-sw'), clkTime = $('clk-time'), clkDate = $('clk-date'), clkWx = $('clk-wx'), clkIco = $('clk-ico'), clkWxt = $('clk-wxt');
+  const WX_LABEL = { clear: 'Clear', cloudy: 'Cloudy', rain: 'Rain', storm: 'Storm', fog: 'Fog', snow: 'Snow' };
+  let wx = null, lastClock = '';
+  const applyLive = () => {
+    if (!prefs.live) return;
+    api.setNight(isNight(clock().mins, wx));
+    if (wx) api.setWeather(wx.preset);
+    paint();
+  };
+  function setLive(on) {
+    prefs.live = on; liveSw.setAttribute('aria-checked', String(on)); document.body.classList.toggle('live', on); save(prefs);
+    if (on) applyLive();
+  }
+  liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setWeather(prefs.w); paint(); } });
+  const tick = () => {
+    const c = clock(), key = c.time + c.date;
+    if (key !== lastClock) { clkTime.textContent = c.time; clkDate.textContent = `${c.date} · ${PLACE.name}`; lastClock = key; applyLive(); }
+  };
+  const refreshWx = async () => {
+    const w = await fetchWeather(); if (!w) return;
+    wx = w; clkWx.hidden = false; const ico = document.querySelector(`.wx[data-w="${w.preset}"] svg`); if (ico) clkIco.replaceChildren(ico.cloneNode(true));
+    clkWxt.textContent = `${w.tempC != null ? w.tempC + '°C ' : ''}${WX_LABEL[w.preset]}`;
+    applyLive();
+  };
+
+  // apply saved preferences, then let live mode take over
   api.setNight(prefs.night);
   api.setWeather(prefs.w);
+  setLive(prefs.live);
   paint();
+  tick(); setInterval(tick, 10000);
+  refreshWx(); setInterval(refreshWx, 10 * 60 * 1000);
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); refreshWx(); } });
 
-  // ---- map: tap the location chip to see the whole ocean and where the boat is ----
-  const mapEl = $('map'), mapSvg = $('map-svg'), locBtn = $('loc');
+  // ---- map (compass button): the whole ocean, the boat, and click-to-pin a course ----
+  const mapEl = $('map'), mapSvg = $('map-svg');
   const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map, for sizing marks
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = mapSvg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
@@ -105,10 +137,15 @@ export function initHud(api) {
   { const g = el('g', { transform: `translate(${-H + u * 5} ${H - u * 5})` });
     el('path', { d: `M0 ${-u}V0H${WORLD.mile * 2}V${-u}`, class: 'map-scale', 'stroke-width': u * 0.4 }, g);
     el('text', { x: WORLD.mile, y: -u * 2, class: 'map-label', 'font-size': u * 2.8 }, g).textContent = '2 mi'; }
+  // hover preview, pinned course (marching, blinking dots) and pin marker
+  const ghost = el('circle', { r: u * 1.4, class: 'map-ghost', 'stroke-width': u * 0.35, visibility: 'hidden' });
+  const destLine = el('line', { class: 'map-route', 'stroke-width': u * 0.55, 'stroke-dasharray': `${u * 0.2} ${u * 1.1}`, 'stroke-linecap': 'round', visibility: 'hidden' });
+  el('animate', { attributeName: 'stroke-dashoffset', from: 0, to: -u * 1.3 * 2, dur: '0.9s', repeatCount: 'indefinite' }, destLine);
+  el('animate', { attributeName: 'opacity', values: '1;0.3;1', dur: '1.1s', repeatCount: 'indefinite' }, destLine);
   const destM = el('g', { class: 'map-dest', visibility: 'hidden' });
-  el('circle', { r: u * 1.3, 'stroke-width': u * 0.4 }, destM);
-  const destLine = el('line', { class: 'map-route', 'stroke-width': u * 0.4, 'stroke-dasharray': `${u} ${u}`, visibility: 'hidden' });
-  mapSvg.insertBefore(destLine, destM);
+  el('circle', { r: u * 2.6, class: 'map-dest-ring', 'stroke-width': u * 0.3 }, destM);
+  el('path', { d: `M0 0C${-u * 0.6} ${-u * 1.6} ${-u * 2} ${-u * 2.6} ${-u * 2} ${-u * 4.2}A${u * 2} ${u * 2} 0 1 1 ${u * 2} ${-u * 4.2}C${u * 2} ${-u * 2.6} ${u * 0.6} ${-u * 1.6} 0 0Z`, class: 'map-pin', 'stroke-width': u * 0.35 }, destM);
+  el('circle', { cy: -u * 4.2, r: u * 0.75, class: 'map-pin-dot' }, destM);
   const boatM = el('g', { class: 'map-boat' });
   el('circle', { r: u * 4, class: 'map-pulse' }, boatM);
   const boatArrow = el('path', { d: `M${u * 3} 0L${-u * 2} ${u * 2.2}L${-u * 1} 0L${-u * 2} ${-u * 2.2}Z`, 'stroke-width': u * 0.4 }, boatM);
@@ -120,15 +157,36 @@ export function initHud(api) {
     else { mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
     document.body.classList.toggle('map-open', open);
   };
-  locBtn.addEventListener('click', () => setMap(true));
   $('map-close').addEventListener('click', () => setMap(false));
+  // hover shows the spot's position; click pins a course there
+  const tip = $('map-tip'), wrap = mapSvg.parentElement, help = $('map-help');
+  if (matchMedia('(pointer: coarse)').matches) help.textContent = 'Tap anywhere on the water to pin a course';
+  const toWorld = e => { const pt = mapSvg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const w = pt.matrixTransform(mapSvg.getScreenCTM().inverse()); return Math.abs(w.x) <= H && Math.abs(w.y) <= H ? w : null; };
+  const showTip = (e, w, text) => {
+    const r = wrap.getBoundingClientRect(); tip.hidden = false; tip.textContent = text;
+    tip.style.left = `${e.clientX - r.left}px`; tip.style.top = `${e.clientY - r.top}px`;
+    tip.classList.toggle('below', e.clientY - r.top < 56);
+    ghost.setAttribute('visibility', 'visible'); ghost.setAttribute('cx', w.x); ghost.setAttribute('cy', w.y);
+  };
+  const hideTip = () => { tip.hidden = true; ghost.setAttribute('visibility', 'hidden'); };
+  mapSvg.addEventListener('pointermove', e => { const w = toWorld(e); if (w) showTip(e, w, formatPosition(w.x, w.y)); else hideTip(); });
+  mapSvg.addEventListener('pointerleave', hideTip);
+  mapSvg.addEventListener('click', e => {
+    const w = toWorld(e); if (!w) return;
+    if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${formatPosition(w.x, w.y)}`); if (navigator.vibrate) navigator.vibrate(10); }
+    else showTip(e, w, 'Raise the anchor first');
+  });
+  $('map-unpin').addEventListener('click', () => api.clearCourse());
+  const pinRow = $('map-pin-row'), pinPos = $('map-pin'), pinDist = $('map-pin-d');
   mapEl.addEventListener('click', e => { if (e.target === mapEl) setMap(false); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) setMap(false); });
   const drawMap = (x, z, heading, dest, pos) => {
     boatM.setAttribute('transform', `translate(${x} ${z})`);
     boatArrow.setAttribute('transform', `rotate(${-heading * 180 / Math.PI})`);
     const vis = dest ? 'visible' : 'hidden'; destM.setAttribute('visibility', vis); destLine.setAttribute('visibility', vis);
-    if (dest) { destM.setAttribute('transform', `translate(${dest.x} ${dest.z})`); destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z); }
+    if (dest) { destM.setAttribute('transform', `translate(${dest.x} ${dest.z})`); destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
+      pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${(Math.hypot(dest.x - x, dest.z - z) / WORLD.mile).toFixed(1)} mi to go`; }
+    pinRow.hidden = !dest; help.hidden = !!dest;
     mapPos.textContent = pos;
   };
 
