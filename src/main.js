@@ -3,6 +3,7 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
+import { initStation } from './station.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -563,7 +564,6 @@ const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.
   animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
 function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false); ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
 function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
-const fishNames = ['Mackerel', 'Sardine', 'Snapper', 'Tuna', 'Sea bass', 'Bluefish'];
 function stepActions(t, dt) {
   // ---- anchor ----
   const hawseY = 2.45;
@@ -639,7 +639,7 @@ function stepActions(t, dt) {
     fTail.rotation.y = Math.sin(t * 30) * 0.6;
     bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.5;
     rodRot.rotation.z = THREE.MathUtils.lerp(restTilt + 0.15, restTilt - 0.45, Math.sin(e * Math.PI));
-    if (e >= 1) { fish.visible = false; bobber.visible = false; fishLine.visible = false; ACT.catch++; const nm = fishNames[Math.floor(Math.random() * fishNames.length)]; floatText(land.clone().setY(land.y + 1.5), '+1 ' + nm, '#7ff0c8'); for (let i = 0; i < 14; i++) emit(land.x, land.y, land.z, (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2); ACT.fish = 'recast'; F.k = 0; paintStatus(); }
+    if (e >= 1) { fish.visible = false; bobber.visible = false; fishLine.visible = false; ACT.catch++; const caught = station.addCatch(); floatText(land.clone().setY(land.y + 1.5), caught ? `+1 ${caught.name} · ${caught.price}c` : 'Hold full!', caught ? '#7ff0c8' : '#ffd36b'); for (let i = 0; i < 14; i++) emit(land.x, land.y, land.z, (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2); ACT.fish = 'recast'; F.k = 0; paintStatus(); }
   } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'aim'; floatText(boat.position.clone().setY(9), 'Tap the sea to cast again', '#bfefff'); paintStatus(); } } // after a catch: wait for the next cast
   else if (ACT.fish === 'aim') rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5);
   else if (ACT.fish === 'reelin') {
@@ -719,6 +719,7 @@ stage.addEventListener('pointerup', e => {
   const hit = ray.intersectObject(boat, true).length > 0;
   const wasOpen = menu.style.display !== 'none';
   menu.style.display = hit && !wasOpen ? 'flex' : 'none';
+  if (stationBusy()) return;
   if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP) && ACT.fish !== 'off') { castAt(tapP); return; }
   if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP); // both views: tap the water to set a course
 });
@@ -729,6 +730,16 @@ paintStatus();
 
 const wheelUI = document.getElementById('wheel-rot'), youTag = document.getElementById('you-tag');
 const stats = { dist: 0, top: 0 };
+// ===== Paradise Station: island, docking, shops and the fuel/coins economy (see station.js) =====
+let dockVel = 0, fuelK = 1;
+const moveBoat = (x, z, newYaw, moving) => { const dx = x - boat.position.x, dz = z - boat.position.z; boat.position.x = x; boat.position.z = z;
+  stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz; yaw = newYaw; dockVel = moving * 3; };
+const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
+  camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
+  onDockEnd: () => setView(state.view),
+  canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
+  onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); menu.style.display = 'none'; } });
+const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
@@ -747,16 +758,21 @@ const stats = { dist: 0, top: 0 };
     stage._controls.autoRotate = false;
   }
   if (ACT.anchor !== 'up') thr = 0;
+  const busy = stationBusy(); if (busy) { thr = 0; str = 0; } // the station steers while mooring / moored
   steerS += (str - steerS) * Math.min(1, dt * 4);
   wheelUI.style.transform = `rotate(${steerS * 120}deg)`; // on-screen wheel turns with the helm
   if (!stage._exporting) {
-    vel += (thr * MAXV - vel) * Math.min(1, dt * 0.7);
+    vel += (thr * MAXV * fuelK - vel) * Math.min(1, dt * 0.7);
     const sv = vel / MAXV;
     yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
     // Pune Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
-    const [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt), dx = nx - boat.position.x, dz = nz - boat.position.z;
-    if (dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
+    let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
+    if (busy) { nx = boat.position.x; nz = boat.position.z; vel = dockVel; } // position comes from the station's mooring route
+    else if (station.blocked(nx, nz) && !station.blocked(boat.position.x, boat.position.z)) { nx = boat.position.x; nz = boat.position.z; vel *= 0.2; station.shoreWarn(); clearCourse(false); } // island, pier and rocks (a boat already inside, e.g. reloaded at a berth, can still sail out)
+    const dx = nx - boat.position.x, dz = nz - boat.position.z;
+    if (!busy && dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
+    if (!busy) fuelK = station.burn(Math.hypot(dx, dz), Math.abs(thr));
     boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
     stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz;
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
@@ -786,6 +802,7 @@ const stats = { dist: 0, top: 0 };
   stepEnv(t, dt);
   stepActions(t, dt);
   stepCourse(t, dt);
+  station.tick(t, dt);
   { const off = stage._camera.position.clone().sub(stage._controls.target);
     hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }

@@ -14,6 +14,11 @@ Sail. Discover. Connect.
 - A hand-built tug with cel shading and ink outlines: lighthouse tower, cabin, stack, fenders, pennant lines, ship's wheel and a spinning propeller.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
+- **Paradise Station** (3.7 mi W, 1.1 mi S of the harbour, marked on the map): a harbour island with a beach, palms, crabs, a market stall, a boathouse and an L-shaped pier. Sail close and press **Sail into port**, pick one of four berths and the tug moors itself; then:
+  - **Fish Market**: put fish from your hold into the selling crate (it weighs them) and sell them for coins. Five species with their own prices: Sardine 4c, Mackerel 9c, Red Snapper 16c, Pufferfish 24c, Yellowfin Tuna 42c. Your catch goes into a 30-fish hold.
+  - **Boathouse**: pump fuel at 2c a litre (hold to pump, +10 L or fill up) and see what's on board.
+  - **Cast off** sails back out. The island, pier and rocks can't be sailed through.
+- **Coins and fuel** (chip under the clock): the 120 L tank drains as you sail (about 1 L per 150 m at full throttle). When it's empty the tug limps along at reduced speed until you refuel.
 - **Live time & weather** (on by default, switch in settings): a subtle chip (Calibri, falling back to the open Carlito font) shows Pune's time, date and day, with a sun or moon icon to match, and the sky follows Pune's real weather and daylight (Open-Meteo, no API key). Picking a time of day or weather by hand turns live mode off.
 - At night you get a realistic star field (thousands of stars of varied brightness and colour, twinkling more near the horizon, with a faint Milky Way), a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
 - **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (opens the map), and zoom in/out.
@@ -52,6 +57,9 @@ App id: `com.sailo.app`. The icons and splash screens come from `resources/` via
 index.html               UI overlay markup
 src/main.js              scene: boat model, sea, sky, weather, sailing, fishing, anchor
 src/world.js             Pune Paradise: world size, bounds and position helpers
+src/station.js           Paradise Station: island model, docking, Fish Market, Boathouse, coins and fuel
+src/station.css          styles for the station UI (scoped under .stn)
+public/models/           harbor-island.glb (the station island)
 src/live.js              Pune clock and live weather (Open-Meteo)
 src/persist.js           saves/restores the boat position (Supabase RPCs + localStorage)
 supabase/migrations/     database setup for the saved positions
