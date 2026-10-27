@@ -309,6 +309,7 @@ body.view-top #helm { opacity: 0; visibility: hidden; transform: translateY(24px
   pointer-events: none;
   transition: opacity 0.4s;
 }
+#hint.gone { opacity: 0; }
 #joy {
   position: relative;
   width: 160px;
@@ -317,10 +318,10 @@ body.view-top #helm { opacity: 0; visibility: hidden; transform: translateY(24px
   touch-action: none;
   cursor: grab;
   user-select: none;
-  opacity: 0.2;
+  opacity: 0.35;
   transition: transform 0.3s var(--spring), opacity 0.25s ease;
 }
-#joy.active { cursor: grabbing; transform: scale(1.04); opacity: 0.5; }
+#joy.active { cursor: grabbing; transform: scale(1.04); opacity: 0.6; }
 .joy-dial { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45)); }
 .joy-dial .speed { fill: none; stroke: url(#spdg); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 0 100; transform: rotate(-90deg); transform-origin: 80px 80px; transition: stroke-dasharray 0.15s linear; }
 #wheel-rot { transform-origin: 80px 80px; }
@@ -369,6 +370,7 @@ body.view-top #helm { opacity: 0; visibility: hidden; transform: translateY(24px
   box-shadow: var(--shadow), inset 0 0 0 1px var(--rim);
   color: #fff;
   font: 600 12px/1 system-ui, sans-serif;
+  opacity: 0.5;
   pointer-events: none;
 }
 #speedo b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 2.2em; text-align: right; }

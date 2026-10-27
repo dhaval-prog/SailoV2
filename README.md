@@ -16,7 +16,7 @@ Sail. Discover. Connect.
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
 - At night you get stars, a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
 - **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (tap to face north), zoom in/out and recenter.
-- **Chase view**: sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys.
+- **Chase view** (default): the camera sits behind the boat; tapping the eye button swings it back there. Sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys.
 - **Top view**: the wheel hides; tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu:
   - **Go fishing**: cast, wait for a bite, reel in and keep a catch count.
