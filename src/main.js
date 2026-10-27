@@ -2,6 +2,7 @@ import './styles.css';
 import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, clampToWorld, edgeDistance } from './world.js';
+import { loadPosition, localPosition, savePosition } from './persist.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -731,6 +732,21 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
   else { let t; const done = () => { clearTimeout(t); try { localStorage.setItem(KEY, '1'); } catch { /* storage blocked */ } hint.classList.add('gone'); setTimeout(() => { hint.hidden = true; }, 500); removeEventListener('keydown', onKey); };
     const onKey = e => { if (/^(w|a|s|d|arrow)/.test(e.key.toLowerCase())) done(); };
     document.getElementById('joy').addEventListener('pointerdown', done, { once: true }); addEventListener('keydown', onKey); t = setTimeout(done, 8000); } }
+// resume where the tug was last time: the local copy places it at once, then Supabase can correct it (another tab or device)
+{ const place = p => {
+    const [x, z] = clampToWorld(p.x, p.z, 1); clearCourse(false); vel = 0;
+    boat.position.x = x; boat.position.z = z; yaw = p.heading; boat.rotation.y = yaw;
+    stage._controls.target.set(x, state.view === 'top' ? WL : 2.5, z); stage._camera.position.copy(stage._controls.target).add(viewOffset(state.view)); camAnim = zoomAnim = null; stage._controls.update();
+  };
+  const local = localPosition(); if (local) place(local);
+  loadPosition().then(p => { if (p && (!local || p.t > (local.t || 0)) && stats.dist < 2 && Math.hypot(p.x - boat.position.x, p.z - boat.position.z) > 1) place(p); });
+  // save every few seconds while sailing, and once more when the page is hidden or closed
+  let last = { x: boat.position.x, z: boat.position.z, h: yaw };
+  const save = keepalive => { const h = Math.atan2(Math.sin(yaw), Math.cos(yaw)); last = { x: boat.position.x, z: boat.position.z, h: yaw }; savePosition({ x: boat.position.x, z: boat.position.z, heading: h }, { keepalive }); };
+  const moved = () => Math.hypot(boat.position.x - last.x, boat.position.z - last.z) > 3 || Math.abs(yaw - last.h) > 0.15;
+  setInterval(() => { if (moved()) save(false); }, 5000);
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && moved()) save(true); });
+  addEventListener('pagehide', () => { if (moved()) save(true); }); }
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
