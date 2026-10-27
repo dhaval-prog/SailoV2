@@ -10,6 +10,7 @@
  *   name       — export file basename (default "model")
  *   background — CSS color behind the scene
  *   autorotate — when present, a slow turntable until the user interacts
+ *   hide-toolbar — hide the built-in export toolbar and hint (the page supplies its own)
  */
 import * as THREE_NS from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -70,6 +71,7 @@ const stylesheet = `
     text-align: center;
     white-space: pre-line;
   }
+  :host([hide-toolbar]) .toolbar, :host([hide-toolbar]) .note { display: none; }
   @media (max-width: 640px), (max-height: 480px), (pointer: coarse) {
     .toolbar, .note { display: none; }
   }
