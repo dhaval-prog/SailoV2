@@ -1,6 +1,7 @@
 import './styles.css';
 import './three-d-stage.js';
 import { initHud } from './hud.js';
+import { WORLD, clampToWorld, edgeDistance } from './world.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -191,7 +192,8 @@ stage._ground.visible = false;
 const WL = 0.85;
 const seaGroup = new THREE.Group(); stage._scene.add(seaGroup);
 const NOISE = `
-  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  // sine-free hash (Hoskins): stays stable far from the origin, where fract(sin(x)) breaks down in float32
+  float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
     return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
   float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }`;
@@ -595,7 +597,7 @@ function setCourse(p) {
   if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return; }
   const off = p.clone().sub(boat.position).setY(0); if (off.length() > 150) off.setLength(150);
   if (off.length() < 5) return;
-  course.p.copy(boat.position).add(off).setY(WL); course.on = true; course.k = 0; course.out = false;
+  course.p.copy(boat.position).add(off).setY(WL); [course.p.x, course.p.z] = clampToWorld(course.p.x, course.p.z, 30); course.on = true; course.k = 0; course.out = false;
   markG.visible = true; markG.position.copy(course.p);
   splash(course.p.x, course.p.z, 14, 0.7); document.body.classList.add('has-course');
   if (ACT.fish !== 'off') stopFishing();
@@ -663,7 +665,10 @@ const stats = { dist: 0, top: 0 };
     vel += (thr * MAXV - vel) * Math.min(1, dt * 0.7);
     const sv = vel / MAXV;
     yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
-    const fx = Math.cos(yaw), fz = -Math.sin(yaw), dx = fx * vel * dt, dz = fz * vel * dt;
+    const fx = Math.cos(yaw), fz = -Math.sin(yaw);
+    // Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
+    const [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt), dx = nx - boat.position.x, dz = nz - boat.position.z;
+    if (dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
     boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
     stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz;
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
@@ -694,7 +699,7 @@ const stats = { dist: 0, top: 0 };
   stepActions(t, dt);
   stepCourse(t, dt);
   { const off = stage._camera.position.clone().sub(stage._controls.target);
-    hud.update({ az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
+    hud.update({ x: boat.position.x, z: boat.position.z, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
@@ -716,3 +721,6 @@ stage._exportGlb = clean(stage._exportGlb.bind(stage));
 if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the stick to sail · tap the boat for actions';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
+
+// dev-only hook for testing far corners of Paradise
+if (import.meta.env.DEV) window.__sailo = { WORLD, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

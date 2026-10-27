@@ -38,7 +38,7 @@
     <div class="who">
       <h2 id="acct-title" class="sr-only">Account settings</h2>
       <label class="name-field"><input id="acct-name" value="Captain" maxlength="18" spellcheck="false" aria-label="Captain name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></label>
-      <div class="rank"><span class="badge" id="acct-rank">Deckhand</span> Lighthouse Tug</div>
+      <div class="rank"><span class="badge" id="acct-rank">Deckhand</span> Lighthouse Tug · Paradise</div>
     </div>
     <button id="acct-close" class="icon-btn" aria-label="Close settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </header>
@@ -104,7 +104,13 @@
 </div>
 
 <div id="fxlayer"></div>
+<div id="loc" class="loc" aria-label="Location">
+  <span class="loc-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17c2 0 2-1.5 4.5-1.5S10 17 12 17s2.5-1.5 4.5-1.5S19 17 21 17"/><path d="M3 21c2 0 2-1.5 4.5-1.5S10 21 12 21s2.5-1.5 4.5-1.5S19 21 21 21"/><path d="M8 13c.5-3.5 2-6.5 4-9 2 2.5 3.5 5.5 4 9" class="sail"/><path d="M12 4v9"/></svg></span>
+  <span class="loc-text"><b>Paradise</b><span id="loc-pos">0.0 mi N · 0.0 mi E</span></span>
+</div>
 <div id="status"></div>
+<div id="edge-warn" role="status"></div>
+<div id="welcome" aria-hidden="true"><small>Welcome to</small><b>Paradise</b><span>200 square miles of open ocean</span></div>
 <div id="you-tag" aria-hidden="true"><span class="you-chip">You</span><span class="you-ring"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#fff7ea"/><path d="M7 14.5c0-3 4-5.5 9-5.5s9 2.5 9 5.5z" fill="#2343a0"/><rect x="6" y="14" width="20" height="2.6" rx="1.3" fill="#152042"/><circle cx="16" cy="11.6" r="1.6" fill="#ffb21a"/><path d="M9.5 18.5c1.4 4.2 3.8 6.5 6.5 6.5s5.1-2.3 6.5-6.5z" fill="#f2c9a0"/></svg><b id="you-lvl">1</b></span></div>
 <div id="shutter" aria-hidden="true"></div>
 <div id="course-hint">Tap anywhere on the water to set a course</div>

@@ -2,6 +2,8 @@
 // and the per-frame readouts (compass, speed, stats). The scene hands in
 // callbacks; this module only touches the DOM.
 
+import { WORLD, formatPosition } from './world.js';
+
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
 
@@ -84,10 +86,15 @@ export function initHud(api) {
   const needle = document.querySelector('#dk-compass .needle');
   const spd = $('spd'), gear = $('gear'), arc = $('joy-speed');
   const stCatch = $('st-catch'), stDist = $('st-dist'), stTop = $('st-top'), rankEl = $('acct-rank'), lvl = $('you-lvl');
-  let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9 };
+  const locPos = $('loc-pos'), warn = $('edge-warn');
+  let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
   return {
     paint,
-    update({ az, kn, gearName, catchN, distNm, topKn }) {
+    update({ x, z, edge, az, kn, gearName, catchN, distNm, topKn }) {
+      const pos = formatPosition(x, z);
+      if (pos !== last.pos) { locPos.textContent = pos; last.pos = pos; }
+      const w = edge < 1 ? `You've reached the edge of ${WORLD.name}` : edge < WORLD.warn ? `Leaving ${WORLD.name} · ${Math.round(edge)} m to the edge` : '';
+      if (w !== last.warn) { warn.textContent = w || warn.textContent; warn.classList.toggle('show', !!w); last.warn = w; }
       const deg = Math.round(az * 180 / Math.PI);
       if (deg !== last.az) { needle.style.transform = `rotate(${deg}deg)`; last.az = deg; }
       const k = Math.round(Math.abs(kn) * 10) / 10;
