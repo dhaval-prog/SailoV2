@@ -203,7 +203,7 @@ const NOISE = `
 const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATION.z + z * SK);
 const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
 const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 2) return 1; const k = Math.max(0, u - 1); return 0.12 + 0.88 * k * k * (3 - 2 * k); };
-const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
+const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
 const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.34, 0.2, 0.11, 0.05], WK = [0.18, 0.29, 0.52, 0.95], WS = [1.1, 1.5, 2.1, 2.9];
 const ENV = { amp: 1 };
@@ -223,7 +223,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float f = 1.0 - smoothstep(45.0, 72.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
       #endif
       gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
-  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
+  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
       vec3 deep = vec3(0.07, 0.33, 0.66), mid = vec3(0.11, 0.55, 0.84), far = vec3(0.24, 0.76, 0.93), lite = vec3(0.36, 0.82, 0.96);
@@ -260,6 +260,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
       #else
       col *= uTint;
       #endif
+      col = mix(col, col * vec3(0.2, 0.3, 0.56) + vec3(0.0, 0.015, 0.05), uNight); // moonlit sea (as in the station file)
       col += uFlash * vec3(0.25, 0.3, 0.38);
       col = mix(col, uHaze, smoothstep(uFog.x, uFog.y, d));
       gl_FragColor = vec4(col, 1.0);
@@ -406,6 +407,7 @@ const E = { top: C('#33a8e8'), mid: C('#8cd9f5'), hor: C('#f0fcff'), tint: C('#f
 stage._scene.fog = new THREE.Fog('#f0fcff', 170, 390);
 let flash = 0, nextBolt = 3;
 const lights = {}; stage._scene.traverse(o => { if (o.isHemisphereLight) lights.hemi = o; else if (o.isDirectionalLight && o === stage._key) lights.key = o; else if (o.isDirectionalLight) lights.back = o; });
+const keyDir = lights.key.position.clone().normalize(), keySpan = Math.max(18, lights.key.shadow.camera.right); stage._scene.add(lights.key.target);
 const tmp = new THREE.Color();
 const deckLight = new THREE.PointLight('#ffd9a0', 0, 22, 1.6); deckLight.position.set(0.5, 6.5, 0); boat.add(deckLight); outlines.push(deckLight);
 const deckLight2 = new THREE.PointLight('#cfe0ff', 0, 18, 1.6); deckLight2.position.set(-3.5, 4.5, 0); boat.add(deckLight2); outlines.push(deckLight2);
@@ -416,7 +418,7 @@ function stepEnv(t, dt) {
   const P = PRESET[state.w], n = state.night ? 1 : 0, k = Math.min(1, dt * 1.2);
   const dim = 1 - 0.45 * P.dark;
   [['top'], ['mid'], ['hor']].forEach(([key]) => { tmp.set(P[key]).lerp(NIGHT[key].clone().multiplyScalar(dim), n); E[key].lerp(tmp, k); });
-  tmp.setRGB(...P.tint); if (n) tmp.multiply(NIGHT.tint); E.tint.lerp(tmp, k);
+  tmp.setRGB(...P.tint); E.tint.lerp(tmp, k); seaU.uNight.value = E.night;
   const L = (a, b) => a + (b - a) * k;
   E.cover = L(E.cover, P.cover); E.dark = L(E.dark, P.dark); E.amp = L(E.amp, P.amp); E.fogN = L(E.fogN, P.fog[0]); E.fogF = L(E.fogF, P.fog[1]);
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
@@ -433,11 +435,11 @@ function stepEnv(t, dt) {
   cloudU.cover.value = E.cover; cloudU.dark.value = E.dark; cloudU.fade.value = E.cfade; cloudU.flash.value = flash;
   cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#4a5c86'), E.night * 0.85);
   stage._scene.fog.color.copy(fogCol); stage._scene.fog.near = fogNear; stage._scene.fog.far = fogFar;
-  lights.hemi.color.set('#fff3dc').lerp(C('#7488bb'), E.night); lights.hemi.groundColor.set('#4f86d6').lerp(C('#14244c'), E.night);
-  lights.hemi.intensity = Math.max(0.6 * E.night, (0.55 + 0.6 * E.sun) * (1 - 0.6 * E.night)) + flash * 2.5;
-  lights.key.color.set('#fff0d2').lerp(C('#a9c1ff'), E.night); lights.key.intensity = 2.6 * E.sun * (1 - E.night) + 0.9 * E.night;
+  lights.hemi.color.set('#fff3dc').lerp(C('#5d70b8'), E.night); lights.hemi.groundColor.set('#4f86d6').lerp(C('#0b1430'), E.night);
+  lights.hemi.intensity = (0.55 + 0.6 * E.sun) * (1 - E.night) + 0.45 * E.night + flash * 2.5;
+  lights.key.color.set('#fff0d2').lerp(C('#9db4f5'), E.night); lights.key.intensity = 2.6 * E.sun * (1 - E.night) + 0.55 * E.night;
   deckLight.intensity = E.night * 26 + E.dark * (1 - E.night) * 10; deckLight2.intensity = deckLight.intensity * 0.6;
-  lights.back.intensity = 1.3 * (0.5 + 0.5 * E.sun) * (1 - 0.6 * E.night);
+  lights.back.color.set('#8fe1ff').lerp(C('#6fb7ff'), E.night); lights.back.intensity = 1.3 * (0.5 + 0.5 * E.sun) * (1 - E.night) + 0.9 * E.night;
   moon.material.opacity = E.night * Math.max(0.15, 1 - E.cover * 0.85); moonHalo.material.opacity = moon.material.opacity * 0.12;
   mat.glass.emissiveIntensity = 0.3 + 1.6 * E.night;
   beamMat.opacity = Math.max(E.night, (1 - E.cfade) * 0.6, E.dark * 0.5) * 0.16; beamPivot.rotation.y = t * 0.9;
@@ -811,6 +813,11 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   stepActions(t, dt);
   stepCourse(t, dt);
   station.tick(t, dt);
+  // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
+  { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
+    const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;
+    lights.key.target.position.set(cx, 0, cz); lights.key.position.set(cx, 0, cz).addScaledVector(keyDir, 120);
+    if (kc.right !== span) { kc.left = kc.bottom = -span; kc.right = kc.top = span; kc.near = 20; kc.far = 260; kc.updateProjectionMatrix(); } }
   { const off = stage._camera.position.clone().sub(stage._controls.target);
     hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
