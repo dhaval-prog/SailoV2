@@ -12,10 +12,11 @@ Sail. Discover. Connect.
 ## Features
 - A hand-built tug with cel shading and ink outlines: lighthouse tower, cabin, stack, fenders, pennant lines, ship's wheel and a spinning propeller.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
-- Day and night modes. At night you get stars, a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
-- Six weather presets: Clear, Cloudy, Rain, Storm (with lightning), Fog and Snow.
-- Chase and top camera views, plus zoom buttons and orbit, pinch and pan.
-- Sail with the on-screen joystick, WASD or the arrow keys.
+- **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
+- At night you get stars, a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
+- **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (tap to face north), zoom in/out and recenter.
+- **Chase view**: sail with the analog stick (speed ring, direction glow, gear readout), WASD or the arrow keys.
+- **Top view**: the stick hides; tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the stick or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu:
   - **Go fishing**: cast, wait for a bite, reel in and keep a catch count.
   - **Drop anchor** / **Raise anchor**.

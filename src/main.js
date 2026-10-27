@@ -1,5 +1,6 @@
 import './styles.css';
 import './three-d-stage.js';
+import { initHud } from './hud.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -183,7 +184,7 @@ stage._scene.traverse(o => {
   else if (o.isDirectionalLight) { o.color.set('#8fe1ff'); o.intensity = 1.3; o.position.set(-6, 4, -5); }
 });
 stage._ground.visible = false;
-{ const tgt = stage._controls.target, d = stage._camera.position.distanceTo(tgt) * 1.45; tgt.y = 2.5;
+{ const tgt = stage._controls.target, d = stage._camera.position.distanceTo(tgt) * 1.9; tgt.y = 2.5;
   stage._camera.position.copy(tgt).add(new THREE.Vector3(0.9, 0.32, 1.2).normalize().multiplyScalar(d)); stage._camera.far = 2000; stage._camera.updateProjectionMatrix(); stage._controls.update(); }
 
 // painted sea + sky + clouds + debris (scene-level, not exported)
@@ -340,12 +341,18 @@ const PRESET = {
 };
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
-const VIEWS = { chase: stage._camera.position.clone().sub(stage._controls.target), top: new THREE.Vector3(14, 46, 30) };
+const VIEWS = { chase: stage._camera.position.clone().sub(stage._controls.target), top: new THREE.Vector3(5, 62, 16) };
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
 let zoomAnim = null;
 const zoomBy = f => { const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
 let camAnim = null;
-const setView = v => { state.view = v; stage._controls.autoRotate = false; const tg = stage._controls.target; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to: VIEWS[v].clone(), ty0: tg.y, ty1: v === 'top' ? WL : 2.5, k: 0 }; };
+const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new THREE.Vector3();
+// interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
+const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
+const animCam = (to, ty1, dur = 1.3) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0 }; };
+const setView = v => { state.view = v; animCam(VIEWS[v].clone(), v === 'top' ? WL : 2.5); };
+const recenter = () => setView(state.view);
+const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };
 const E = { top: C('#33a8e8'), mid: C('#8cd9f5'), hor: C('#f0fcff'), tint: C('#ffffff'), cover: 0.32, dark: 0, amp: 1, fogN: 170, fogF: 390, cfade: 1, rain: 0, snow: 0, sun: 1, night: 0 };
 stage._scene.fog = new THREE.Fog('#f0fcff', 170, 390);
 let flash = 0, nextBolt = 3;
@@ -355,7 +362,8 @@ const deckLight = new THREE.PointLight('#ffd9a0', 0, 22, 1.6); deckLight.positio
 const deckLight2 = new THREE.PointLight('#cfe0ff', 0, 18, 1.6); deckLight2.position.set(-3.5, 4.5, 0); boat.add(deckLight2); outlines.push(deckLight2);
 function stepEnv(t, dt) {
   if (zoomAnim && !camAnim) { zoomAnim.k = Math.min(1, zoomAnim.k + dt / 0.35); const e = 1 - Math.pow(1 - zoomAnim.k, 3); stage._camera.position.copy(stage._controls.target).add(zoomAnim.from.clone().lerp(zoomAnim.to, e)); if (zoomAnim.k >= 1) zoomAnim = null; }
-  if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / 1.3); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); const tg = stage._controls.target; tg.y = camAnim.ty0 + (camAnim.ty1 - camAnim.ty0) * e; stage._camera.position.copy(tg).add(camAnim.from.clone().lerp(camAnim.to, e)); if (camAnim.k >= 1) camAnim = null; }
+  if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / camAnim.dur); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); const tg = stage._controls.target, r = camAnim.rel;
+    tg.set(boat.position.x + r.x * (1 - e), r.y + (camAnim.ty1 - r.y) * e, boat.position.z + r.z * (1 - e)); stage._camera.position.copy(tg).add(lerpOff(camAnim.from, camAnim.to, e, animOff)); if (camAnim.k >= 1) camAnim = null; }
   const P = PRESET[state.w], n = state.night ? 1 : 0, k = Math.min(1, dt * 1.2);
   const dim = 1 - 0.45 * P.dark;
   [['top'], ['mid'], ['hor']].forEach(([key]) => { tmp.set(P[key]).lerp(NIGHT[key].clone().multiplyScalar(dim), n); E[key].lerp(tmp, k); });
@@ -393,18 +401,13 @@ function stepEnv(t, dt) {
   cloudGroup.rotation.y += dt * (0.004 + E.dark * 0.012);
   cloudMeshes.forEach(m => { m.position.y = m.userData.y + Math.sin(t * 0.15 + m.userData.ph) * 3; });
 }
-// UI wiring
-const paintUI = () => {
-  document.querySelectorAll('#envui [data-w]').forEach(b => { const on = b.dataset.w === state.w; b.style.background = on ? '#fff7ea' : 'transparent'; b.style.color = on ? '#152042' : '#fff'; });
-  document.querySelectorAll('#envui [data-v]').forEach(b => { const on = b.dataset.v === state.view; b.style.background = on ? '#fff7ea' : 'transparent'; b.style.color = on ? '#152042' : '#fff'; });
-  document.querySelectorAll('#envui [data-t]').forEach(b => { const on = (b.dataset.t === 'night') === state.night; b.style.background = on ? '#fff7ea' : 'transparent'; b.style.color = on ? '#152042' : '#fff'; });
-};
-document.querySelectorAll('#envui [data-w]').forEach(b => b.addEventListener('click', () => { state.w = b.dataset.w; paintUI(); }));
-document.querySelectorAll('#envui [data-z]').forEach(b => { b.addEventListener('click', () => zoomBy(b.dataset.z === 'in' ? 0.7 : 1.45)); b.addEventListener('pointerenter', () => b.style.background = 'rgba(255,255,255,0.18)'); b.addEventListener('pointerleave', () => b.style.background = 'transparent'); });
-addEventListener('keydown', e => { if (e.key === '+' || e.key === '=') zoomBy(0.7); if (e.key === '-' || e.key === '_') zoomBy(1.45); });
-document.querySelectorAll('#envui [data-v]').forEach(b => b.addEventListener('click', () => { setView(b.dataset.v); paintUI(); }));
-document.querySelectorAll('#envui [data-t]').forEach(b => b.addEventListener('click', () => { state.night = b.dataset.t === 'night'; paintUI(); }));
-paintUI();
+// HUD: account panel (time of day, weather, export) + camera dock
+const hud = initHud({
+  stage, getState: () => state, setView, zoomBy, faceNorth, recenter,
+  setNight: n => { state.night = n; }, setWeather: w => { if (PRESET[w]) state.w = w; },
+  exportModel: f => stage._runExport(f),
+});
+addEventListener('keydown', e => { if (e.key === '+' || e.key === '=') zoomBy(0.7); if (e.key === '-' || e.key === '_') zoomBy(1.45); if (e.key === 'v' || e.key === 'V') { setView(state.view === 'top' ? 'chase' : 'top'); hud.paint(); } });
 sky.renderOrder = -1;
 const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fdff', transparent: true, opacity: 0.85, depthWrite: false });
 const hugShape = outline(1.1); hugShape.holes.push(outline(1.0, new THREE.Path()));
@@ -418,11 +421,12 @@ hug.rotation.order = 'YXZ'; rings.forEach(r => r.rotation.order = 'YXZ'); boat.r
 const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
-{ const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null;
-  const move = e => { const r = base.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const R = r.width / 2 - 26, l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; } knob.style.transform = `translate(${dx}px, ${dy}px)`; drive.jx = dx / R; drive.jy = dy / R; };
-  base.addEventListener('pointerdown', e => { id = e.pointerId; base.setPointerCapture(id); move(e); e.stopPropagation(); });
+{ const base = document.getElementById('joy'), knob = document.getElementById('knob'), dir = document.getElementById('joy-dir'); let id = null;
+  const move = e => { const r = base.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const R = r.width / 2 - 26, l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; } knob.style.transform = `translate(${dx}px, ${dy}px)`; drive.jx = dx / R; drive.jy = dy / R;
+    dir.style.height = Math.min(l, R) + 'px'; dir.style.transform = `translateX(-50%) rotate(${Math.atan2(dy, dx) - Math.PI / 2}rad)`; };
+  base.addEventListener('pointerdown', e => { id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); move(e); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8); });
   base.addEventListener('pointermove', e => e.pointerId === id && move(e));
-  const end = e => { if (e.pointerId !== id) return; id = null; drive.jx = drive.jy = 0; knob.style.transform = 'translate(0px, 0px)'; };
+  const end = e => { if (e.pointerId !== id) return; id = null; base.classList.remove('active'); drive.jx = drive.jy = 0; knob.style.transform = 'translate(0px, 0px)'; };
   base.addEventListener('pointerup', end); base.addEventListener('pointercancel', end); }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0; const MAXV = 6;
 // gentle motion
@@ -569,38 +573,98 @@ function stepActions(t, dt) {
   // menu follows the boat
   if (menu.style.display !== 'none') { tmpV.set(0.1, 10.6, 0).applyMatrix4(boat.matrixWorld); const [x, y] = toScreen(tmpV);
     // keep the menu on screen and clear of the control panels (matters on phones)
-    const hw = menu.offsetWidth / 2, minY = document.getElementById('envui').getBoundingClientRect().bottom + menu.offsetHeight + 8;
+    const hw = menu.offsetWidth / 2, minY = 72 + menu.offsetHeight;
     menu.style.left = Math.min(innerWidth - hw - 8, Math.max(hw + 8, x)) + 'px'; menu.style.top = (innerWidth <= 640 ? Math.max(minY, y) : y) + 'px'; }
 }
 // click the boat to open the action menu
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
+// ===== top view: tap the water to set a course, the tug steers itself there =====
+const seaPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -WL), tapP = new THREE.Vector3();
+const course = { on: false, p: new THREE.Vector3(), k: 1, out: false };
+const markG = new THREE.Group(); markG.name = 'course_buoy'; markG.visible = false; stage._scene.add(markG);
+const buoy = new THREE.Group(); buoy.scale.setScalar(1.5); markG.add(buoy);
+[[0.62, 0.8, 0.5, 0.25, mat.red], [0.5, 0.62, 0.45, 0.72, mat.white], [0.38, 0.5, 0.45, 1.17, mat.red], [0.26, 0.38, 0.3, 1.54, mat.white]].forEach(([rt, rb, h, y, m], i) => {
+  const b = add('buoy_' + i, new THREE.CylinderGeometry(rt, rb, h, 28), m, 0, y, 0, buoy); b.add(new THREE.Mesh(b.geometry, i ? inkThin : inkThick)); });
+add('buoy_pole', new THREE.CylinderGeometry(0.035, 0.035, 1.5, 8), mat.metal, 0, 2.4, 0, buoy);
+{ const tri = new THREE.Shape(); tri.moveTo(0, 0); tri.lineTo(0.9, -0.22); tri.lineTo(0, -0.5); add('buoy_flag', new THREE.ShapeGeometry(tri), flagCols[0], 0.03, 3.1, 0, buoy); }
+const markRings = [0, 1].map(i => { const r = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 64), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6, depthWrite: false })); r.rotation.x = -Math.PI / 2; r.position.y = 0.06; markG.add(r); return r; });
+const DASHN = 90, dashes = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.1, 0.34).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.92, depthWrite: false }), DASHN);
+dashes.frustumCulled = false; dashes.count = 0; dashes.renderOrder = 5; stage._scene.add(dashes);
+const dashM = new THREE.Matrix4(), dashQ = new THREE.Quaternion(), dashS = new THREE.Vector3(1, 1, 1), dashP = new THREE.Vector3(), yAxis = new THREE.Vector3(0, 1, 0);
+function setCourse(p) {
+  if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return; }
+  const off = p.clone().sub(boat.position).setY(0); if (off.length() > 150) off.setLength(150);
+  if (off.length() < 5) return;
+  course.p.copy(boat.position).add(off).setY(WL); course.on = true; course.k = 0; course.out = false;
+  markG.visible = true; markG.position.copy(course.p);
+  splash(course.p.x, course.p.z, 14, 0.7); document.body.classList.add('has-course');
+  if (ACT.fish !== 'off') stopFishing();
+}
+function clearCourse(arrived) {
+  if (!course.on) return;
+  course.on = false; course.out = true; course.k = 0; dashes.count = 0; document.body.classList.remove('has-course');
+  if (arrived) floatText(course.p.clone().setY(5), 'Arrived', '#7ff0c8');
+}
+function stepCourse(t, dt) {
+  if (!markG.visible) return;
+  course.k = Math.min(1, course.k + dt / (course.out ? 0.35 : 0.6));
+  const e = course.k, pop = course.out ? 1 - e : 1 + Math.sin(e * Math.PI) * 0.35 * (1 - e) - Math.pow(1 - e, 3);
+  buoy.scale.setScalar(1.5 * Math.max(0.001, pop));
+  markG.position.y = WL + waveJS(course.p.x, course.p.z, t) - 0.25 + (course.out ? 0 : Math.pow(1 - e, 2) * 4);
+  buoy.rotation.set(Math.sin(t * 1.7) * 0.08, t * 0.4, Math.cos(t * 1.3) * 0.08);
+  markRings.forEach((r, i) => { const q = (t * 0.45 + i * 0.5) % 1; r.scale.setScalar((1.6 + q * 3.4) * Math.max(0.001, pop)); r.material.opacity = (1 - q) * 0.7; });
+  if (course.out && e >= 1) { markG.visible = false; return; }
+  if (!course.on) return;
+  // marching dashes from the bow to the buoy
+  const bx = boat.position.x, bz = boat.position.z, dx = course.p.x - bx, dz = course.p.z - bz, L = Math.hypot(dx, dz);
+  const ux = dx / L, uz = dz / L, a0 = 3, a1 = L - 2.2, step = 1.9, shift = (t * 2.2) % step;
+  dashQ.setFromAxisAngle(yAxis, Math.atan2(-uz, ux)); let n = 0;
+  for (let s = a0 + shift; s < a1 && n < DASHN; s += step, n++) { const x = bx + ux * s, z = bz + uz * s; dashP.set(x, WL + waveJS(x, z, t) + 0.18, z); dashM.compose(dashP, dashQ, dashS); dashes.setMatrixAt(n, dashM); }
+  dashes.count = n; dashes.instanceMatrix.needsUpdate = true;
+}
 stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
 stage.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6 || performance.now() - downAt.t > 450) return;
   const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, stage._camera);
   const hit = ray.intersectObject(boat, true).length > 0;
-  menu.style.display = hit && menu.style.display === 'none' ? 'flex' : 'none';
+  const wasOpen = menu.style.display !== 'none';
+  menu.style.display = hit && !wasOpen ? 'flex' : 'none';
+  if (!hit && !wasOpen && state.view === 'top' && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP);
 });
 document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
 document.getElementById('act-anchor').addEventListener('click', () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); menu.style.display = 'none'; });
 ['act-fish', 'act-anchor'].forEach(id => { const b = document.getElementById(id); b.addEventListener('pointerenter', () => b.style.transform = 'translateY(-2px)'); b.addEventListener('pointerleave', () => b.style.transform = 'none'); });
 paintStatus();
 
+const chev = [...document.querySelectorAll('.joy-dial .chev path')], youTag = document.getElementById('you-tag');
+const stats = { dist: 0, top: 0 };
 (function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
   const k = drive.keys;
-  const thr = (ACT.anchor !== 'up' ? 0 : 1) * Math.max(-1, Math.min(1, -drive.jy + (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)));
-  const str = Math.max(-1, Math.min(1, drive.jx + (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)));
-  if (Math.abs(thr) > 0.05 || Math.abs(str) > 0.05) stage._controls.autoRotate = false;
+  let thr = Math.max(-1, Math.min(1, -drive.jy + (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)));
+  let str = Math.max(-1, Math.min(1, drive.jx + (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)));
+  const manual = Math.abs(thr) > 0.05 || Math.abs(str) > 0.05;
+  if (manual) { stage._controls.autoRotate = false; clearCourse(false); }
+  if (course.on && ACT.anchor === 'up') {
+    // autopilot: turn toward the buoy, ease off the throttle in tight turns and on approach
+    const cx = course.p.x - boat.position.x, cz = course.p.z - boat.position.z, dist = Math.hypot(cx, cz);
+    const diff = Math.atan2(Math.sin(Math.atan2(-cz, cx) - yaw), Math.cos(Math.atan2(-cz, cx) - yaw));
+    str = Math.max(-1, Math.min(1, -diff * 1.8));
+    thr = Math.min(1, Math.max(0.3, dist / 14)) * (Math.abs(diff) > 1.2 ? 0.15 : Math.max(0.35, 1 - Math.abs(diff) / 1.6));
+    if (dist < 4.5) clearCourse(true);
+    stage._controls.autoRotate = false;
+  }
+  if (ACT.anchor !== 'up') thr = 0;
+  { const lit = { n: thr > 0.35, s: thr < -0.35, e: str > 0.35, w: str < -0.35 }; chev.forEach(c => c.classList.toggle('lit', lit[c.dataset.d])); }
   steerS += (str - steerS) * Math.min(1, dt * 4);
   if (!stage._exporting) {
     vel += (thr * MAXV - vel) * Math.min(1, dt * 0.7);
     const sv = vel / MAXV;
     yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw), dx = fx * vel * dt, dz = fz * vel * dt;
-    boat.position.x += dx; boat.position.z += dz;
+    boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
     stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz;
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
     const hC = waveJS(bx, bz, t), hF = waveJS(bx + fx * 3, bz + fz * 3, t), hB = waveJS(bx - fx * 3, bz - fz * 3, t), hS = waveJS(bx + sx * 2, bz + sz * 2, t), hP = waveJS(bx - sx * 2, bz - sz * 2, t);
@@ -628,6 +692,10 @@ paintStatus();
   seaU.time.value = t;
   stepEnv(t, dt);
   stepActions(t, dt);
+  stepCourse(t, dt);
+  { const off = stage._camera.position.clone().sub(stage._controls.target);
+    hud.update({ az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
+    if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
   requestAnimationFrame(tick);
@@ -646,4 +714,5 @@ stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
 if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the stick to sail · tap the boat for actions';
+else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
