@@ -581,7 +581,7 @@ const castEdge = new THREE.Mesh(new THREE.RingGeometry(CAST.max - 0.18, CAST.max
 const castIn = new THREE.Mesh(new THREE.RingGeometry(CAST.min - 0.1, CAST.min, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
 [castFill, castEdge, castIn].forEach(m => { m.rotation.x = -Math.PI / 2; castRing.add(m); });
 F.target = new THREE.Vector3();
-function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Tap the sea inside the circle to cast', '#bfefff'); paintStatus(); }
+function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Tap the sea inside the circle to cast', '#bfefff'); paintStatus(); fishCam(); }
 /** Cast to a spot (clamped into the ring). Returns false when not ready to cast. */
 function castAt(p) {
   if (ACT.fish !== 'aim' && ACT.fish !== 'waiting') return false;
@@ -593,11 +593,18 @@ function castAt(p) {
 function stopFishing() { if (ACT.fish === 'off') return; ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
 // while the anchor drops or comes up, the camera swings in close to the bow so you can watch it
 let anchorCamT = -1;
+// while fishing the camera looks at the boat broadside (bow to the right), from a little above
+const fishCam = () => { const side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); animCam(side.multiplyScalar(43).setY(30), 1.5, 1.2); };
 const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const focus = fwd.clone().multiplyScalar(ANC.x).addScaledVector(side, ANC.z);
   animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
-function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false); if (boatId === 'sail') floatText(boat.position.clone().setY(boat.position.y + 9), 'Lowering sails', '#fff7ea'); ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
-function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
+function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false);
+  // the sail boat anchors without the drop animation: it just holds position and furls its sails
+  if (boatId === 'sail') { ACT.anchor = 'down'; anchorG.visible = false; chain.visible = false; floatText(boat.position.clone().setY(boat.position.y + 9), 'Anchored · lowering sails', '#fff7ea'); paintStatus(); return; }
+  ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
+function raiseAnchor() { if (ACT.anchor !== 'down') return;
+  if (boatId === 'sail') { ACT.anchor = 'up'; anchorG.visible = true; anchorG.position.y = ANC.y0; floatText(boat.position.clone().setY(boat.position.y + 9), 'Hoisting sails', '#fff7ea'); paintStatus(); return; }
+  ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
 function stepActions(t, dt) {
   // ---- anchor ----
   const hawseY = FIT.hawseY;
@@ -680,7 +687,7 @@ function stepActions(t, dt) {
     F.k += dt / 0.7; const e = Math.min(1, F.k);
     if (bobber.visible) { bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.2; }
     rodPivot.scale.setScalar(Math.max(0.01, 1 - Math.max(0, e - 0.5) * 2));
-    if (e >= 1) { ACT.fish = 'off'; bobber.visible = false; fishLine.visible = false; rodPivot.visible = false; rodRot.rotation.z = restTilt; paintStatus(); }
+    if (e >= 1) { ACT.fish = 'off'; bobber.visible = false; fishLine.visible = false; rodPivot.visible = false; rodRot.rotation.z = restTilt; paintStatus(); setView(state.view); }
   } else if (ACT.fish === 'off') rodRot.rotation.z = restTilt;
   // line with sag
   if (fishLine.visible) {
