@@ -560,22 +560,22 @@ function stopFishing() { if (ACT.fish === 'off') return; ACT.fish = 'reelin'; F.
 let anchorCamT = -1;
 const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const focus = fwd.clone().multiplyScalar(ANC.x).addScaledVector(side, ANC.z);
-  animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 1.1, focus); anchorCamT = 0; };
+  animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
 function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false); ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
-function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = -0.5; A.up = false; anchorCam(); paintStatus(); }
+function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
 const fishNames = ['Mackerel', 'Sardine', 'Snapper', 'Tuna', 'Sea bass', 'Bluefish'];
 function stepActions(t, dt) {
   // ---- anchor ----
   const hawseY = 2.45;
   if (ACT.anchor === 'dropping') {
-    A.k += dt; const k = Math.max(0, A.k - 1.2); const d = Math.min(0.5 * 5 * k * k, 2.2 * k + 0.2); anchorG.position.y = ANC.y0 - d; anchorG.rotation.x = Math.sin(k * 7) * 0.25 * Math.max(0, 1 - k * 0.6);
+    A.k += dt; const k = Math.max(0, A.k - 0.5); const d = Math.min(0.5 * 10 * k * k, 6 * k); anchorG.position.y = ANC.y0 - d; anchorG.rotation.x = Math.sin(k * 7) * 0.25 * Math.max(0, 1 - k * 0.6);
     anchorG.getWorldPosition(tmpV);
     const wl = WL + waveJS(tmpV.x, tmpV.z, t);
     if (!A.splashed && k > 0.15 && tmpV.y - 0.45 * ANC.s < wl) { A.splashed = true; splash(tmpV.x, tmpV.z, 34, 1.4); floatText(tmpV.clone().setY(wl + 2.2), 'Splash!', '#bfefff'); }
     if (A.splashed) { A.bub -= dt; if (A.bub <= 0) { A.bub = 0.22; ripple(tmpV.x + (Math.random() - 0.5) * 0.6, tmpV.z + (Math.random() - 0.5) * 0.6, 0.3, 1.2); emit(tmpV.x, wl, tmpV.z, (Math.random() - 0.5) * 0.6, 0.8 + Math.random(), (Math.random() - 0.5) * 0.6); } }
     if (anchorG.position.y < -8) { ACT.anchor = 'down'; anchorG.visible = false; floatText(tmpV.clone().setY(wl + 2.2), 'Anchored', '#fff7ea'); paintStatus(); }
   } else if (ACT.anchor === 'raising') {
-    A.k += dt; anchorG.visible = true; anchorG.position.y = Math.min(ANC.y0, -8 + Math.max(0, A.k) * 3.2); anchorG.rotation.x = Math.sin(t * 5) * 0.12;
+    A.k += dt; anchorG.visible = true; anchorG.position.y = Math.min(ANC.y0, -8 + Math.max(0, A.k) * 4.6); anchorG.rotation.x = Math.sin(t * 5) * 0.12;
     anchorG.getWorldPosition(tmpV);
     const wl = WL + waveJS(tmpV.x, tmpV.z, t);
     if (tmpV.y > wl - 0.2 && tmpV.y < wl + 1.2 && Math.random() < 0.5) emit(tmpV.x, tmpV.y - 0.3, tmpV.z, (Math.random() - 0.5) * 0.4, -0.5, (Math.random() - 0.5) * 0.4);
@@ -588,7 +588,7 @@ function stepActions(t, dt) {
     for (let i = 0; i < n; i++) { const yy = hawseY - (i + 0.5) * LINK; linkP.set(ANC.x + sway * (hawseY - yy), yy, ANC.z); linkM.compose(linkP, linkQ[i & 1], linkS); chain.setMatrixAt(i, linkM); }
     chain.count = n; chain.instanceMatrix.needsUpdate = true; }
   // bring the camera back once the anchor has settled
-  if (anchorCamT >= 0 && (ACT.anchor === 'up' || ACT.anchor === 'down')) { anchorCamT += dt; if (anchorCamT > 1.4) { anchorCamT = -1; setView(state.view); } }
+  if (anchorCamT >= 0 && (ACT.anchor === 'up' || ACT.anchor === 'down')) { anchorCamT += dt; if (anchorCamT > 0.4) { anchorCamT = -1; setView(state.view); } }
   if (ACT.anchor === 'down') {
     vel *= Math.pow(0.05, dt); yaw += Math.sin(t * 0.25) * dt * 0.03;
     A.rip -= dt; if (A.rip <= 0) { A.rip = 1.6; anchorG.getWorldPosition(tmpV); const cw = new THREE.Vector3(ANC.x, 0, ANC.z).applyMatrix4(boat.matrixWorld); ripple(cw.x, cw.z, 0.45, 1.8); }
@@ -640,7 +640,7 @@ function stepActions(t, dt) {
     bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.5;
     rodRot.rotation.z = THREE.MathUtils.lerp(restTilt + 0.15, restTilt - 0.45, Math.sin(e * Math.PI));
     if (e >= 1) { fish.visible = false; bobber.visible = false; fishLine.visible = false; ACT.catch++; const nm = fishNames[Math.floor(Math.random() * fishNames.length)]; floatText(land.clone().setY(land.y + 1.5), '+1 ' + nm, '#7ff0c8'); for (let i = 0; i < 14; i++) emit(land.x, land.y, land.z, (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2); ACT.fish = 'recast'; F.k = 0; paintStatus(); }
-  } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'aim'; castAt(F.target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3))); } }
+  } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'aim'; floatText(boat.position.clone().setY(9), 'Tap the sea to cast again', '#bfefff'); paintStatus(); } } // after a catch: wait for the next cast
   else if (ACT.fish === 'aim') rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5);
   else if (ACT.fish === 'reelin') {
     F.k += dt / 0.7; const e = Math.min(1, F.k);

@@ -14,14 +14,14 @@ Sail. Discover. Connect.
 - A hand-built tug with cel shading and ink outlines: lighthouse tower, cabin, stack, fenders, pennant lines, ship's wheel and a spinning propeller.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
-- **Live time & weather** (on by default, switch in settings): a subtle handwritten (Caveat) chip shows Pune's time, date and day, and the sky follows Pune's real weather and daylight (Open-Meteo, no API key). Picking a time of day or weather by hand turns live mode off.
+- **Live time & weather** (on by default, switch in settings): a subtle chip (Calibri, falling back to the open Carlito font) shows Pune's time, date and day, with a sun or moon icon to match, and the sky follows Pune's real weather and daylight (Open-Meteo, no API key). Picking a time of day or weather by hand turns live mode off.
 - At night you get a realistic star field (thousands of stars of varied brightness and colour, twinkling more near the horizon, with a faint Milky Way), a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
-- **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (opens the map), zoom in/out and recenter.
+- **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (opens the map), and zoom in/out.
 - **Chase view** (default, ship's-wheel button): the camera sits behind the boat. Sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys, or tap the water to drop a course buoy and let the tug steer itself there.
 - **Top view** (target button): a wide, tilted view of the boat; the wheel hides, and tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu:
-  - **Go fishing**: a casting circle appears around the boat; tap anywhere in the sea inside it to cast there (tap again to recast), wait for a bite, reel in and keep a catch count.
-  - **Drop anchor** / **Raise anchor**: the camera swings to the bow to show the anchor and chain dropping into the sea or being hauled back up.
+  - **Go fishing**: a casting circle appears around the boat; tap anywhere in the sea inside it to cast there (tap again to recast), wait for a bite and reel in; after each catch it waits for your next cast. A catch count is kept.
+  - **Drop anchor** / **Raise anchor**: the camera swings to the bow to show the anchor and chain dropping into the sea or being hauled back up (about 3 seconds each).
 - Export the boat as OBJ + MTL or GLB (desktop/web only).
 - Phone and tablet layouts that respect safe areas and work in portrait and landscape.
 

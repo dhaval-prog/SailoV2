@@ -64,8 +64,6 @@ export function initHud(api) {
   dock.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { api.setView(b.dataset.v); paint(); }));
   dock.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => api.zoomBy(b.dataset.z === 'in' ? 0.7 : 1.45)));
   $('dk-compass').addEventListener('click', () => setMap(true));
-  const center = $('dk-center');
-  center.addEventListener('click', () => { api.recenter(); center.classList.remove('pulse'); void center.offsetWidth; center.classList.add('pulse'); });
   $('dk-shot').addEventListener('click', () => {
     const canvas = api.stage.shadowRoot.querySelector('canvas');
     const shutter = $('shutter');
@@ -96,11 +94,24 @@ export function initHud(api) {
   liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setWeather(prefs.w); paint(); } });
   const tick = () => {
     const c = clock(), key = c.time + c.date;
-    if (key !== lastClock) { clkTime.textContent = c.time; clkDate.textContent = `${c.date} · ${PLACE.name}`; lastClock = key; applyLive(); }
+    if (key !== lastClock) { clkTime.textContent = c.time; clkDate.textContent = `${c.date} · ${PLACE.name}`; lastClock = key; applyLive(); paintWxIcon(); }
+  };
+  // weather icon: the settings icon by day; at night a moon replaces the sun (clear) or peeks from behind the cloud (cloudy)
+  const MOON = '<path d="M30 10a12 12 0 1 0 9 19 10 10 0 0 1-9-19Z" fill="#dfe6ff" stroke="#aab8e8"/>';
+  const NIGHT_ICONS = {
+    clear: `<svg viewBox="0 0 48 48">${MOON}<path d="M11 13v3M9.5 14.5h3M38 34v2M37 35h2" stroke="#dfe6ff" stroke-width="1.5"/></svg>`,
+    cloudy: '<svg viewBox="0 0 48 48"><path d="M33 7a9 9 0 1 0 7 14 7.5 7.5 0 0 1-7-14Z" fill="#dfe6ff" stroke="#aab8e8"/><path d="M14 36h20a7 7 0 0 0 0-14 10 10 0 0 0-19 2 6 6 0 0 0-1 12Z" fill="#cfd8e6" stroke="#8b9ab3"/></svg>',
+  };
+  let iconKey = '';
+  const paintWxIcon = () => {
+    if (!wx) return;
+    const night = isNight(clock().mins, wx), key = wx.preset + night; if (key === iconKey) return; iconKey = key;
+    if (night && NIGHT_ICONS[wx.preset]) clkIco.innerHTML = NIGHT_ICONS[wx.preset];
+    else { const ico = document.querySelector(`.wx[data-w="${wx.preset}"] svg`); if (ico) clkIco.replaceChildren(ico.cloneNode(true)); }
   };
   const refreshWx = async () => {
     const w = await fetchWeather(); if (!w) return;
-    wx = w; clkWx.hidden = false; const ico = document.querySelector(`.wx[data-w="${w.preset}"] svg`); if (ico) clkIco.replaceChildren(ico.cloneNode(true));
+    wx = w; clkWx.hidden = false; paintWxIcon();
     clkWxt.textContent = `${w.tempC != null ? w.tempC + '°C ' : ''}${WX_LABEL[w.preset]}`;
     applyLive();
   };
