@@ -17,11 +17,19 @@ const SHOW = 2200;           // metres: island drawn inside this range
 
 // ---- fish, prices and the economy (values from the station file) ----
 export const FISH = [
-  { id: 'sardine', name: 'Sardine', price: 4, kg: 0.12, len: 0.55, h: 0.2, w: 0.1, back: '#245c6e', side: '#b8c9d3', belly: '#f3f6f7', fin: '#8aa4b2', pat: 'spots', odds: 34 },
-  { id: 'mackerel', name: 'Mackerel', price: 9, kg: 0.45, len: 0.8, h: 0.22, w: 0.13, back: '#1c5652', side: '#a7c0c4', belly: '#f4f4ee', fin: '#55767a', pat: 'bars', odds: 28 },
-  { id: 'snapper', name: 'Red Snapper', price: 16, kg: 1.6, len: 0.82, h: 0.36, w: 0.14, back: '#b02c24', side: '#e8735f', belly: '#fbd6c8', fin: '#d4473a', pat: 'none', hump: 0.18, odds: 19 },
-  { id: 'puffer', name: 'Pufferfish', price: 24, kg: 0.9, len: 0.6, h: 0.5, w: 0.48, back: '#7b6a38', side: '#d8c88a', belly: '#f7f2e0', fin: '#c0a865', pat: 'dots', puffer: true, odds: 12 },
-  { id: 'tuna', name: 'Yellowfin Tuna', price: 42, kg: 8.5, len: 1.25, h: 0.32, w: 0.24, back: '#142c58', side: '#9fb2c6', belly: '#eef2f4', fin: '#f0c128', pat: 'tuna', odds: 7 },
+  { id: 'sardine', name: 'Sardine', price: 4, kg: 0.12, len: 0.55, h: 0.2, w: 0.1, back: '#245c6e', side: '#b8c9d3', belly: '#f3f6f7', fin: '#8aa4b2', pat: 'spots', odds: 24 },
+  { id: 'mackerel', name: 'Mackerel', price: 9, kg: 0.45, len: 0.8, h: 0.22, w: 0.13, back: '#1c5652', side: '#a7c0c4', belly: '#f4f4ee', fin: '#55767a', pat: 'bars', odds: 20 },
+  { id: 'snapper', name: 'Red Snapper', price: 16, kg: 1.6, len: 0.82, h: 0.36, w: 0.14, back: '#b02c24', side: '#e8735f', belly: '#fbd6c8', fin: '#d4473a', pat: 'none', hump: 0.18, odds: 14 },
+  { id: 'puffer', name: 'Pufferfish', price: 24, kg: 0.9, len: 0.6, h: 0.5, w: 0.48, back: '#7b6a38', side: '#d8c88a', belly: '#f7f2e0', fin: '#c0a865', pat: 'dots', puffer: true, odds: 9 },
+  { id: 'tuna', name: 'Yellowfin Tuna', price: 42, kg: 8.5, len: 1.25, h: 0.32, w: 0.24, back: '#142c58', side: '#9fb2c6', belly: '#eef2f4', fin: '#f0c128', pat: 'tuna', odds: 5 },
+  { id: 'cod', name: 'Cod', price: 14, kg: 3.5, len: 1.0, h: 0.28, w: 0.2, back: '#6b6a3e', side: '#b8b27f', belly: '#efece0', fin: '#7d7a4c', pat: 'speckle', barbel: true, odds: 6 },
+  { id: 'flounder', name: 'Flounder', price: 12, kg: 1.2, len: 0.75, h: 0.5, w: 0.07, back: '#7a5f3e', side: '#9c8058', belly: '#f2ebdf', fin: '#8a6e48', pat: 'speckle', flat: true, odds: 7 },
+  { id: 'barracuda', name: 'Barracuda', price: 35, kg: 6, len: 1.45, h: 0.2, w: 0.15, back: '#3c5a6e', side: '#c3ced6', belly: '#f2f5f6', fin: '#4a6272', pat: 'barra', odds: 4 },
+  { id: 'mahi', name: 'Mahi-Mahi', price: 48, kg: 9, len: 1.3, h: 0.4, w: 0.16, back: '#1d8f6a', side: '#9fd148', belly: '#ffe14a', fin: '#2a9fd8', pat: 'mahi', hump: 0.3, odds: 3 },
+  { id: 'swordfish', name: 'Swordfish', price: 95, kg: 65, len: 1.7, h: 0.36, w: 0.26, back: '#2b3448', side: '#7c8696', belly: '#d7dbe2', fin: '#3a4256', pat: 'none', bill: 0.65, odds: 1 },
+  { id: 'sailfish', name: 'Sailfish', price: 120, kg: 45, len: 1.65, h: 0.3, w: 0.2, back: '#142d6e', side: '#7f97c4', belly: '#e9eef6', fin: '#22418f', pat: 'sail', bill: 0.5, sail: true, odds: 0.5 },
+  { id: 'permit', name: 'Permit', price: 55, kg: 8, len: 0.95, h: 0.62, w: 0.15, back: '#5f6e7a', side: '#d6dde2', belly: '#f3f2ea', fin: '#3c4652', pat: 'none', hump: 0.12, odds: 2.5 },
+  { id: 'johndory', name: 'John Dory', price: 32, kg: 2.5, len: 0.8, h: 0.62, w: 0.12, back: '#8a7a4e', side: '#cbbf93', belly: '#ece4c8', fin: '#7d6c40', pat: 'dory', odds: 4 },
 ];
 const SAVE = 'sailo:economy', FUEL_PRICE = 2;
 // each boat has its own tank, hold and top speed; burn = engine use per metre relative to the tug
@@ -174,6 +182,13 @@ export function initStation(ctx) {
       if (f.pat === 'spots' && y > 0.05 && y < 0.35 && x > -0.1 && Math.sin(x * 38) > 0.82) c.lerp(dk, 0.55);
       if (f.pat === 'tuna' && y > 0.1 && y < 0.28) c.lerp(gold, 0.55);
       if (f.pat === 'dots' && y > -0.15 && Math.sin(x * 22) * Math.sin(z * 22 + x * 5) > 0.55) c.lerp(brown, 0.7);
+      if (f.pat === 'speckle' && y > -0.1 && Math.sin(x * 47 + z * 13) * Math.sin(y * 39 - z * 21) > 0.62) c.lerp(brown, 0.45); // cod, flounder
+      if (f.pat === 'barra' && y > 0.05 && y < 0.6 && Math.sin(x * 19) > 0.55) c.lerp(dk, 0.55); // barracuda bars
+      if (f.pat === 'barra' && y < 0.05 && y > -0.35 && Math.sin(x * 31 + y * 9) > 0.86) c.lerp(dk, 0.6); // and spots low on the flank
+      if (f.pat === 'mahi' && y > -0.2 && Math.sin(x * 33 + z * 17) * Math.sin(y * 29) > 0.7) c.lerp(new THREE.Color('#2a6fd8'), 0.6); // blue flecks
+      if (f.pat === 'sail' && y > -0.1 && y < 0.5 && Math.sin(x * 24) > 0.7) c.lerp(new THREE.Color('#5fb0ff'), 0.5); // sailfish blue bars
+      if (f.pat === 'dory' && Math.hypot(x - 0.02, y) < 0.2 && Math.abs(z) > 0.3) c.copy(dk).lerp(c, 0.25); // John Dory's dark 'thumbprint' with a pale ring
+      else if (f.pat === 'dory' && Math.hypot(x - 0.02, y) < 0.28 && Math.abs(z) > 0.3) c.lerp(new THREE.Color('#fff6d8'), 0.6);
       if (Math.abs(u - 0.78) < 0.012 && !f.puffer) c.multiplyScalar(0.6);
       if (u > 0.8) c.multiplyScalar(0.92);
       col.push(c.r, c.g, c.b);
@@ -185,10 +200,14 @@ export function initStation(ctx) {
     const T = H * (f.id === 'tuna' ? 1.05 : 0.75), Lt = L * (f.puffer ? 0.16 : 0.22), fork = f.puffer ? -Lt * 1.35 : f.id === 'snapper' ? -Lt * 0.8 : -Lt * 0.45;
     const tail = new THREE.Mesh(fishShape([[L * 0.03, -0.06 * T], [-Lt, -T * 0.55], [-Lt, T * 0.55, fork, 0], [L * 0.03, 0.06 * T]]), finM); tail.name = 'tail'; tail.position.x = -L / 2 + L * 0.04; g.add(tail);
     if (!f.puffer) {
-      const Hd = H * (f.id === 'snapper' ? 0.42 : 0.3);
+      const Hd = H * (f.id === 'snapper' ? 0.42 : f.id === 'johndory' ? 0.55 : f.id === 'mahi' ? 0.36 : f.flat ? 0.12 : 0.3);
       const dors = new THREE.Mesh(fishShape([[0.17 * L, 0], [0.07 * L, Hd], [-0.17 * L, 0.02, -0.04 * L, Hd * 0.55]]), finM); dors.position.y = H / 2 * 0.88 * (1 + (f.hump || 0)); g.add(dors);
       const anal = new THREE.Mesh(fishShape([[-0.05 * L, 0], [-0.14 * L, -Hd * 0.6], [-0.3 * L, -0.01, -0.22 * L, -Hd * 0.35]]), finM); anal.position.y = -H / 2 * 0.75; g.add(anal);
       [-1, 1].forEach(s => { const pec = new THREE.Mesh(fishShape([[0, 0], [-0.17 * L, -0.06 * H, -0.12 * L, 0.06 * H], [-0.02 * L, -0.05 * H]]), finM); pec.position.set(0.24 * L, -0.1 * H, s * Wd / 2 * 0.82); pec.rotation.y = s * 0.45; g.add(pec); });
+      if (f.sail) { const sail = new THREE.Mesh(fishShape([[0.3 * L, 0], [0.22 * L, H * 1.5], [-0.05 * L, H * 1.25, 0.1 * L, H * 1.6], [-0.28 * L, 0.02]]), finM); sail.position.y = H / 2 * 0.85; g.add(sail); }
+      if (f.flat) { const fr = new THREE.Mesh(fishShape([[0.32 * L, 0], [0, H * 0.18, 0.2 * L, H * 0.2], [-0.36 * L, 0, -0.2 * L, H * 0.16]]), finM); fr.position.y = H / 2 * 0.92; g.add(fr); } // flounder's fringe fins
+      if (f.bill) { const bill = new THREE.Mesh(new THREE.ConeGeometry(H * 0.08, L * f.bill, 10), new THREE.MeshStandardMaterial({ color: f.back, roughness: 0.35, metalness: 0.2 })); bill.rotation.z = -Math.PI / 2; bill.position.set(L / 2 + L * f.bill / 2 - L * 0.04, H * 0.04, 0); g.add(bill); }
+      if (f.barbel) { const bb = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.002, H * 0.22, 5), finM); bb.position.set(L * 0.46, -H * 0.36, 0); g.add(bb); }
       if (f.id === 'tuna') for (let k = 0; k < 6; k++) [-1, 1].forEach(s => { const fl = new THREE.Mesh(fishShape([[0, 0], [-0.02 * L, s * 0.06 * H], [-0.04 * L, 0]]), finM); fl.position.set(-0.27 * L - k * 0.033 * L, s * H / 2 * (0.42 - k * 0.05), 0); g.add(fl); });
     } else {
       const spM = new THREE.MeshStandardMaterial({ color: '#efe3b8', roughness: 0.6 }), sp = new THREE.ConeGeometry(0.012, 0.06, 5);
@@ -222,7 +241,7 @@ export function initStation(ctx) {
     const mini = new THREE.WebGLRenderer({ antialias: true, alpha: true }); mini.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
     const studio = sc => { sc.add(new THREE.HemisphereLight('#ffffff', '#6b7b90', 1.25)); const d = new THREE.DirectionalLight('#fff2dc', 2.8); d.position.set(2, 5, 3); sc.add(d); const f2 = new THREE.DirectionalLight('#9fd8ff', 1.1); f2.position.set(-3, 2, -2); sc.add(f2); return sc; };
     { const sc = studio(new THREE.Scene()), cam = new THREE.PerspectiveCamera(28, 240 / 140, 0.1, 50); cam.position.set(0, 0.3, 4.2); cam.lookAt(0, 0, 0); mini.setPixelRatio(1); mini.setSize(240, 140, false);
-      FISH.forEach(f => { const m = fishModels[f.id].clone(); m.scale.setScalar((f.puffer ? 1.35 : 1.85) / f.len); m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
+      FISH.forEach(f => { const m = fishModels[f.id].clone(); m.scale.setScalar((f.puffer ? 1.35 : 1.85) / (f.len * (1 + 0.55 * (f.bill || 0)))); if (f.bill) m.position.x = -f.bill * 0.3; /* keep the bill in frame */ m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
       mini.setPixelRatio(Math.min(2, devicePixelRatio)); }
     // crate on ice
     const crateSc = studio(new THREE.Scene()), crateCam = new THREE.PerspectiveCamera(34, 1.6, 0.1, 50); crateCam.position.set(0, 3.0, 2.5); crateCam.lookAt(0, 0.05, 0.1);
@@ -290,7 +309,9 @@ export function initStation(ctx) {
       return `<div class="fishrow ${left ? '' : 'out'}"><img src="${f.img}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag">${f.price}c</span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
       : '<div class="rp-empty">Your hold is empty. Go fishing out at sea, then come back to sell.</div>';
     $('crateItems').innerHTML = inCrate.map(f => `<button class="cchip" data-act="dec" data-id="${f.id}" title="Put one back"><img src="${f.img}" alt=""><span>${f.name} ×${crate[f.id]}</span><b>−</b></button>`).join('');
-    $('needle').style.transform = `rotate(${-135 + 270 * Math.min(1, kg / 20)}deg)`; $('kgRead').textContent = kg.toFixed(1) + ' kg';
+    const range = kg > 20 ? 200 : 20; // big fish (swordfish, sailfish) switch the scale to 0-200 kg
+    $('needle').style.transform = `rotate(${-135 + 270 * Math.min(1, kg / range)}deg)`;
+    ui.querySelectorAll('#crateView .tlab').forEach((l, i) => { l.textContent = range / 4 * i; }); $('kgRead').textContent = kg.toFixed(1) + ' kg';
     countTo($('tillN'), total, 'c');
     const b = $('sellBtn'); b.disabled = !n; b.textContent = n ? `Sell ${n} fish for ${total}c` : 'Crate is empty';
   }
