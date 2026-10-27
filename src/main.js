@@ -343,7 +343,10 @@ const PRESET = {
 };
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
-const VIEWS = { chase: stage._camera.position.clone().sub(stage._controls.target), top: new THREE.Vector3(5, 62, 16) };
+// camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
+const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 33, side: 50, up: 100 } };
+const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
+stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
 let zoomAnim = null;
 const zoomBy = f => { const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
@@ -352,7 +355,7 @@ const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new 
 // interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
 const animCam = (to, ty1, dur = 1.3) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0 }; };
-const setView = v => { state.view = v; animCam(VIEWS[v].clone(), v === 'top' ? WL : 2.5); };
+const setView = v => { state.view = v; animCam(viewOffset(v), v === 'top' ? WL : 2.5); };
 const recenter = () => setView(state.view);
 const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };
 const E = { top: C('#33a8e8'), mid: C('#8cd9f5'), hor: C('#f0fcff'), tint: C('#ffffff'), cover: 0.32, dark: 0, amp: 1, fogN: 170, fogF: 390, cfade: 1, rain: 0, snow: 0, sun: 1, night: 0 };
@@ -720,6 +723,12 @@ stage._exportGlb = clean(stage._exportGlb.bind(stage));
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
 if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the wheel to sail · tap the boat for actions';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
+// the helm hint is a one-time guide: it fades after the first steer (or a few seconds) and stays hidden on later visits
+{ const hint = document.getElementById('hint'), KEY = 'sailo-hint-seen'; let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }
+  if (seen) hint.hidden = true;
+  else { let t; const done = () => { clearTimeout(t); try { localStorage.setItem(KEY, '1'); } catch { /* storage blocked */ } hint.classList.add('gone'); setTimeout(() => { hint.hidden = true; }, 500); removeEventListener('keydown', onKey); };
+    const onKey = e => { if (/^(w|a|s|d|arrow)/.test(e.key.toLowerCase())) done(); };
+    document.getElementById('joy').addEventListener('pointerdown', done, { once: true }); addEventListener('keydown', onKey); t = setTimeout(done, 8000); } }
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
