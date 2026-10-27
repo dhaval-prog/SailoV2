@@ -573,6 +573,17 @@ body.view-top #you-tag { opacity: 1; }
 .sheet-body h4 { margin: 6px 0 0; font: 700 12px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
 .sh-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
 .sh-card.locked { opacity: 0.5; }
+.sh-card.on { box-shadow: inset 0 0 0 2px var(--mint); }
+.sh-card .sh-btn { margin-left: auto; padding: 9px 12px; font-size: 13px; white-space: nowrap; }
+.seg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); }
+.seg3 button { border: 0; border-radius: 999px; padding: 9px 6px; background: none; color: rgba(255, 255, 255, 0.8); font: 700 13px/1 system-ui, sans-serif; cursor: pointer; }
+.seg3 button.on { background: var(--cream); color: var(--ink); }
+.sh-sw-row { display: flex; flex-direction: column; gap: 6px; } .sh-sw-row > span { font-size: 12px; color: rgba(255, 255, 255, 0.65); }
+.sh-sw { display: flex; flex-wrap: wrap; gap: 6px; }
+.sh-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; }
+.sh-swatch.on { outline: 3px solid #fff; outline-offset: 1px; }
+.sh-img-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .sh-img-row small { color: rgba(255, 255, 255, 0.55); }
+.sh-img-row .sh-btn { padding: 10px 14px; font-size: 13px; cursor: pointer; }
 .sh-card b { display: block; color: #fff; font-size: 15px; }
 .sh-card small { color: rgba(255, 255, 255, 0.6); }
 .sh-ico { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(160deg, #3fc1f0, #1c8cd6); }
