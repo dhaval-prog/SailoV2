@@ -1,13 +1,12 @@
 // Paradise Station: the harbour island from Paradise_Station_offline.html, placed out at sea.
-// - The island model (public/models/harbor-island.glb) is loaded, its tug removed, re-shaded with the
-//   game's toon materials and merged per material so ~1,000 meshes draw in a few dozen calls.
+// - The island is built in code exactly as in the source file (station-island.js): same look, crabs,
+//   swaying palms, waving flags, blinking beacon, lanterns and shore foam.
 // - The source scene was built for a tug at 60% scale, so the island is scaled up by 1/0.6 to fit ours.
 // - Sailing near it offers "Sail into port": pick a berth, the tug moors itself, and the Fish Market
 //   (sell your catch for coins) and Boathouse (buy fuel) open. "Cast off" sails back out.
 // - Economy (coins, fuel, fish hold) lives here and is saved in localStorage.
 
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { buildIsland } from './station-island.js';
 import './station.css';
 
 const MILE = 1609.344;
@@ -29,16 +28,6 @@ const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; 
 export const S = Object.assign({ coins: 60, fuel: 120, cap: 120, hold: {} }, load());
 const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch { /* storage blocked */ } };
 const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
-
-// colours of the source scene's materials, by name, so the island matches the game's toon look
-const MATS = {
-  sand: ['#e9a23a'], rock: ['#a7a198', { flatShading: true }], grass: ['#7cc94e'], palm_leaf: ['#3fae4a', { flatShading: true }], bush: ['#4cb94e', { flatShading: true }],
-  wood: ['#b5733a'], wood_light: ['#d49a55'], wood_dark: ['#6e4426'], rope: ['#e6cf9a'], roof_teal: ['#2cc4a8'], roof_trim: ['#1f9a86'],
-  paint_red: ['#ee3427'], paint_white: ['#fff7ea'], paint_navy: ['#2343a0'], paint_yellow: ['#ffb21a'], paint_orange: ['#ff7414'], metal: ['#a9b4c2'], rubber: ['#3b3134'],
-  lantern_glass: ['#ffe08a', { emissive: '#ffe08a', emissiveIntensity: 0.6 }], nav_red: ['#ff2a1f', { emissive: '#ff2a1f', emissiveIntensity: 1 }],
-  shell_pink: ['#ffc9b8'], starfish: ['#ff7a3d', { flatShading: true }],
-  pennant_0: ['#ee3427', { side: 2 }], pennant_1: ['#ffb21a', { side: 2 }], pennant_2: ['#2343a0', { side: 2 }], pennant_3: ['#fff7ea', { side: 2 }], pennant_4: ['#2cc4a8', { side: 2 }],
-};
 
 // the source island outline (same seed, same maths) for collisions
 const islandOutline = () => {
@@ -83,47 +72,10 @@ export function initStation(ctx) {
 
   // ---------- island model ----------
   const root = new THREE.Group(); root.name = 'paradise_station'; root.position.copy(O); root.scale.setScalar(K); root.visible = false; stage._scene.add(root);
-  const live = { palms: [], rowboats: [], posts: [], glass: [] };
-  const convert = new Map();
-  const toonFor = m => {
-    if (convert.has(m)) return convert.get(m);
-    const base = (m.name || '').replace(/_\d+$/, ''), spec = MATS[m.name] || MATS[base];
-    const extra = { ...(spec?.[1] || {}) };
-    if (extra.emissive) extra.emissive = new THREE.Color(extra.emissive);
-    if (m.map) extra.map = m.map;
-    if (m.vertexColors) extra.vertexColors = true;
-    const t = M(m.name || 'station', spec ? spec[0] : '#' + m.color.getHexString(), extra);
-    if (spec?.[1]?.emissive) live.glass.push(t);
-    convert.set(m, t); return t;
-  };
-  // the model (4.4 MB) is only fetched once the boat heads towards the station
-  let loading = false;
-  const loadIsland = () => { loading = true; new GLTFLoader().load('./models/harbor-island.glb', gltf => {
-    const src = gltf.scene.getObjectByName('harbor_island') || gltf.scene;
-    src.getObjectByName('tug_rig')?.removeFromParent();
-    src.updateMatrixWorld(true);
-    // keep animated parts as their own objects; merge everything else by material
-    const keep = new Set();
-    src.children.forEach(c => { if (/^palm_\d+$/.test(c.name)) { keep.add(c); live.palms.push({ g: c, ph: c.position.x * 0.37 + c.position.z * 0.11, q0: c.quaternion.clone() }); }
-      if (/^rowboat_\d+$/.test(c.name)) { keep.add(c); live.rowboats.push({ g: c, y0: c.position.y, ry: c.rotation.y, ph: c.position.x }); } });
-    src.traverse(o => { if (/^post_cap_\d+$/.test(o.name)) { const p = new V3(); o.getWorldPosition(p); live.posts.push(p); } });
-    const buckets = new Map(), singles = [];
-    src.traverse(o => {
-      if (!o.isMesh) return;
-      for (let p = o; p; p = p.parent) if (keep.has(p)) return;
-      if (Array.isArray(o.material)) { singles.push(o); return; }
-      const m = toonFor(o.material), g = o.geometry.clone().applyMatrix4(o.matrixWorld);
-      const ng = g.index ? g.toNonIndexed() : g;
-      Object.keys(ng.attributes).forEach(k => { if (k === 'position' || k === 'normal' || (k === 'uv' && m.map) || (k === 'color' && m.vertexColors)) return; ng.deleteAttribute(k); });
-      if (!ng.attributes.normal) ng.computeVertexNormals();
-      if (!buckets.has(m)) buckets.set(m, []); buckets.get(m).push(ng);
-    });
-    buckets.forEach((list, m) => { const merged = mergeGeometries(list, false); if (!merged) return; const mesh = new THREE.Mesh(merged, m); mesh.name = 'station_' + m.name; mesh.castShadow = false; mesh.receiveShadow = true; root.add(mesh); });
-    singles.forEach(o => { const w = o.matrixWorld.clone(); o.material = o.material.map(toonFor); o.removeFromParent(); w.decompose(o.position, o.quaternion, o.scale); root.add(o); });
-    [...live.palms.map(p => p.g), ...live.rowboats.map(r => r.g)].forEach(g => { g.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(toonFor) : toonFor(o.material); }); root.add(g); });
-    ready = true;
-  }, undefined, err => { loading = false; console.warn('[station] island model failed to load', err); }); };
-  let ready = false;
+  // built the first time the boat heads towards the station
+  let island = null, ready = false;
+  const build = () => { island = buildIsland({ THREE, M, scale: K, waveAt: (x, z, t) => waveJS(O.x + x * K, O.z + z * K, t) / K }); root.add(island.root); ready = true; };
+
 
   // ---------- DOM: wallet, dock bar, markers, toast, shop modal ----------
   const ui = document.createElement('div'); ui.className = 'stn'; document.body.appendChild(ui);
@@ -394,14 +346,11 @@ export function initStation(ctx) {
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function tick(t, dt) {
     const bp = ctx.boatPos(), dist = Math.hypot(bp.x - O.x, bp.z - O.z);
-    if (!loading && dist < 3500) loadIsland();
+    if (!island && dist < 3500) build();
     root.visible = ready && dist < SHOW;
     const wasNear = near; near = dist < NEAR; if (near !== wasNear && mode === 'sea') renderBar();
     if (root.visible) {
-      const wind = 0.75 + 0.25 * Math.sin(t * 0.21);
-      live.palms.forEach(p => { p.g.quaternion.copy(p.q0); p.g.rotateX(wind * 0.02 * Math.sin(t * 1.05 + p.ph)); p.g.rotateZ(wind * 0.016 * Math.sin(t * 0.8 + p.ph * 1.7)); });
-      live.rowboats.forEach(r => { const w = r.g.position; r.g.position.y = r.y0 + Math.sin(t * 1.3 + r.ph) * 0.05 / K; r.g.rotation.x = Math.sin(t * 1.1 + r.ph) * 0.045; r.g.rotation.z = Math.sin(t * 0.8 + r.ph * 2) * 0.025; void w; });
-      const night = ctx.night ? ctx.night() : 0; live.glass.forEach(m => { if (m.name.startsWith('lantern')) m.emissiveIntensity = 0.5 + 1.8 * night; });
+      island.tick(t, dt, ctx.night ? ctx.night() : 0, stage._camera);
     }
     // moor / leave: the station drives the boat along the route
     if (mode === 'docking' || mode === 'leaving') {
@@ -414,7 +363,7 @@ export function initStation(ctx) {
           const mid = toW(xa0 + 4, PZ - 4); frame(new V3((end.x + mid.x) / 2, WL + 2, (end.z + mid.z) / 2), 62, 40, 1.6);
           const b = ctx.boat; b.updateMatrixWorld(true);
           berth.tie = [new V3(3.7, 2.25, 2.1 * berth.side), new V3(-3.9, 2.4, 2.1 * berth.side)].map(local => { const w = b.localToWorld(local.clone()); let best = null, bd = 1e9;
-            live.posts.forEach(p => { const pw = new V3(O.x + p.x * K, WL + (p.y - 0.25) * K, O.z + p.z * K), d = pw.distanceTo(w); if (d < bd) { bd = d; best = pw; } }); return { local, post: best }; });
+            (island ? island.posts : []).forEach(p => { const pw = new V3(O.x + p.x * K, WL + (p.top - 0.25) * K, O.z + p.z * K), d = pw.distanceTo(w); if (d < bd) { bd = d; best = pw; } }); return { local, post: best }; });
         } else { mode = 'sea'; ctx.onDockEnd?.(); }
         renderBar();
       }

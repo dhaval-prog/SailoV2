@@ -3,7 +3,7 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
-import { initStation } from './station.js';
+import { initStation, STATION } from './station.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -199,11 +199,15 @@ const NOISE = `
   float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
     return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
   float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }`;
-const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 } };
+// calm, shallow water around Paradise Station (from the station file: calm ellipse and turquoise shallows, in island units x 1/0.6)
+const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATION.z + z * SK);
+const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
+const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 2) return 1; const k = Math.max(0, u - 1); return 0.12 + 0.88 * k * k * (3 - 2 * k); };
+const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
 const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.34, 0.2, 0.11, 0.05], WK = [0.18, 0.29, 0.52, 0.95], WS = [1.1, 1.5, 2.1, 2.9];
 const ENV = { amp: 1 };
-const waveJS = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i]); return s * ENV.amp; };
+const waveJS = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i]); return s * calmJS(x, z) * ENV.amp; };
 const WAVE_GLSL = `
   float waveH(vec2 p, float t){
     return 0.34 * sin(dot(normalize(vec2(1.0, 0.3)), p) * 0.18 + t * 1.1)
@@ -212,13 +216,14 @@ const WAVE_GLSL = `
          + 0.05 * sin(dot(normalize(vec2(0.2, 1.0)), p) * 0.95 + t * 2.9); }`;
 const makeSea = waves => new THREE.ShaderMaterial({
   name: 'sea', uniforms: seaU, defines: waves ? { WAVES: 1 } : {}, extensions: { derivatives: true },
-  vertexShader: `uniform float time; uniform vec2 bp; uniform float uAmp; varying vec3 wp; varying float vh; ${WAVE_GLSL}
+  vertexShader: `uniform float time; uniform vec2 bp; uniform float uAmp; uniform vec2 calmC; uniform vec2 calmR; varying vec3 wp; varying float vh; ${WAVE_GLSL}
     void main(){ wp = (modelMatrix * vec4(position, 1.0)).xyz; vh = 0.0;
       #ifdef WAVES
-      float f = 1.0 - smoothstep(45.0, 72.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp; wp.y += vh;
+      float calm = 0.12 + 0.88 * smoothstep(1.0, 2.0, length((wp.xz - calmC) / calmR));
+      float f = 1.0 - smoothstep(45.0, 72.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
       #endif
       gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
-  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; varying vec3 wp; varying float vh; ${NOISE}
+  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
       vec3 deep = vec3(0.07, 0.33, 0.66), mid = vec3(0.11, 0.55, 0.84), far = vec3(0.24, 0.76, 0.93), lite = vec3(0.36, 0.82, 0.96);
@@ -228,6 +233,9 @@ const makeSea = waves => new THREE.ShaderMaterial({
       col = mix(col, deep * 0.82, smoothstep(0.55, 0.72, blot) * 0.55);
       float glow = fbm(p * 0.05 + 7.3);
       col = mix(col, lite, smoothstep(0.6, 0.78, glow) * 0.45);
+      // turquoise shallows around Paradise Station
+      float sd = length((p - shoreC) / shoreR) + (fbm(p * 0.07) - 0.5) * 0.35, shl = 1.0 - smoothstep(0.82, 1.5, sd);
+      col = mix(col, vec3(0.2, 0.74, 0.86), shl * 0.9); col = mix(col, lite, smoothstep(0.5, 1.0, shl) * 0.55);
       float st = fbm(vec2(p.x * 0.09, p.y * 0.55) + vec2(time * 0.05, 0.0));
       col = mix(col, lite, smoothstep(0.66, 0.7, st) * 0.4);
       float cr = noise(vec2(p.x * 0.55 + time * 0.35, p.y * 2.8));
