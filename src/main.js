@@ -5,6 +5,7 @@ import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
 import { initStation, STATION } from './station.js';
 import { buildSailBoat } from './boats/sailboat.js';
+import { buildMotorYacht } from './boats/motoryacht.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -183,11 +184,13 @@ stage.setObject(boat);
 // ===== fleet: the tug and the sail boat share the player's boat group; one is shown at a time =====
 const tugModel = new THREE.Group(); tugModel.name = 'tug_model'; [...boat.children].forEach(c => tugModel.add(c)); boat.add(tugModel);
 const sailBoat = buildSailBoat({ THREE, M, emit: (...a) => emit(...a) }); sailBoat.group.visible = false; boat.add(sailBoat.group); outlines.push(...sailBoat.outlines);
+const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false; boat.add(motorYacht.group); outlines.push(...motorYacht.outlines);
 const BOATS = {
   tug: { name: 'Lighthouse Tug', outline, fit: { anchor: { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }, hawseY: 2.45, rod: [-3.9, 2.35, -1.35], land: [-3.0, 2.3, -0.4], menuY: 10.6 } },
   sail: { name: 'Sail Boat', outline: sailBoat.outline, fit: sailBoat.fit },
+  yacht: { name: 'Motor Yacht', outline: motorYacht.outline, fit: motorYacht.fit },
 };
-let boatId = 'tug'; try { if (localStorage.getItem('sailo:boat') === 'sail') boatId = 'sail'; } catch { /* storage blocked */ }
+let boatId = 'tug'; try { const b = localStorage.getItem('sailo:boat'); if (b === 'sail' || b === 'yacht') boatId = b; } catch { /* storage blocked */ }
 let FIT = BOATS[boatId].fit;
 
 // lighting: warm key, cool sky/ground wash, cyan back light
@@ -472,6 +475,7 @@ const hud = initHud({
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
   getBoat: () => boatId, boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   setBoat: id => { if (id === boatId) return true; if (ACT.anchor !== 'up' || ACT.fish !== 'off' || stationBusy()) return false; applyBoat(id); splash(boat.position.x, boat.position.z, 30, 1.2); floatText(boat.position.clone().setY(9), BOATS[boatId].name, '#7ff0c8'); return true; },
+  yachtFlag: () => ({ flag: motorYacht.flag, colours: motorYacht.flagColours, set: v => motorYacht.setFlag(v) }),
   sailStyle: () => ({ style: sailBoat.style, colours: sailBoat.styleColours, set: v => sailBoat.setStyle(v) }),
   setNight: n => { state.night = n; }, setWeather: w => { if (PRESET[w]) state.w = w; },
   exportModel: f => stage._runExport(f),
@@ -521,7 +525,7 @@ const rodPivot = new THREE.Group(); rodPivot.position.set(-3.9, 2.35, -1.35); ro
 // switch the active boat: swap the model and move the shared fittings (anchor, hawse pipe, fishing rod, hull foam)
 function applyBoat(id) {
   boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit;
-  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail';
+  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht';
   Object.assign(ANC, FIT.anchor); anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s);
   hawsePipe.position.set(ANC.x, FIT.hawseY + 0.03, ANC.z - 0.25 * ANC.s / 1.5);
   rodPivot.position.set(...FIT.rod);
@@ -834,6 +838,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     prop.rotation.x += (1.2 + Math.abs(vel) * 3) * dt * Math.sign(vel || 1);
     wheel.rotation.x = steerS * 2.6;
     if (boatId === 'sail') sailBoat.tick(t, dt, { steer: steerS, vel, anchor: ACT.anchor, night: E.night, amp: E.amp });
+    if (boatId === 'yacht') motorYacht.tick(t, dt, { steer: steerS, vel, night: E.night, amp: E.amp, maxV: MAXV });
     wakeT += dt;
     if (Math.abs(vel) > 0.6 && wakeT > 0.07) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }
   }

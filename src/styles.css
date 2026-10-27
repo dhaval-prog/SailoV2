@@ -577,6 +577,7 @@ body.view-top #you-tag { opacity: 1; }
 .sh-card .sh-btn { margin-left: auto; padding: 9px 12px; font-size: 13px; white-space: nowrap; }
 .seg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); }
 .seg3 button { border: 0; border-radius: 999px; padding: 9px 6px; background: none; color: rgba(255, 255, 255, 0.8); font: 700 13px/1 system-ui, sans-serif; cursor: pointer; }
+.seg3.seg2 { grid-template-columns: repeat(2, 1fr); }
 .seg3 button.on { background: var(--cream); color: var(--ink); }
 .sh-sw-row { display: flex; flex-direction: column; gap: 6px; } .sh-sw-row > span { font-size: 12px; color: rgba(255, 255, 255, 0.65); }
 .sh-sw { display: flex; flex-wrap: wrap; gap: 6px; }
