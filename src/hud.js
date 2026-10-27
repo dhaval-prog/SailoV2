@@ -228,6 +228,11 @@ export function initHud(api) {
   const SAIL = '<svg viewBox="0 0 32 32"><path d="M15 3v17M15 4c4.2 3.5 7 8.5 7.6 14H15M14 7c-2.6 3-4.4 6.8-4.8 11H14"/><path d="M4 21.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
   const YACHT = '<svg viewBox="0 0 32 32"><path d="M9 13h9l3 4H7z"/><path d="M12 13V9h5l2 4M19 9V6"/><path d="M3 18h26l-3 5.2a2 2 0 0 1-1.7 1H7.6a2 2 0 0 1-1.7-1z"/></svg>';
   const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' }, dinghy: { ico: SAIL, sub: 'Daysailer with tall mast and genoa · heels under sail' } };
+  // fish collection: every species you've caught, with your count and heaviest fish; the rest are silhouettes
+  const collectionUI = () => { const fc = api.fishCollection(), got = FISH.filter(f => fc.log[f.id]).length;
+    return `<h4>Fish collection · ${got} / ${FISH.length} species</h4><div class="sh-fishes">${FISH.map(f => { const r = fc.log[f.id], st = fc.stars(f);
+      return `<div class="sh-fish${r ? '' : ' locked'}" title="${r ? f.name : 'Not caught yet'}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
+        <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : 'Not caught yet'}</small></div>`; }).join('')}</div>`; };
   const openGarage = () => {
     try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
@@ -255,6 +260,7 @@ export function initHud(api) {
       ${boats.map(card).join('')}
       <div class="sh-msg" id="sh-fleet-msg" hidden></div>
       <div class="sh-stats"><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div></div>
+      ${collectionUI()}
       ${styleUI}
       ${flagUI}
       ${dinghyUI}`);
