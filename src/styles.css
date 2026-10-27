@@ -416,10 +416,11 @@ body.view-top.has-course #course-hint { opacity: 0; transform: translate(-50%, 1
   transition: opacity 0.3s;
 }
 body.view-top #you-tag { opacity: 1; }
-.you-chip { padding: 6px 11px; border-radius: 10px; background: rgba(21, 32, 66, 0.9); color: #fff; font: 700 13px/1 system-ui, sans-serif; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }
-.you-ring { position: relative; width: 42px; height: 42px; border-radius: 50%; padding: 3px; background: var(--coral); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
-.you-ring svg { width: 100%; height: 100%; border-radius: 50%; }
-.you-ring b { position: absolute; right: -6px; bottom: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--ink); color: #fff; font: 800 11px/20px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px var(--mint); }
+/* top view: only the level number shows over the boat */
+.you-chip { display: none; padding: 6px 11px; border-radius: 10px; background: rgba(21, 32, 66, 0.9); color: #fff; font: 700 13px/1 system-ui, sans-serif; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }
+.you-ring { position: relative; }
+.you-ring svg { display: none; }
+.you-ring b { display: block; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; background: var(--ink); color: #fff; font: 800 13px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px var(--mint), 0 4px 10px rgba(0, 0, 0, 0.3); }
 
 /* ---------- boat menu + status ---------- */
 #boatmenu {
@@ -430,16 +431,17 @@ body.view-top #you-tag { opacity: 1; }
   display: none;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  transform: translate(-50%, -100%);
+  gap: 4px;
+  transform: translate(-50%, 0); /* hangs below the boat */
   pointer-events: auto;
 }
 #boatmenu .actions {
   display: flex;
-  gap: 6px;
-  padding: 9px 8px; /* room for a card to zoom without being clipped */
+  gap: 5px;
+  padding: 8px 7px; /* room for a card to zoom without being clipped */
   /* carousel: four cards in view, swipe or use the arrows for the rest */
-  max-width: calc(4 * 112px + 3 * 6px + 20px);
+  max-width: calc(4 * 92px + 3 * 5px + 16px);
+  cursor: grab;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding: 8px;
@@ -447,19 +449,19 @@ body.view-top #you-tag { opacity: 1; }
   scrollbar-width: none;
   touch-action: pan-x;
   box-sizing: border-box;
-  border-radius: 20px;
+  border-radius: 16px;
   background: rgba(10, 40, 80, 0.55);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border: 2px solid rgba(255, 255, 255, 0.8);
   animation: pop 0.35s var(--spring);
 }
-@keyframes pop { from { opacity: 0; transform: scale(0.85) translateY(8px); } }
+@keyframes pop { from { opacity: 0; transform: scale(0.85) translateY(-8px); } }
 #boatmenu .action {
   border: 0;
-  border-radius: 14px;
-  padding: 7px 10px;
-  font: 650 12px/1.15 system-ui, sans-serif;
+  border-radius: 11px;
+  padding: 6px 8px;
+  font: 650 10.5px/1.15 system-ui, sans-serif;
   cursor: pointer;
   background: var(--cream);
   color: var(--ink);
@@ -467,7 +469,7 @@ body.view-top #you-tag { opacity: 1; }
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  flex: 0 0 112px;
+  flex: 0 0 92px;
   scroll-snap-align: start;
   text-align: left;
   box-shadow: 0 2px 0 var(--ink);
@@ -476,15 +478,15 @@ body.view-top #you-tag { opacity: 1; }
 }
 /* zoom on hover (mouse) or long press (touch) */
 #boatmenu .action:hover, #boatmenu .action:focus-visible, #boatmenu .action.zoom { transform: scale(1.14); position: relative; z-index: 2; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 2px 0 var(--ink); }
-#boatmenu .sub { font: 500 9.5px/1.2 system-ui, sans-serif; color: #4a5878; }
+#boatmenu .sub { font: 500 8.5px/1.2 system-ui, sans-serif; color: #4a5878; }
 #boatmenu .actions::-webkit-scrollbar { display: none; }
 #boatmenu { position: fixed; }
-#boatmenu .car-nav { position: absolute; top: calc(50% - 20px); width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
+#boatmenu .car-nav { position: absolute; top: calc(50% - 7px); width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
 #boatmenu .car-nav[hidden] { display: none; }
-#boatmenu .car-nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+#boatmenu .car-nav svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 #boatmenu .car-nav.prev { left: -12px; }
 #boatmenu .car-nav.next { right: -12px; }
-#boatmenu .arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid rgba(255, 255, 255, 0.8); }
+#boatmenu .arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid rgba(255, 255, 255, 0.8); }
 
 #fxlayer { position: fixed; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
 #status {
@@ -577,6 +579,13 @@ body.view-top #you-tag { opacity: 1; }
 .sh-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
 .sh-card.locked { opacity: 0.5; }
 .sh-card.on { box-shadow: inset 0 0 0 2px var(--mint); }
+.sh-card.empty { opacity: 0.75; }
+.sh-boat { min-width: 0; }
+.sh-specs { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font: 700 11.5px/1.2 system-ui, sans-serif; color: rgba(255, 255, 255, 0.85); font-variant-numeric: tabular-nums; }
+.sh-specs span { display: inline-flex; align-items: center; gap: 5px; }
+.sh-fuel { display: inline-block; width: 34px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.sh-fuel i { display: block; height: 100%; background: var(--mint); } .sh-fuel i.low { background: var(--coral); }
+.sh-warn { display: block; margin-top: 4px; color: #ffb39f !important; font-weight: 700; }
 .sh-card .sh-btn { margin-left: auto; padding: 9px 12px; font-size: 13px; white-space: nowrap; }
 .seg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); }
 .seg3 button { border: 0; border-radius: 999px; padding: 9px 6px; background: none; color: rgba(255, 255, 255, 0.8); font: 700 13px/1 system-ui, sans-serif; cursor: pointer; }
@@ -754,7 +763,7 @@ body.view-top #you-tag { opacity: 1; }
   #course-hint { bottom: calc(18px + var(--safe-b)); left: calc(50% - 30px); font-size: 12px; }
   #boatmenu .actions { gap: 6px; padding: 6px; }
   #boatmenu .actions { max-width: calc(100vw - 24px); }
-  #boatmenu .action { flex-basis: min(30vw, 112px); padding: 7px 9px; }
+  #boatmenu .action { flex-basis: min(26vw, 92px); padding: 6px 8px; }
 }
 
 /* landscape phones: keep the controls compact on short screens */

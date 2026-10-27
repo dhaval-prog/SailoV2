@@ -23,11 +23,31 @@ export const FISH = [
   { id: 'puffer', name: 'Pufferfish', price: 24, kg: 0.9, len: 0.6, h: 0.5, w: 0.48, back: '#7b6a38', side: '#d8c88a', belly: '#f7f2e0', fin: '#c0a865', pat: 'dots', puffer: true, odds: 12 },
   { id: 'tuna', name: 'Yellowfin Tuna', price: 42, kg: 8.5, len: 1.25, h: 0.32, w: 0.24, back: '#142c58', side: '#9fb2c6', belly: '#eef2f4', fin: '#f0c128', pat: 'tuna', odds: 7 },
 ];
-const SAVE = 'sailo:economy', FUEL_PRICE = 2, HOLD_CAP = 30;
+const SAVE = 'sailo:economy', FUEL_PRICE = 2;
+// each boat has its own tank, hold and top speed; burn = engine use per metre relative to the tug
+export const BOAT_SPECS = {
+  tug: { fuel: 120, hold: 30, kn: 12, burn: 1 },
+  sail: { fuel: 60, hold: 16, kn: 15, burn: 0.45 },
+  yacht: { fuel: 240, hold: 45, kn: 22, burn: 1.9 },
+  dinghy: { fuel: 20, hold: 8, kn: 9, burn: 0.25 },
+};
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; } catch { return {}; } };
-export const S = Object.assign({ coins: 60, fuel: 120, cap: 120, hold: {} }, load());
-const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch { /* storage blocked */ } };
+const saved = load();
+// coins are shared; fuel and the fish hold belong to each boat (older saves move onto the tug)
+export const S = { coins: saved.coins ?? 60, active: saved.active || 'tug', boats: saved.boats || { tug: { fuel: saved.fuel ?? 120, hold: saved.hold || {} } } };
+Object.keys(BOAT_SPECS).forEach(id => { S.boats[id] = Object.assign({ fuel: BOAT_SPECS[id].fuel, hold: {} }, S.boats[id]); S.boats[id].fuel = Math.min(BOAT_SPECS[id].fuel, S.boats[id].fuel); });
+if (!BOAT_SPECS[S.active]) S.active = 'tug';
+// S.fuel, S.cap and S.hold always mean the active boat's
+Object.defineProperties(S, {
+  fuel: { get: () => S.boats[S.active].fuel, set: v => { S.boats[S.active].fuel = v; }, enumerable: false },
+  cap: { get: () => BOAT_SPECS[S.active].fuel, enumerable: false },
+  hold: { get: () => S.boats[S.active].hold, enumerable: false },
+  holdCap: { get: () => BOAT_SPECS[S.active].hold, enumerable: false },
+});
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ coins: S.coins, active: S.active, boats: S.boats })); } catch { /* storage blocked */ } };
 const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
+/** Fuel and hold for any boat, for the Garage. */
+export const boatStatus = id => { const b = S.boats[id], sp = BOAT_SPECS[id]; return { fuel: b.fuel, cap: sp.fuel, fish: FISH.reduce((a, f) => a + (b.hold[f.id] || 0), 0), holdCap: sp.hold, kn: sp.kn }; };
 
 // the source island outline (same seed, same maths) for collisions
 const islandOutline = () => {
@@ -292,7 +312,7 @@ export function initStation(ctx) {
     renderWallet();
   }
   function updateBoathouse() {
-    const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${HOLD_CAP}`; $('holdFill').style.width = (n / HOLD_CAP * 100) + '%';
+    const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${S.holdCap}`; $('holdFill').style.width = (n / S.holdCap * 100) + '%';
     $('slots').innerHTML = FISH.map(f => `<div class="slot ${S.hold[f.id] ? '' : 'zero'}"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${f.img}" alt=""><span>${f.name}</span></div>`).join('');
     updatePumpUI();
   }
@@ -323,7 +343,9 @@ export function initStation(ctx) {
     if (mode !== 'docked') return;
     const k = kit(); wireMini(); panel = id; crate = {}; const card = $('card'); card.className = 'rp ' + id; card.innerHTML = id === 'market' ? marketShell() : boathouseShell(); $('stn-modal').hidden = false; stage._controls.enabled = false;
     if (id === 'market') { crateFish.forEach(c => k.crateSc.remove(c.m)); crateFish = []; attachMini($('crateView'), k.crateSc, k.crateCam); updateMarket(); }
-    else { attachMini($('tugViewHost'), k.tugSc, k.tugCam); showL = 0; updateBoathouse(); $('nozzle').addEventListener('pointerdown', e => { e.preventDefault(); startPump(); }); }
+    else { // show the boat you're sailing now
+      k.tugView.clear(); const cl = ctx.boat.clone(true); cl.position.set(0, 0, 0); cl.rotation.set(0, 0, 0); cl.traverse(x => { if (x.isLight || x.isLine || (x.material && x.material.blending === THREE.AdditiveBlending)) x.visible = false; }); k.tugView.add(cl);
+      attachMini($('tugViewHost'), k.tugSc, k.tugCam); showL = 0; updateBoathouse(); $('nozzle').addEventListener('pointerdown', e => { e.preventDefault(); startPump(); }); }
   }
   function closePanel() { stopPump(); panel = null; miniHost = null; $('stn-modal').hidden = true; stage._controls.enabled = true; }
   $('card').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return; const a = b.dataset.act, id = b.dataset.id;
@@ -390,14 +412,16 @@ export function initStation(ctx) {
     tick, blocked,
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
-    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - metres * (0.35 + 0.65 * thr) / 150);
-      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast('Fuel is low. Refuel at Paradise Station (3.7 mi W, 1.1 mi S).'); }
+    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - metres * (0.35 + 0.65 * thr) / 150 * BOAT_SPECS[S.active].burn);
+      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast('Fuel is low. Refuel at Paradise Station (3.7 mi W, 1.1 mi S).'); }
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },
     /** A fish was landed: pick a species by its odds and put it in the hold. Returns the fish, or null if the hold is full. */
-    addCatch() { if (holdCount() >= HOLD_CAP) { toast(`Hold full (${HOLD_CAP} fish). Sell your catch at Paradise Station.`); return null; }
+    addCatch() { if (holdCount() >= S.holdCap) { toast(`Hold full (${S.holdCap} fish). Sell your catch at Paradise Station, or switch boats.`); return null; }
       let r = Math.random() * FISH.reduce((a, f) => a + f.odds, 0), f = FISH[0]; for (const x of FISH) { r -= x.odds; if (r <= 0) { f = x; break; } }
       S.hold[f.id] = (S.hold[f.id] || 0) + 1; save(); return f; },
+    /** Make another boat the active one (its own tank and hold). */
+    setActive(id) { if (!BOAT_SPECS[id]) return; S.active = id; save(); renderWallet(); },
     shoreWarn() { const now = performance.now(); if (now - lastWarn > 3000) { lastWarn = now; toast('Too shallow! Steer around the island.'); } },
   };
 }

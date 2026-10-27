@@ -3,7 +3,7 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
-import { initStation, STATION } from './station.js';
+import { initStation, STATION, BOAT_SPECS, boatStatus } from './station.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
@@ -478,8 +478,14 @@ function stepEnv(t, dt) {
 const hud = initHud({
   stage, getState: () => state, setView, zoomBy, faceNorth, recenter,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
-  getBoat: () => boatId, boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
-  setBoat: id => { if (id === boatId) return true; if (ACT.anchor !== 'up' || ACT.fish !== 'off' || stationBusy()) return false; applyBoat(id); startDropIn(); floatText(boat.position.clone().setY(11), BOATS[boatId].name, '#7ff0c8'); return true; },
+  boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
+  getBoat: () => sinkOut ? sinkOut.id : boatId,
+  boatStatus,
+  // switching: not mid-animation, at anchor, while fishing or while mooring / leaving; an empty boat can only be taken out at Paradise Station (to refuel it)
+  setBoat: id => { const cur = sinkOut ? sinkOut.id : boatId; if (id === cur) return 'ok'; if (sinkOut || dropIn) return 'busy';
+    if (ACT.anchor !== 'up' || ACT.fish !== 'off' || station.mode === 'docking' || station.mode === 'leaving' || station.mode === 'picking') return 'busy';
+    if (boatStatus(id).fuel <= 0.05 && station.mode !== 'docked') return 'nofuel';
+    swapBoat(id); return 'ok'; },
   dinghySail: () => ({ sail: dinghy.sail, colours: dinghy.sailColours, set: v => dinghy.setSail(v) }),
   yachtFlag: () => ({ flag: motorYacht.flag, colours: motorYacht.flagColours, set: v => motorYacht.setFlag(v) }),
   sailStyle: () => ({ style: sailBoat.style, colours: sailBoat.styleColours, set: v => sailBoat.setStyle(v) }),
@@ -508,7 +514,7 @@ addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
   base.addEventListener('pointermove', e => e.pointerId === id && move(e));
   const end = e => { if (e.pointerId !== id) return; id = null; base.classList.remove('active'); drive.jx = drive.jy = 0; knob.style.transform = 'translate(0px, 0px)'; };
   base.addEventListener('pointerup', end); base.addEventListener('pointercancel', end); }
-let yaw = 0, vel = 0, steerS = 0, lastT = 0; const MAXV = 6;
+let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
 // ===== boat actions: fishing + anchor =====
@@ -528,9 +534,10 @@ const linkM = new THREE.Matrix4(), linkQ = [new THREE.Quaternion(), new THREE.Qu
 const hawsePipe = add('hawse_pipe', new THREE.CylinderGeometry(0.12, 0.12, 0.5, 12), mat.rubber, ANC.x, 2.48, ANC.z - 0.25); hawsePipe.rotation.x = Math.PI / 2;
 // fishing rod (stern, port side)
 const rodPivot = new THREE.Group(); rodPivot.position.set(-3.9, 2.35, -1.35); rodPivot.visible = false; boat.add(rodPivot);
+let onBoatApplied = null; // set once the station (which owns fuel and holds) exists
 // switch the active boat: swap the model and move the shared fittings (anchor, hawse pipe, fishing rod, hull foam)
 function applyBoat(id) {
-  boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit;
+  boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit; MAXV = BOAT_SPECS[boatId].kn / 1.944; onBoatApplied?.(boatId);
   tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy';
   Object.assign(ANC, FIT.anchor); anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s);
   hawsePipe.position.set(ANC.x, FIT.hawseY + 0.03, ANC.z - 0.25 * ANC.s / 1.5);
@@ -541,8 +548,16 @@ function applyBoat(id) {
 applyBoat(boatId);
 // a newly chosen boat drops into the water: falls, splashes, bobs a couple of times and settles
 const modelOf = id => ({ tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group })[id];
-let dropIn = null;
+let dropIn = null, sinkOut = null;
+// the old boat shrinks and sinks into the water (with bubbles and a ripple), then the new one drops in
+const swapBoat = id => { const m = modelOf(boatId); sinkOut = { m, k: 0, id, bub: 0 }; ripple(boat.position.x, boat.position.z, 1.2, 1.6); splash(boat.position.x, boat.position.z, 14, 0.6); };
 const startDropIn = () => { const m = modelOf(boatId); dropIn = { m, y: 7, v: 0, hits: 0, t: 0 }; m.position.y = 7; m.rotation.set(0.12, 0, -0.18); };
+function stepSinkOut(dt) {
+  if (!sinkOut) return; const s = sinkOut; s.k = Math.min(1, s.k + dt / 0.75); const e = s.k * s.k;
+  s.m.position.y = -6 * e; s.m.scale.setScalar(Math.max(0.05, 1 - 0.85 * e)); s.m.rotation.set(0.25 * e, 0, -0.35 * e);
+  s.bub -= dt; if (s.bub <= 0) { s.bub = 0.08; emit(boat.position.x + (Math.random() - 0.5) * 3, WL + 0.1, boat.position.z + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 0.5, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 0.5); }
+  if (s.k >= 1) { s.m.position.y = 0; s.m.scale.setScalar(1); s.m.rotation.set(0, 0, 0); sinkOut = null; applyBoat(s.id); startDropIn(); floatText(boat.position.clone().setY(11), BOATS[boatId].name, '#7ff0c8'); }
+}
 function stepDropIn(dt) {
   if (!dropIn) return; const d = dropIn; d.t += dt; d.v -= 34 * dt; d.y += d.v * dt;
   if (d.y <= 0) { d.y = 0; if (d.hits === 0) { splash(boat.position.x, boat.position.z, 46, 1.6); setTimeout(() => splash(boat.position.x + 2.5, boat.position.z - 1.5, 18, 0.9), 90); ripple(boat.position.x, boat.position.z, 1.4, 2.2); }
@@ -719,10 +734,11 @@ function stepActions(t, dt) {
   ripples.forEach(r => { if (!r.visible) return; const u = r.userData; u.age += dt; const a = u.age / u.life; if (a >= 1) { r.visible = false; return; } r.scale.setScalar(u.s * (0.4 + a * 3)); r.position.y = WL + waveJS(u.x, u.z, t) + 0.03; r.material.opacity = (1 - a) * 0.8; });
   for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.age += dt; const a = f.age / f.life; if (a >= 1) { f.d.remove(); floaters.splice(i, 1); continue; } tmpV.copy(f.pos); tmpV.y += a * 2; const [x, y, z] = toScreen(tmpV); f.d.style.transform = `translate(${x}px, ${y}px) translate(-50%,-50%) scale(${1 + Math.min(a * 6, 1) * 0.2})`; f.d.style.opacity = z > 1 ? 0 : (1 - Math.max(0, a - 0.6) / 0.4); }
   // menu follows the boat
-  if (menu.style.display !== 'none') { tmpV.set(0.1, FIT.menuY, 0).applyMatrix4(boat.matrixWorld); const [x, y] = toScreen(tmpV);
-    // keep the menu on screen and clear of the control panels (matters on phones)
-    const hw = menu.offsetWidth / 2, minY = 72 + menu.offsetHeight;
-    menu.style.left = Math.min(innerWidth - hw - 8, Math.max(hw + 8, x)) + 'px'; menu.style.top = (innerWidth <= 640 ? Math.max(minY, y) : y) + 'px'; }
+  // the menu sits just below the boat (anchored to the waterline under the hull)
+  if (menu.style.display !== 'none') { tmpV.set(0.1, -0.6, 0).applyMatrix4(boat.matrixWorld); const [x, y] = toScreen(tmpV);
+    // keep the menu on screen and clear of the helm and dock (matters on phones)
+    const hw = menu.offsetWidth / 2, maxY = innerHeight - menu.offsetHeight - (innerWidth <= 640 ? 230 : 24);
+    menu.style.left = Math.min(innerWidth - hw - 8, Math.max(hw + 8, x)) + 'px'; menu.style.top = Math.max(80, Math.min(maxY, y + 10)) + 'px'; }
 }
 // click the boat to open the action menu
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
@@ -794,6 +810,16 @@ document.getElementById('act-friends').addEventListener('click', () => { menu.st
   const paintNav = () => { prev.hidden = track.scrollLeft < 4; next.hidden = track.scrollLeft + track.clientWidth > track.scrollWidth - 4; };
   prev.addEventListener('click', () => track.scrollBy({ left: -158, behavior: 'smooth' })); next.addEventListener('click', () => track.scrollBy({ left: 158, behavior: 'smooth' }));
   track.addEventListener('scroll', paintNav, { passive: true }); new ResizeObserver(paintNav).observe(track); }
+// drag or flick the cards: they follow the pointer (flick left -> slides on to the right-hand cards), with momentum
+{ const track = menu.querySelector('.actions'); let drag = null, moved = false;
+  track.addEventListener('pointerdown', e => { drag = { x: e.clientX, left: track.scrollLeft, t: performance.now(), v: 0, lx: e.clientX }; moved = false; track.style.scrollSnapType = 'none'; });
+  addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x; if (Math.abs(dx) > 6) moved = true; track.scrollLeft = drag.left - dx;
+    const now = performance.now(), dt = Math.max(1, now - drag.t); drag.v = (e.clientX - drag.lx) / dt; drag.lx = e.clientX; drag.t = now; });
+  const release = () => { if (!drag) return; const v = drag.v; drag = null; track.style.scrollSnapType = '';
+    if (moved && Math.abs(v) > 0.3) track.scrollBy({ left: -v * 260, behavior: 'smooth' }); };
+  addEventListener('pointerup', release); addEventListener('pointercancel', release);
+  track.addEventListener('click', e => { if (moved) { moved = false; e.stopPropagation(); e.preventDefault(); } }, true); // a drag isn't a tap
+}
 // long press on touch zooms a card (like hover on desktop); a long press doesn't fire the card's action
 { let lp = null, held = false;
   menu.querySelectorAll('.action').forEach(card => {
@@ -802,7 +828,6 @@ document.getElementById('act-friends').addEventListener('click', () => { menu.st
     card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end); card.addEventListener('pointerleave', end);
     card.addEventListener('click', e => { if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   }); }
-['act-fish', 'act-anchor'].forEach(id => { const b = document.getElementById(id); b.addEventListener('pointerenter', () => b.style.transform = 'translateY(-2px)'); b.addEventListener('pointerleave', () => b.style.transform = 'none'); });
 paintStatus();
 
 const wheelUI = document.getElementById('wheel-rot'), youTag = document.getElementById('you-tag');
@@ -816,6 +841,7 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatP
   onDockEnd: () => setView(state.view),
   canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
   onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); menu.style.display = 'none'; } });
+onBoatApplied = id => station.setActive(id); onBoatApplied(boatId);
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
@@ -883,7 +909,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   stepActions(t, dt);
   stepCourse(t, dt);
   station.tick(t, dt);
-  stepDropIn(dt);
+  stepSinkOut(dt); stepDropIn(dt);
   // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
   { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
     const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;

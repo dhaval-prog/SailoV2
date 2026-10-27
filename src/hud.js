@@ -231,7 +231,11 @@ export function initHud(api) {
   const openGarage = () => {
     try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
-    const card = b => `<div class="sh-card${b.id === active ? ' on' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small></div>${b.id === active ? '<span class="sh-tag">Sailing</span>' : `<button class="sh-btn sh-pick" data-boat="${b.id}">Sail this boat</button>`}</div>`;
+    const card = b => { const st = api.boatStatus(b.id), empty = st.fuel <= 0.05, pct = Math.round(st.fuel / st.cap * 100), on = b.id === active;
+      return `<div class="sh-card boat${on ? ' on' : ''}${empty && !on ? ' empty' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div class="sh-boat"><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small>
+        <div class="sh-specs"><span title="Fuel"><i class="sh-fuel"><i style="width:${pct}%" class="${pct < 20 ? 'low' : ''}"></i></i>${Math.round(st.fuel)}/${st.cap} L</span><span title="Fish in hold">🐟 ${st.fish}/${st.holdCap}</span><span title="Top speed">⚡ ${st.kn} kn</span></div>
+        ${empty ? `<small class="sh-warn">${on ? 'Out of fuel · running on the reserve' : 'No fuel · refuel it at Paradise Station'}</small>` : ''}</div>
+        ${on ? '<span class="sh-tag">Sailing</span>' : `<button class="sh-btn sh-pick" data-boat="${b.id}">Sail this boat</button>`}</div>`; };
     const ss = api.sailStyle(), st = ss.style;
     const swatches = (row, label) => `<div class="sh-sw-row"><span>${label}</span><div class="sh-sw">${ss.colours.map(c => `<button class="sh-swatch${st.c[row] === c ? ' on' : ''}" style="background:${c}" data-row="${row}" data-c="${c}" aria-label="${label} ${c}"></button>`).join('')}</div></div>`;
     const styleUI = `<h4>Sail style · Sail Boat</h4>
@@ -250,14 +254,15 @@ export function initHud(api) {
     openSheet('Garage', `My fleet · ${boats.length} boats`, `
       ${boats.map(card).join('')}
       <div class="sh-msg" id="sh-fleet-msg" hidden></div>
-      <div class="sh-stats"><div class="sh-stat"><b>${Math.round(ECON.fuel)} L</b><span>Fuel of ${ECON.cap} L</span></div><div class="sh-stat"><b>${hold}/30</b><span>Fish in hold</span></div><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div></div>
-      <div class="sh-stats"><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div><div class="sh-stat"><b>${Math.round(lastStats.topKn)} kn</b><span>Top speed</span></div></div>
+      <div class="sh-stats"><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div></div>
       ${styleUI}
       ${flagUI}
       ${dinghyUI}`);
     sheetBody.querySelectorAll('.sh-pick').forEach(b => b.addEventListener('click', () => {
-      if (api.setBoat(b.dataset.boat)) { openGarage(); paintFleet(); }
-      else { const m = $('sh-fleet-msg'); m.hidden = false; m.textContent = 'Raise the anchor, stop fishing and leave the berth before switching boats.'; } }));
+      const r = api.setBoat(b.dataset.boat);
+      if (r === 'ok') { closeSheet(); paintFleet(); return; }
+      const m = $('sh-fleet-msg'); m.hidden = false;
+      m.textContent = r === 'nofuel' ? 'That boat has no fuel. Moor at Paradise Station (3.7 mi W, 1.1 mi S), then switch to it there and refuel at the Boathouse.' : 'Raise the anchor and stop fishing first (and wait while mooring).'; }));
     sheetBody.querySelectorAll('#sh-mode [data-mode]').forEach(b => b.addEventListener('click', () => { ss.set({ mode: b.dataset.mode }); openGarage(); }));
     sheetBody.querySelectorAll('.sh-swatch').forEach(b => b.addEventListener('click', () => { const c = [...st.c]; c[+b.dataset.row] = b.dataset.c; ss.set({ c }); openGarage(); }));
     $('sh-imgx')?.addEventListener('click', () => { ss.set({ img: null }); openGarage(); });

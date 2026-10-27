@@ -19,7 +19,7 @@ Sail. Discover. Connect.
   - **Fish Market**: put fish from your hold into the selling crate (it weighs them) and sell them for coins. Five species with their own prices: Sardine 4c, Mackerel 9c, Red Snapper 16c, Pufferfish 24c, Yellowfin Tuna 42c. Your catch goes into a 30-fish hold.
   - **Boathouse**: pump fuel at 2c a litre (hold to pump, +10 L or fill up) and see what's on board.
   - **Cast off** sails back out. The island, pier and rocks can't be sailed through.
-- **Coins and fuel** (chip under the clock): the 120 L tank drains as you sail (about 1 L per 150 m at full throttle). When it's empty the tug limps along at reduced speed until you refuel.
+- **Coins and fuel** (chip under the clock): coins are shared; each boat has its own tank, fish hold and top speed (Tug 120 L · 30 fish · 12 kn, Sail Boat 60 L · 16 · 15 kn, Motor Yacht 240 L · 45 · 22 kn, Dinghy 20 L · 8 · 9 kn) and burns fuel at its own rate. An empty boat limps on its reserve; switch to another boat, and an empty boat can only be taken out again at Paradise Station, where you refuel it.
 - **Live time & weather** (on by default, switch in settings): a subtle chip (Calibri, falling back to the open Carlito font) shows Pune's time, date and day, with a sun or moon icon to match, and the sky follows Pune's real weather and daylight (Open-Meteo, no API key). Picking a time of day or weather by hand turns live mode off.
 - At night you get a realistic star field (thousands of stars of varied brightness and colour, twinkling more near the horizon, with a faint Milky Way), a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
 - **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (opens the map), and zoom in/out.
