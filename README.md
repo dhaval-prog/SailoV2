@@ -10,14 +10,14 @@ Sail. Discover. Connect.
 | Mobile (Android, iOS) | Capacitor | `android/`, `ios/` native projects |
 
 ## Features
-- **Pune Paradise**: a bounded 200 sq mi ocean, a square about 22.8 km (14.1 mi) on each side, centred on the harbour. A location chip shows where you are (miles N/S and E/W of the harbour). A warning appears within 600 m of the edge, and the tug is held at the border. World size and helpers live in `src/world.js`, ready for islands and coastlines.
+- **Pune Paradise**: a bounded 200 sq mi ocean, a square about 22.8 km (14.1 mi) on each side, centred on the harbour. A location chip shows where you are (miles N/S and E/W of the harbour); tap it to open a map of the whole ocean with the boat's position, heading and course. A warning appears within 600 m of the edge, and the tug is held at the border. World size and helpers live in `src/world.js`, ready for islands and coastlines.
 - A hand-built tug with cel shading and ink outlines: lighthouse tower, cabin, stack, fenders, pennant lines, ship's wheel and a spinning propeller.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
 - At night you get stars, a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
 - **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (tap to face north), zoom in/out and recenter.
-- **Chase view** (default): the camera sits behind the boat; tapping the eye button swings it back there. Sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys.
-- **Top view**: the wheel hides; tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
+- **Chase view** (default, ship's-wheel button): the camera sits behind the boat. Sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys, or tap the water to drop a course buoy and let the tug steer itself there.
+- **Top view** (target button): a wide, tilted view of the boat; the wheel hides, and tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu:
   - **Go fishing**: cast, wait for a bite, reel in and keep a catch count.
   - **Drop anchor** / **Raise anchor**.
