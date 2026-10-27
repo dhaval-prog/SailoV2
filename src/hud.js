@@ -225,17 +225,36 @@ export function initHud(api) {
   // garage / my fleet
   const SEEN = 'sailo:garage-seen'; let seen = false; try { seen = localStorage.getItem(SEEN) === '1'; } catch { /* storage blocked */ }
   $('tb-fleet-dot').hidden = seen;
+  const SAIL = '<svg viewBox="0 0 32 32"><path d="M15 3v17M15 4c4.2 3.5 7 8.5 7.6 14H15M14 7c-2.6 3-4.4 6.8-4.8 11H14"/><path d="M4 21.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
+  const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' } };
   const openGarage = () => {
     try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
-    const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0);
-    openSheet('Garage', 'My fleet · 1 boat', `
-      <div class="sh-card"><span class="sh-ico">${TUG}</span><div><b>Lighthouse Tug</b><small>Your boat · ${esc(prefs.name)}</small></div><span class="sh-tag">Sailing</span></div>
+    const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
+    const card = b => `<div class="sh-card${b.id === active ? ' on' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small></div>${b.id === active ? '<span class="sh-tag">Sailing</span>' : `<button class="sh-btn sh-pick" data-boat="${b.id}">Sail this boat</button>`}</div>`;
+    const ss = api.sailStyle(), st = ss.style;
+    const swatches = (row, label) => `<div class="sh-sw-row"><span>${label}</span><div class="sh-sw">${ss.colours.map(c => `<button class="sh-swatch${st.c[row] === c ? ' on' : ''}" style="background:${c}" data-row="${row}" data-c="${c}" aria-label="${label} ${c}"></button>`).join('')}</div></div>`;
+    const styleUI = `<h4>Sail style · Sail Boat</h4>
+      <div class="seg3" id="sh-mode">${['classic', 'solid', 'layers'].map(m => `<button data-mode="${m}" class="${st.mode === m ? 'on' : ''}">${{ classic: 'Classic', solid: 'Solid', layers: '3 layers' }[m]}</button>`).join('')}</div>
+      ${st.mode === 'solid' ? swatches(0, 'Colour') : st.mode === 'layers' ? swatches(0, 'Top') + swatches(1, 'Middle') + swatches(2, 'Bottom') : ''}
+      <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-img" type="file" accept="image/*" hidden></label>${st.img ? '<button class="sh-btn ghost" id="sh-imgx">Remove image</button>' : ''}<small>Shows pixelated on the mainsail</small></div>`;
+    openSheet('Garage', `My fleet · ${boats.length} boats`, `
+      ${boats.map(card).join('')}
+      <div class="sh-msg" id="sh-fleet-msg" hidden></div>
       <div class="sh-stats"><div class="sh-stat"><b>${Math.round(ECON.fuel)} L</b><span>Fuel of ${ECON.cap} L</span></div><div class="sh-stat"><b>${hold}/30</b><span>Fish in hold</span></div><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div></div>
       <div class="sh-stats"><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div><div class="sh-stat"><b>${Math.round(lastStats.topKn)} kn</b><span>Top speed</span></div></div>
-      <h4>More boats</h4>
-      <div class="sh-card locked"><span class="sh-ico">${TUG}</span><div><b>Fishing trawler</b><small>Coming soon</small></div></div>
-      <div class="sh-card locked"><span class="sh-ico">${TUG}</span><div><b>Island ferry</b><small>Coming soon</small></div></div>`);
+      ${styleUI}`);
+    sheetBody.querySelectorAll('.sh-pick').forEach(b => b.addEventListener('click', () => {
+      if (api.setBoat(b.dataset.boat)) { openGarage(); paintFleet(); }
+      else { const m = $('sh-fleet-msg'); m.hidden = false; m.textContent = 'Raise the anchor, stop fishing and leave the berth before switching boats.'; } }));
+    sheetBody.querySelectorAll('#sh-mode [data-mode]').forEach(b => b.addEventListener('click', () => { ss.set({ mode: b.dataset.mode }); openGarage(); }));
+    sheetBody.querySelectorAll('.sh-swatch').forEach(b => b.addEventListener('click', () => { const c = [...st.c]; c[+b.dataset.row] = b.dataset.c; ss.set({ c }); openGarage(); }));
+    $('sh-imgx')?.addEventListener('click', () => { ss.set({ img: null }); openGarage(); });
+    $('sh-img').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
+      rd.onload = () => { const i = new Image(); i.onload = () => { const k = 48 / Math.max(i.width, i.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
+        c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); ss.set({ img: c.toDataURL('image/png') }); openGarage(); }; i.src = rd.result; }; rd.readAsDataURL(f); });
   };
+  const paintFleet = () => { $('tb-fleet-n').textContent = api.boats().length; $('tb-fleet').setAttribute('aria-label', `My fleet: ${api.boats().length} boats`); };
+  paintFleet();
   $('tb-fleet').addEventListener('click', openGarage);
   // search: places in Pune Paradise; picking one pins a course there
   const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: 'Fish Market · Boathouse · fuel', x: STATION.x, z: STATION.z }];
