@@ -68,13 +68,13 @@ export function createFishing(ctx) {
     <div class="fg-strike" id="fg-strike" hidden><button type="button" id="fg-strike-btn">Strike!</button></div>
     <div class="fg-fight" id="fg-fight" hidden>
       <div class="fg-fish-row"><span id="fg-fish-name">Fish on!</span><span class="fg-dir" id="fg-dir"></span></div>
-      <svg viewBox="0 0 320 120" class="fg-arc" aria-hidden="true">
+      <svg viewBox="0 0 320 140" class="fg-arc" aria-hidden="true">
         <defs><linearGradient id="fg-grad" x1="0" x2="1"><stop offset="0" stop-color="#6fb7ff"/><stop offset="0.55" stop-color="#7ff0c8"/><stop offset="0.85" stop-color="#ffd36b"/><stop offset="1" stop-color="#ee3427"/></linearGradient></defs>
-        <path d="M30 100 A130 130 0 0 1 290 100" class="fg-track"/>
-        <path d="M30 100 A130 130 0 0 1 290 100" class="fg-track-col"/>
+        <path d="M50 125 A110 110 0 0 1 270 125" class="fg-track"/>
+        <path d="M50 125 A110 110 0 0 1 270 125" class="fg-track-col"/>
         <path id="fg-zone" class="fg-zone" d=""/>
-        <g id="fg-needle"><line x1="160" y1="104" x2="160" y2="18"/><circle cx="160" cy="104" r="7"/></g>
-        <text x="30" y="117" class="fg-lab">slack</text><text x="290" y="117" class="fg-lab" text-anchor="end">snap</text>
+        <g id="fg-needle"><line x1="160" y1="125" x2="160" y2="30"/><circle cx="160" cy="125" r="7"/></g>
+        <text x="50" y="138" class="fg-lab" text-anchor="middle">slack</text><text x="270" y="138" class="fg-lab" text-anchor="middle">snap</text>
       </svg>
       <div class="fg-prog"><i id="fg-prog"></i></div>
       <div class="fg-help" id="fg-help">Hold to reel · keep the needle in the green · swipe against the fish</div>
@@ -215,7 +215,7 @@ export function createFishing(ctx) {
     if (!G.jump || G.jump.tapped) return; G.jump.tapped = true; $('fg-tap').hidden = true;
     if (G.jump.window) { G.prog = Math.min(1, G.prog + 0.14); G.stam = Math.max(0, G.stam - 0.2); ctx.floatText(G.hooked.clone().setY(WL + 5), 'Line tight!', '#7ff0c8', true); sfx.click(); buzz(15); }
   }
-  const zonePath = (c, w) => { const a0 = Math.PI * (1 - Math.max(0, c - w / 2)), a1 = Math.PI * (1 - Math.min(1, c + w / 2)), R = 130, cx = 160, cy = 100;
+  const zonePath = (c, w) => { const a0 = Math.PI * (1 - Math.max(0, c - w / 2)), a1 = Math.PI * (1 - Math.min(1, c + w / 2)), R = 110, cx = 160, cy = 125;
     const p = a => `${cx + R * Math.cos(a)} ${cy - R * Math.sin(a)}`; return `M${p(a0)} A${R} ${R} 0 0 1 ${p(a1)}`; };
 
   function endFight(won, why) {
@@ -329,7 +329,7 @@ export function createFishing(ctx) {
           if (e >= 1) { if (!j.tapped) { G.T = Math.min(1, G.T + 0.3); ctx.floatText(G.hooked.clone().setY(WL + 3), 'Slack on the jump!', '#ffb39f'); }
             ctx.splash(G.hooked.x, G.hooked.z, 30, 1.3); sfx.splash(true); jumpModel.removeFromParent(); jumpModel = null; G.jump = null; $('fg-tap').hidden = true; G.jumpT = 3.5 + Math.random() * 2.5; } } }
       // UI
-      $('fg-needle').setAttribute('transform', `rotate(${(G.T - 0.5) * 180} 160 104)`);
+      $('fg-needle').setAttribute('transform', `rotate(${(G.T - 0.5) * 180} 160 125)`);
       $('fg-zone').setAttribute('d', zonePath(G.zc, zoneW)); $('fg-zone').classList.toggle('on', inZone);
       $('fg-prog').style.width = (G.prog * 100) + '%';
       $('fg-dir').textContent = (G.dir > 0 ? 'Fish runs right → swipe left' : '← Fish runs left · swipe right'); $('fg-fish-name').textContent = tired ? 'It’s tiring!' : G.T > 0.85 ? 'Too tight!' : G.T < 0.12 ? 'Line’s slack!' : 'Fish on!';

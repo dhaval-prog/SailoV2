@@ -799,7 +799,7 @@ body.view-top #you-tag { opacity: 1; }
 @keyframes fg-shake { 25% { transform: translateX(calc(-50% - 2px)); } 75% { transform: translateX(calc(-50% + 2px)); } }
 .fg-fish-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 800; font-size: 15px; }
 .fg-dir { font-size: 11px; font-weight: 700; color: #ffd36b; }
-.fg-arc { display: block; width: 100%; height: auto; margin-top: 2px; }
+.fg-arc { display: block; width: 78%; height: auto; margin: 2px auto 0; }
 .fg-track { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 18; stroke-linecap: round; }
 .fg-track-col { fill: none; stroke: url(#fg-grad); stroke-width: 6; stroke-linecap: round; opacity: 0.55; }
 .fg-zone { fill: none; stroke: rgba(127, 240, 200, 0.55); stroke-width: 18; stroke-linecap: round; transition: stroke 0.15s; }
