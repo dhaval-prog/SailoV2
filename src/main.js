@@ -735,6 +735,14 @@ stage.addEventListener('pointerup', e => {
 });
 document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
 document.getElementById('act-anchor').addEventListener('click', () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); menu.style.display = 'none'; });
+// boat menu carousel: garage, profile and friends, plus arrows to slide through the cards
+document.getElementById('act-garage').addEventListener('click', () => { menu.style.display = 'none'; hud.openGarage(); });
+document.getElementById('act-profile').addEventListener('click', () => { menu.style.display = 'none'; hud.openProfile(); });
+document.getElementById('act-friends').addEventListener('click', () => { menu.style.display = 'none'; hud.openFriends(); });
+{ const track = menu.querySelector('.actions'), prev = document.getElementById('car-prev'), next = document.getElementById('car-next');
+  const paintNav = () => { prev.hidden = track.scrollLeft < 4; next.hidden = track.scrollLeft + track.clientWidth > track.scrollWidth - 4; };
+  prev.addEventListener('click', () => track.scrollBy({ left: -158, behavior: 'smooth' })); next.addEventListener('click', () => track.scrollBy({ left: 158, behavior: 'smooth' }));
+  track.addEventListener('scroll', paintNav, { passive: true }); new ResizeObserver(paintNav).observe(track); }
 ['act-fish', 'act-anchor'].forEach(id => { const b = document.getElementById(id); b.addEventListener('pointerenter', () => b.style.transform = 'translateY(-2px)'); b.addEventListener('pointerleave', () => b.style.transform = 'none'); });
 paintStatus();
 

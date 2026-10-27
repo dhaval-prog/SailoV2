@@ -368,6 +368,12 @@ export function buildIsland(ctx) {
         float wet = 1.0 - smoothstep(1.2, 1.5, vSW.y);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.64, 0.4, 0.16), wet * 0.7); }`); };
   mat.sand.customProgramCacheKey = () => 'station-sand';
+  // wood (pier planks, posts, hut, boats): no rim light, and at night it stays warm instead of turning moon-grey
+  const woodNight = { value: 0 };
+  [mat.wood, mat.woodLight, mat.woodDark].forEach(m => {
+    m.onBeforeCompile = s => { s.uniforms.uWoodNight = woodNight;
+      s.fragmentShader = 'uniform float uWoodNight;\n' + s.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= mix(vec3(1.0), vec3(0.86, 0.74, 0.6), uWoodNight);\n#include <opaque_fragment>'); };
+    m.customProgramCacheKey = () => 'station-wood'; m.needsUpdate = true; });
 
   // ---------------- flags and pennants: cloth that ripples in the wind (on top of the source's swing) ----------------
   const windT = { value: 0 };
@@ -454,6 +460,7 @@ export function buildIsland(ctx) {
     boats.forEach((b, i) => { const h = ctx.waveAt(b.x, b.z, t); b.rb.position.y = WL - 0.12 + h + Math.sin(t * 1.3 + b.ph) * 0.05; b.rb.rotation.x = Math.sin(t * 1.1 + b.ph) * 0.045; b.rb.rotation.z = Math.sin(t * 0.8 + b.ph * 2) * 0.025; b.rb.rotation.y = b.ry + Math.sin(t * 0.3 + b.ph) * 0.04;
       boatFoam[i].position.y = FY + h; const s = 1 + Math.sin(t * 1.6 + b.ph) * 0.06; boatFoam[i].scale.set(2.15 * s, 0.85 * s, 1); });
     // night: lanterns glow and flicker, fireflies over the bushes
+    woodNight.value = night;
     mat.glass.emissiveIntensity = 0.6 + 2.4 * night;
     lampFx.forEach((l, i) => { const fl = 1 + Math.sin(t * 9 + i * 2) * 0.05 + Math.sin(t * 23 + i) * 0.03; l.pl.intensity = 7 * LK * night * fl; l.halo.material.opacity = 0.55 * night * fl; l.halo.quaternion.copy(camera.quaternion); });
     fireflies.material.opacity = night * 0.95;

@@ -4,7 +4,7 @@
 
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
-import { STATION } from './station.js';
+import { STATION, S as ECON, FISH } from './station.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -207,6 +207,73 @@ export function initHud(api) {
     mapPos.textContent = pos;
   };
 
+  // ---- quick actions (fleet, search, inbox) and the shared sheet ----
+  const sheet = $('sheet'), sheetBody = $('sheet-body');
+  let sheetOpen = false, sheetFocus = null;
+  const openSheet = (title, sub, html) => {
+    $('sheet-title').textContent = title; $('sheet-sub').textContent = sub; sheetBody.innerHTML = html;
+    if (!sheetOpen) { sheetFocus = document.activeElement; sheet.hidden = false; requestAnimationFrame(() => sheet.classList.add('open')); sheetOpen = true; }
+    $('sheet-close').focus();
+  };
+  const closeSheet = () => { if (!sheetOpen) return; sheetOpen = false; sheet.classList.remove('open'); setTimeout(() => { if (!sheetOpen) sheet.hidden = true; }, 260); if (sheetFocus) sheetFocus.focus(); };
+  $('sheet-close').addEventListener('click', closeSheet);
+  sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) closeSheet(); });
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const fmtMi = m => `${(m / WORLD.mile).toFixed(1)} mi`;
+  const TUG = '<svg viewBox="0 0 32 32"><path d="M15 4v14M15 5.5c3.6 3 5.8 6.8 6.5 11.5H15M14 8c-2 2.4-3.4 5.4-3.7 9H14"/><path d="M4 20.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
+  // garage / my fleet
+  const SEEN = 'sailo:garage-seen'; let seen = false; try { seen = localStorage.getItem(SEEN) === '1'; } catch { /* storage blocked */ }
+  $('tb-fleet-dot').hidden = seen;
+  const openGarage = () => {
+    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
+    const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0);
+    openSheet('Garage', 'My fleet · 1 boat', `
+      <div class="sh-card"><span class="sh-ico">${TUG}</span><div><b>Lighthouse Tug</b><small>Your boat · ${esc(prefs.name)}</small></div><span class="sh-tag">Sailing</span></div>
+      <div class="sh-stats"><div class="sh-stat"><b>${Math.round(ECON.fuel)} L</b><span>Fuel of ${ECON.cap} L</span></div><div class="sh-stat"><b>${hold}/30</b><span>Fish in hold</span></div><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div></div>
+      <div class="sh-stats"><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div><div class="sh-stat"><b>${Math.round(lastStats.topKn)} kn</b><span>Top speed</span></div></div>
+      <h4>More boats</h4>
+      <div class="sh-card locked"><span class="sh-ico">${TUG}</span><div><b>Fishing trawler</b><small>Coming soon</small></div></div>
+      <div class="sh-card locked"><span class="sh-ico">${TUG}</span><div><b>Island ferry</b><small>Coming soon</small></div></div>`);
+  };
+  $('tb-fleet').addEventListener('click', openGarage);
+  // search: places in Pune Paradise; picking one pins a course there
+  const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: 'Fish Market · Boathouse · fuel', x: STATION.x, z: STATION.z }];
+  const openSearch = () => {
+    openSheet('Search', 'Find a place and sail there', '<input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"><div id="sh-results" class="sheet-body"></div>');
+    const q = $('sh-q'), res = $('sh-results');
+    const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term));
+      res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go">${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))} · Sail</span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
+    q.addEventListener('input', paint);
+    // typing must not steer the boat (Escape still closes)
+    q.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeSheet(); }); q.addEventListener('keyup', e => e.stopPropagation()); paint(); q.focus();
+    res.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; const p = PLACES[+b.dataset.i];
+      if (Math.hypot(p.x - lastStats.x, p.z - lastStats.z) < 40) { closeSheet(); return; }
+      if (api.pinCourse(p.x + (p === PLACES[1] ? 70 : 0), p.z + (p === PLACES[1] ? 80 : 0))) closeSheet(); });
+  };
+  $('tb-search').addEventListener('click', openSearch);
+  // inbox
+  const openInbox = () => openSheet('Inbox', 'Messages from the harbour', `
+    <div class="sh-msg"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
+    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, 3.7 mi W · 1.1 mi S. Use Search to sail there.</div>`);
+  $('tb-inbox').addEventListener('click', openInbox);
+  // add friends: share an invite link carrying your captain code
+  const openFriends = () => {
+    let dev = ''; try { dev = localStorage.getItem('sailo:device') || ''; } catch { /* storage blocked */ }
+    const code = (dev.replace(/-/g, '').slice(0, 6) || 'SAILOR').toUpperCase(), link = `${location.origin}${location.pathname}?invite=${code}`;
+    openSheet('Add friends', 'Invite a friend to sail Pune Paradise', `
+      <div class="sh-msg">Share your invite link. Your friend opens it on their phone or computer and starts sailing.</div>
+      <h4>Your captain code</h4><div class="sh-code">${code}</div>
+      <button class="sh-btn" id="sh-share">${navigator.share ? 'Share invite link' : 'Copy invite link'}</button>
+      ${navigator.share ? '<button class="sh-btn ghost" id="sh-copy">Copy link</button>' : ''}
+      <h4>Friends</h4><div class="sh-msg">No friends yet. Once a friend joins with your link, you'll see them here.</div>`);
+    const copyBtn = () => $('sh-copy') || $('sh-share');
+    const copy = async () => { try { await navigator.clipboard.writeText(link); copyBtn().textContent = 'Link copied'; } catch { copyBtn().textContent = link; } };
+    $('sh-copy')?.addEventListener('click', copy);
+    $('sh-share').addEventListener('click', async () => { if (navigator.share) { try { await navigator.share({ title: 'Sail with me in Pune Paradise', text: `Join me on the water! Captain code ${code}`, url: link }); } catch { /* cancelled */ } } else copy(); });
+  };
+  const lastStats = { catchN: 0, distNm: 0, topKn: 0, x: 0, z: 0 };
+
   // ---- per-frame readouts ----
   const needle = document.querySelector('#dk-compass .needle');
   const spd = $('spd'), gear = $('gear'), arc = $('joy-speed');
@@ -215,7 +282,9 @@ export function initHud(api) {
   let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
   return {
     paint,
+    openGarage, openFriends, openProfile: () => setOpen(true),
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
+      lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);
       if (mapOpen) drawMap(x, z, heading, dest, pos);
       if (pos !== last.pos) { locPos.textContent = pos; last.pos = pos; }
