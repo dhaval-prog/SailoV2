@@ -350,8 +350,9 @@ export function buildIsland(ctx) {
     float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
       return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
     float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }`;
-  const sandRim = mat.sand.onBeforeCompile;
-  mat.sand.onBeforeCompile = s => { sandRim(s);
+  // as in the source, sand and grass get no rim light (on flat ground it shows as a pale sheen at low camera angles)
+  mat.grass.onBeforeCompile = () => {}; mat.grass.customProgramCacheKey = () => 'station-grass';
+  mat.sand.onBeforeCompile = s => {
     // island-local position (the source used world space with the island at the origin)
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSW;').replace('#include <project_vertex>', '#include <project_vertex>\nvSW = transformed;');
     s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vSW;\n' + NOISE).replace('#include <color_fragment>', `#include <color_fragment>
