@@ -4,6 +4,7 @@ import { initHud } from './hud.js';
 import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
 import { initStation, STATION, BOAT_SPECS, boatStatus } from './station.js';
+import { createFishing, fishLog, stars } from './fishing.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
@@ -481,6 +482,7 @@ const hud = initHud({
   boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   getBoat: () => sinkOut ? sinkOut.id : boatId,
   boatStatus,
+  fishCollection: () => ({ log: fishLog, stars, img: id => station.fishImage(id) }),
   // switching: not mid-animation, at anchor, while fishing or while mooring / leaving; an empty boat can only be taken out at Paradise Station (to refuel it)
   setBoat: id => { const cur = sinkOut ? sinkOut.id : boatId; if (id === cur) return 'ok'; if (sinkOut || dropIn) return 'busy';
     if (ACT.anchor !== 'up' || ACT.fish !== 'off' || station.mode === 'docking' || station.mode === 'leaving' || station.mode === 'picking') return 'busy';
@@ -593,12 +595,14 @@ const floatText = (pos, text, color = '#fff7ea', big = false) => { const d = doc
 const projV = new THREE.Vector3();
 const toScreen = p => { const r = stage.getBoundingClientRect(); projV.copy(p).project(stage._camera); return [r.left + (projV.x + 1) / 2 * r.width, r.top + (1 - projV.y) / 2 * r.height, projV.z]; };
 const chip = (txt, bg) => `<div style="padding:8px 12px;border-radius:999px;background:${bg};color:#fff;border:1px solid rgba(255,255,255,0.6);backdrop-filter:blur(6px)">${txt}</div>`;
+let fishStatus = '';
+const setFishStatus = txt => { if (txt === fishStatus) return; fishStatus = txt; paintStatus(); };
 const paintStatus = () => {
   let s = '';
   if (ACT.anchor === 'down') s += chip('Anchored', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'dropping') s += chip('Dropping anchor…', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'raising') s += chip('Raising anchor…', 'rgba(21,32,66,0.6)');
-  if (ACT.fish !== 'off') s += chip(ACT.fish === 'bite' ? 'Fish on!' : ACT.fish === 'aim' ? 'Tap the sea to cast' : 'Fishing · tap to recast', 'rgba(238,52,39,0.7)');
+  if (ACT.fish !== 'off' && ACT.fish !== 'reelin') s += chip(fishStatus || 'Fishing', ACT.fish === 'bite' || ACT.fish === 'fight' ? 'rgba(238,52,39,0.85)' : 'rgba(238,52,39,0.6)');
   if (ACT.catch) s += chip('Catch: ' + ACT.catch, 'rgba(44,196,168,0.7)');
   statusEl.innerHTML = s;
   document.getElementById('act-fish-l').textContent = ACT.fish === 'off' ? 'Go fishing' : 'Stop fishing';
@@ -616,16 +620,15 @@ const castEdge = new THREE.Mesh(new THREE.RingGeometry(CAST.max - 0.18, CAST.max
 const castIn = new THREE.Mesh(new THREE.RingGeometry(CAST.min - 0.1, CAST.min, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
 [castFill, castEdge, castIn].forEach(m => { m.rotation.x = -Math.PI / 2; castRing.add(m); });
 F.target = new THREE.Vector3();
-function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Tap the sea inside the circle to cast', '#bfefff'); paintStatus(); fishCam(); }
+function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Hold on the sea, release to cast', '#bfefff'); fishStatus = 'Hold on the sea to cast'; paintStatus(); fishCam(); }
 /** Cast to a spot (clamped into the ring). Returns false when not ready to cast. */
 function castAt(p) {
-  if (ACT.fish !== 'aim' && ACT.fish !== 'waiting') return false;
+  if (ACT.fish !== 'aim') return false;
   const off = p.clone().sub(boat.position).setY(0), L = off.length() || 1; off.setLength(Math.min(CAST.max, Math.max(CAST.min, L)));
   F.target.copy(boat.position).add(off).setY(WL);
-  if (ACT.fish === 'waiting') { bobber.visible = false; fishLine.visible = false; }
-  ACT.fish = 'casting'; F.k = 0; ripple(F.target.x, F.target.z, 0.5, 0.8); paintStatus(); return true;
+  ACT.fish = 'casting'; F.k = 0; fishStatus = 'Casting…'; paintStatus(); return true;
 }
-function stopFishing() { if (ACT.fish === 'off') return; ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
+function stopFishing() { if (ACT.fish === 'off' || ACT.fish === 'reelin') return; fishing.reset(); if (!bobber.visible) bobber.position.copy(tipW); ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
 // while the anchor drops or comes up, the camera swings in close to the bow so you can watch it
 let anchorCamT = -1;
 // while fishing the camera looks at the boat broadside (bow to the right), from a little above
@@ -675,8 +678,8 @@ function stepActions(t, dt) {
     if (Math.abs(vel) > 2 && ACT.fish !== 'reelin') stopFishing();
   }
   if (ACT.fish !== 'off') { // swing the rod round to face where the line is going
-    const loc = boat.worldToLocal(tmpV.copy(ACT.fish === 'aim' ? boat.position : F.target)), dx = loc.x - rodPivot.position.x, dz = loc.z - rodPivot.position.z;
-    if (ACT.fish !== 'aim' && Math.hypot(dx, dz) > 1) { const th = Math.atan2(dz, -dx), d = Math.atan2(Math.sin(th - rodPivot.rotation.y), Math.cos(th - rodPivot.rotation.y)); rodPivot.rotation.y += d * Math.min(1, dt * 8); } }
+    const loc = boat.worldToLocal(tmpV.copy(ACT.fish === 'fight' || ACT.fish === 'landing' ? bobber.position : F.target)), dx = loc.x - rodPivot.position.x, dz = loc.z - rodPivot.position.z;
+    if (ACT.fish !== 'aim' && ACT.fish !== 'card' && Math.hypot(dx, dz) > 1) { const th = Math.atan2(dz, -dx), d = Math.atan2(Math.sin(th - rodPivot.rotation.y), Math.cos(th - rodPivot.rotation.y)); rodPivot.rotation.y += d * Math.min(1, dt * 8); } }
   const ringOn = ACT.fish === 'aim' || ACT.fish === 'waiting' || ACT.fish === 'casting' || ACT.fish === 'bite';
   castRing.visible = castRing.scale.x > 0.02 || ringOn;
   if (castRing.visible) { castRing.scale.setScalar(THREE.MathUtils.clamp(castRing.scale.x + (ringOn ? dt * 3 : -dt * 4), 0.01, 1));
@@ -692,41 +695,19 @@ function stepActions(t, dt) {
     else rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 6);
     if (F.k >= 0.6 && !bobber.visible) { bobber.visible = true; fishLine.visible = true; F.from.copy(tipW); F.to.copy(F.target); F.fk = 0; }
     if (bobber.visible) { F.fk += dt / 0.9; const e = Math.min(1, F.fk); bobber.position.lerpVectors(F.from, F.to, e); bobber.position.y = THREE.MathUtils.lerp(F.from.y, WL, e) + Math.sin(e * Math.PI) * 4;
-      if (e >= 1) { splash(F.to.x, F.to.z, 10, 0.6); ACT.fish = 'waiting'; F.wait = 2.5 + Math.random() * 4; F.rip = 0; paintStatus(); } }
-  } else if (ACT.fish === 'waiting' || ACT.fish === 'bite') {
-    const wy = WL + waveJS(bobber.position.x, bobber.position.z, t);
-    F.wait -= dt;
-    if (ACT.fish === 'waiting') {
-      bobber.position.y = wy + 0.02 + Math.sin(t * 3) * 0.02;
-      if (Math.random() < dt * 0.5) bobber.position.y -= 0.06;
-      F.rip -= dt; if (F.rip <= 0) { F.rip = 1.8; ripple(bobber.position.x, bobber.position.z, 0.25, 1.6); }
-      if (F.wait <= 0) { ACT.fish = 'bite'; F.wait = 0.9; splash(bobber.position.x, bobber.position.z, 8, 0.5); floatText(bobber.position.clone().setY(wy + 1.4), '!', '#ffd36b', true); paintStatus(); }
-    } else {
-      bobber.position.y = wy - 0.12 - Math.abs(Math.sin(t * 22)) * 0.12;
-      rodRot.rotation.z = restTilt + Math.sin(t * 30) * 0.06 + 0.15;
-      if (Math.random() < 0.4) emit(bobber.position.x, wy, bobber.position.z, (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), (Math.random() - 0.5) * 1.5);
-      if (F.wait <= 0) { ACT.fish = 'reeling'; F.k = 0; F.from.copy(bobber.position); fish.visible = true; splash(bobber.position.x, bobber.position.z, 30, 1.1); paintStatus(); }
-    }
-  } else if (ACT.fish === 'reeling') {
-    F.k += dt / 1.1; const e = Math.min(1, F.k);
-    const land = new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld);
-    fish.position.lerpVectors(F.from, land, e); fish.position.y = THREE.MathUtils.lerp(F.from.y, land.y, e) + Math.sin(e * Math.PI) * 5;
-    fish.rotation.set(Math.sin(t * 20) * 0.4, -yaw + Math.PI, -e * Math.PI * 2);
-    fTail.rotation.y = Math.sin(t * 30) * 0.6;
-    bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.5;
-    rodRot.rotation.z = THREE.MathUtils.lerp(restTilt + 0.15, restTilt - 0.45, Math.sin(e * Math.PI));
-    if (e >= 1) { fish.visible = false; bobber.visible = false; fishLine.visible = false; ACT.catch++; const caught = station.addCatch(); floatText(land.clone().setY(land.y + 1.5), caught ? `+1 ${caught.name} · ${caught.price}c` : 'Hold full!', caught ? '#7ff0c8' : '#ffd36b'); for (let i = 0; i < 14; i++) emit(land.x, land.y, land.z, (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2); ACT.fish = 'recast'; F.k = 0; paintStatus(); }
-  } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'aim'; floatText(boat.position.clone().setY(9), 'Tap the sea to cast again', '#bfefff'); paintStatus(); } } // after a catch: wait for the next cast
-  else if (ACT.fish === 'aim') rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5);
+      if (e >= 1) { splash(F.to.x, F.to.z, 10, 0.6); ACT.fish = 'waiting'; F.rip = 0; fishing.landed(); paintStatus(); } }
+  }
+  else if (ACT.fish === 'aim' || ACT.fish === 'card') rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5);
   else if (ACT.fish === 'reelin') {
     F.k += dt / 0.7; const e = Math.min(1, F.k);
     if (bobber.visible) { bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.2; }
     rodPivot.scale.setScalar(Math.max(0.01, 1 - Math.max(0, e - 0.5) * 2));
     if (e >= 1) { ACT.fish = 'off'; bobber.visible = false; fishLine.visible = false; rodPivot.visible = false; rodRot.rotation.z = restTilt; paintStatus(); setView(state.view); }
   } else if (ACT.fish === 'off') rodRot.rotation.z = restTilt;
+  fishing.step(t, dt); // the playable part: power meter, shadows, bites, the fight, the catch card
   // line with sag
   if (fishLine.visible) {
-    const p = lineGeo.attributes.position, sag = ACT.fish === 'waiting' ? 1.2 : 0.3;
+    const p = lineGeo.attributes.position, sag = ACT.fish === 'waiting' ? 1.2 : ACT.fish === 'fight' ? 0.06 : 0.3;
     for (let i = 0; i < 24; i++) { const u = i / 23; tmpV.lerpVectors(tipW, bobber.position, u); tmpV.y -= Math.sin(u * Math.PI) * sag; p.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); }
     p.needsUpdate = true;
   }
@@ -788,7 +769,7 @@ function stepCourse(t, dt) {
   for (let s = a0 + shift; s < a1 && n < DASHN; s += step, n++) { const x = bx + ux * s, z = bz + uz * s; dashP.set(x, WL + waveJS(x, z, t) + 0.18, z); dashM.compose(dashP, dashQ, dashS); dashes.setMatrixAt(n, dashM); }
   dashes.count = n; dashes.instanceMatrix.needsUpdate = true;
 }
-stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; }, true);
 stage.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6 || performance.now() - downAt.t > 450) return;
   const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -797,7 +778,7 @@ stage.addEventListener('pointerup', e => {
   const wasOpen = menu.style.display !== 'none';
   menu.style.display = hit && !wasOpen ? 'flex' : 'none';
   if (stationBusy()) return;
-  if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP) && ACT.fish !== 'off') { castAt(tapP); return; }
+  if (ACT.fish !== 'off') return; // while fishing, the sea is for casting (see fishing.js)
   if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP); // both views: tap the water to set a course
 });
 document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
@@ -842,6 +823,14 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatP
   canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
   onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); menu.style.display = 'none'; } });
 onBoatApplied = id => station.setActive(id); onBoatApplied(boatId);
+const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
+  setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
+  seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
+  hitsBoat: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.intersectObject(boat, true).length > 0; },
+  tiltCam: on => { const side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); if (on) animCam(side.multiplyScalar(36).setY(38), 1.5, 0.7); else fishCam(); },
+  shake: () => stage.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-5px,3px)' }, { transform: 'translate(4px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260 }),
+  landPoint: () => new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld),
+  night: () => E.night, weather: () => state.w, yaw: () => yaw });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
@@ -849,6 +838,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   const k = drive.keys;
   let thr = Math.max(-1, Math.min(1, -drive.jy + (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)));
   let str = Math.max(-1, Math.min(1, drive.jx + (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)));
+  if (ACT.fish === 'fight') { thr = 0; str = 0; } // arrow keys are swipes while fighting a fish
   const manual = Math.abs(thr) > 0.05 || Math.abs(str) > 0.05;
   if (manual) { stage._controls.autoRotate = false; clearCourse(false); }
   if (course.on && ACT.anchor === 'up') {
@@ -961,4 +951,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

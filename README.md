@@ -26,7 +26,12 @@ Sail. Discover. Connect.
 - **Chase view** (default, ship's-wheel button): the camera sits behind the boat. Sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys, or tap the water to drop a course buoy and let the tug steer itself there.
 - **Top view** (target button): a wide, tilted view of the boat; the wheel hides, and tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu, a carousel of cards (swipe or use the arrows): Go fishing, Drop anchor, **Garage** (my fleet), **Your profile** and **Add friends** (share an invite link with your captain code):
-  - **Go fishing**: a casting circle appears around the boat; tap anywhere in the sea inside it to cast there (tap again to recast), wait for a bite and reel in; after each catch it waits for your next cast. A catch count is kept.
+  - **Go fishing**: a playable mini-game (about 20–40 s a catch):
+    - *Cast*: hold on the sea to aim; a power arc swings out and back. Release in the gold band for a **perfect cast** (a streak of perfect casts builds a combo that draws rarer fish). Cast into a **fishing spot** (birds circling over bubbles) for bigger species.
+    - *Wait*: watch a fish shadow swim in, circle and nibble the bobber. Strike (tap, Space or the Strike! button) only on the real bite; too early or too late and it gets away.
+    - *Fight*: hold to reel and keep the tension needle in the moving green zone; too tight snaps the line, too slack lets it shake free. Swipe (or arrow keys) against the fish's run to tire it. Each species fights its own way (tuna runs, barracuda sprints, swordfish and sailfish leap: tap at the top of the jump). Storms and rain make fish pull harder; night brings rare fish.
+    - *Catch*: the fish leaps aboard in slow motion and a card shows its weight, stars, value and any new record or new species. **Keep** it in the hold or **Release** it for a small coin bonus.
+    - The Garage shows your **Fish collection** (13 species, count and best weight; uncaught fish are silhouettes). Synthesized sounds (cast, splash, reel click, line whine) and phone vibration.
   - **Drop anchor** / **Raise anchor**: the camera swings to the bow to show the anchor and chain dropping into the sea or being hauled back up (about 3 seconds each).
 - Export the boat as OBJ + MTL or GLB (desktop/web only).
 - Phone and tablet layouts that respect safe areas and work in portrait and landscape.
@@ -58,6 +63,7 @@ App id: `com.sailo.app`. The icons and splash screens come from `resources/` via
 index.html               UI overlay markup
 src/main.js              scene: boat model, sea, sky, weather, sailing, fishing, anchor
 src/world.js             Pune Paradise: world size, bounds and position helpers
+src/fishing.js           playable fishing: cast meter, shadows and bites, the fight, catch card, fish log
 src/station.js           Paradise Station: island model, docking, Fish Market, Boathouse, coins and fuel
 src/boats/sailboat.js    the Sail Boat, built in code from Sail_Boat.html (rig, sails that furl at anchor, sail styles)
 src/boats/motoryacht.js  the Motor Yacht, built in code from Motor_Yacht.html (flybridge, radar arch, custom flag)

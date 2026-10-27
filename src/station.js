@@ -438,9 +438,19 @@ export function initStation(ctx) {
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },
     /** A fish was landed: pick a species by its odds and put it in the hold. Returns the fish, or null if the hold is full. */
-    addCatch() { if (holdCount() >= S.holdCap) { toast(`Hold full (${S.holdCap} fish). Sell your catch at Paradise Station, or switch boats.`); return null; }
-      let r = Math.random() * FISH.reduce((a, f) => a + f.odds, 0), f = FISH[0]; for (const x of FISH) { r -= x.odds; if (r <= 0) { f = x; break; } }
+    /** Is there room in the active boat's hold? */
+    holdFull: () => holdCount() >= S.holdCap,
+    holdInfo: () => ({ n: holdCount(), cap: S.holdCap }),
+    /** Put a fish in the hold: a given species (from the fishing game) or one picked by the odds. Returns the fish, or null if the hold is full. */
+    addCatch(id) { if (holdCount() >= S.holdCap) { toast(`Hold full (${S.holdCap} fish). Sell your catch at Paradise Station, or switch boats.`); return null; }
+      let f = FISH.find(x => x.id === id);
+      if (!f) { let r = Math.random() * FISH.reduce((a, x) => a + x.odds, 0); f = FISH[0]; for (const x of FISH) { r -= x.odds; if (r <= 0) { f = x; break; } } }
       S.hold[f.id] = (S.hold[f.id] || 0) + 1; save(); return f; },
+    /** Coins for releasing a fish. */
+    addCoins(n) { S.coins += n; save(); renderWallet(); },
+    /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
+    fishModel: id => kit().fishModels[id].clone(),
+    fishImage: id => { kit(); return FISH.find(f => f.id === id)?.img; },
     /** Make another boat the active one (its own tank and hold). */
     setActive(id) { if (!BOAT_SPECS[id]) return; S.active = id; save(); renderWallet(); },
     shoreWarn() { const now = performance.now(); if (now - lastWarn > 3000) { lastWarn = now; toast('Too shallow! Steer around the island.'); } },
