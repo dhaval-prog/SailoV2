@@ -580,6 +580,8 @@ body.view-top #you-tag { opacity: 1; }
 .map-axis { fill: none; stroke: rgba(255, 255, 255, 0.28); }
 .map-edge { fill: none; stroke: #ffb21a; stroke-dasharray: 1% 1%; }
 .map-harbour { fill: #fff7ea; stroke: var(--ink); }
+.map-island { fill: #e9a23a; stroke: var(--ink); }
+.map-palm { fill: none; stroke: #3fae4a; stroke-linecap: round; }
 .map-label { fill: rgba(255, 255, 255, 0.85); font-family: system-ui, sans-serif; font-weight: 700; text-anchor: middle; }
 .map-north { fill: #ff7a59; }
 .map-scale { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-linecap: round; }

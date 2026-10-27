@@ -4,6 +4,7 @@
 
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
+import { STATION } from './station.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -141,6 +142,11 @@ export function initHud(api) {
   // harbour at the centre
   el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 });
   el('text', { x: 0, y: u * 5.2, class: 'map-label', 'font-size': u * 3.2 }).textContent = 'Harbour';
+  // Paradise Station island
+  { const g = el('g', { transform: `translate(${STATION.x} ${STATION.z})`, class: 'map-station' });
+    el('ellipse', { rx: u * 2.4, ry: u * 1.8, class: 'map-island', 'stroke-width': u * 0.4 }, g);
+    el('path', { d: `M${-u * 0.3} ${u * 0.6}Q${-u * 0.2} ${-u * 0.6} ${u * 0.4} ${-u * 1.4}M${u * 0.4} ${-u * 1.4}q${-u * 1.4} ${-u * 0.1} ${-u * 1.8} ${u * 0.6}M${u * 0.4} ${-u * 1.4}q${u * 1.4} ${-u * 0.1} ${u * 1.8} ${u * 0.6}`, class: 'map-palm', 'stroke-width': u * 0.45 }, g);
+    el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station'; }
   // compass rose and scale bar
   { const g = el('g', { transform: `translate(${H - u * 8} ${-H + u * 9})` });
     el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, g);

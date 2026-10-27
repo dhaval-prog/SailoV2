@@ -1,0 +1,454 @@
+// Paradise Station: the harbour island from Paradise_Station_offline.html, placed out at sea.
+// - The island model (public/models/harbor-island.glb) is loaded, its tug removed, re-shaded with the
+//   game's toon materials and merged per material so ~1,000 meshes draw in a few dozen calls.
+// - The source scene was built for a tug at 60% scale, so the island is scaled up by 1/0.6 to fit ours.
+// - Sailing near it offers "Sail into port": pick a berth, the tug moors itself, and the Fish Market
+//   (sell your catch for coins) and Boathouse (buy fuel) open. "Cast off" sails back out.
+// - Economy (coins, fuel, fish hold) lives here and is saved in localStorage.
+
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import './station.css';
+
+const MILE = 1609.344;
+export const STATION = { name: 'Paradise Station', x: -3.7 * MILE, z: 1.1 * MILE }; // 3.7 mi W, 1.1 mi S of the harbour
+const K = 1 / 0.6;           // island scale (source tug was 0.6x)
+const NEAR = 260;            // metres: "Sail into port" offered inside this range
+const SHOW = 2200;           // metres: island drawn inside this range
+
+// ---- fish, prices and the economy (values from the station file) ----
+export const FISH = [
+  { id: 'sardine', name: 'Sardine', price: 4, kg: 0.12, len: 0.55, h: 0.2, w: 0.1, back: '#245c6e', side: '#b8c9d3', belly: '#f3f6f7', fin: '#8aa4b2', pat: 'spots', odds: 34 },
+  { id: 'mackerel', name: 'Mackerel', price: 9, kg: 0.45, len: 0.8, h: 0.22, w: 0.13, back: '#1c5652', side: '#a7c0c4', belly: '#f4f4ee', fin: '#55767a', pat: 'bars', odds: 28 },
+  { id: 'snapper', name: 'Red Snapper', price: 16, kg: 1.6, len: 0.82, h: 0.36, w: 0.14, back: '#b02c24', side: '#e8735f', belly: '#fbd6c8', fin: '#d4473a', pat: 'none', hump: 0.18, odds: 19 },
+  { id: 'puffer', name: 'Pufferfish', price: 24, kg: 0.9, len: 0.6, h: 0.5, w: 0.48, back: '#7b6a38', side: '#d8c88a', belly: '#f7f2e0', fin: '#c0a865', pat: 'dots', puffer: true, odds: 12 },
+  { id: 'tuna', name: 'Yellowfin Tuna', price: 42, kg: 8.5, len: 1.25, h: 0.32, w: 0.24, back: '#142c58', side: '#9fb2c6', belly: '#eef2f4', fin: '#f0c128', pat: 'tuna', odds: 7 },
+];
+const SAVE = 'sailo:economy', FUEL_PRICE = 2, HOLD_CAP = 30;
+const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; } catch { return {}; } };
+export const S = Object.assign({ coins: 60, fuel: 120, cap: 120, hold: {} }, load());
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch { /* storage blocked */ } };
+const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
+
+// colours of the source scene's materials, by name, so the island matches the game's toon look
+const MATS = {
+  sand: ['#e9a23a'], rock: ['#a7a198', { flatShading: true }], grass: ['#7cc94e'], palm_leaf: ['#3fae4a', { flatShading: true }], bush: ['#4cb94e', { flatShading: true }],
+  wood: ['#b5733a'], wood_light: ['#d49a55'], wood_dark: ['#6e4426'], rope: ['#e6cf9a'], roof_teal: ['#2cc4a8'], roof_trim: ['#1f9a86'],
+  paint_red: ['#ee3427'], paint_white: ['#fff7ea'], paint_navy: ['#2343a0'], paint_yellow: ['#ffb21a'], paint_orange: ['#ff7414'], metal: ['#a9b4c2'], rubber: ['#3b3134'],
+  lantern_glass: ['#ffe08a', { emissive: '#ffe08a', emissiveIntensity: 0.6 }], nav_red: ['#ff2a1f', { emissive: '#ff2a1f', emissiveIntensity: 1 }],
+  shell_pink: ['#ffc9b8'], starfish: ['#ff7a3d', { flatShading: true }],
+  pennant_0: ['#ee3427', { side: 2 }], pennant_1: ['#ffb21a', { side: 2 }], pennant_2: ['#2343a0', { side: 2 }], pennant_3: ['#fff7ea', { side: 2 }], pennant_4: ['#2cc4a8', { side: 2 }],
+};
+
+// the source island outline (same seed, same maths) for collisions
+const islandOutline = () => {
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const IC = { x: -6, z: -3 }, pts = [];
+  for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2, r = 15 * (1 + 0.1 * Math.sin(3 * a + 0.7) + 0.07 * Math.sin(5 * a + 2) + (rnd() - 0.5) * 0.07); pts.push([IC.x + Math.cos(a) * r * 1.15, IC.z + Math.sin(a) * r]); }
+  return { IC, pts };
+};
+const inPoly = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, zi] = pts[i], [xj, zj] = pts[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+
+export function initStation(ctx) {
+  const { THREE, stage, M, WL, waveJS, toScreen } = ctx;
+  const V3 = THREE.Vector3;
+  const O = new V3(STATION.x, WL, STATION.z);
+  const toW = (x, z) => new V3(O.x + x * K, 0, O.z + z * K);             // station-local -> world (xz)
+  const toL = (x, z) => [(x - O.x) / K, (z - O.z) / K];                  // world -> station-local
+
+  // ---------- collisions (station-local units) ----------
+  const { IC, pts: isl } = islandOutline();
+  const PZ = 1, W = 3.4, hw = W / 2, BZ = PZ + 13;
+  let edgeX = IC.x; while (inPoly(isl, edgeX + 0.1, PZ)) edgeX += 0.1;
+  const xa0 = edgeX - 3, xa1 = edgeX + 14, hx0 = edgeX - 2.4, hx1 = edgeX + 2.4, hzN = PZ - 5.4;
+  const grow = (p, d) => { const dx = p[0] - IC.x, dz = p[1] - IC.z, l = Math.hypot(dx, dz); return [p[0] + dx / l * d, p[1] + dz / l * d]; };
+  const BOAT_R = 4.2 / K; // boat half-length-ish clearance, in local units
+  const shore = isl.map(p => grow(p, 2.6 + BOAT_R));
+  const rects = [[xa0, PZ - hw - 0.4, xa1 + 0.4, PZ + hw + 0.4], [xa1 - W - 0.4, PZ, xa1 + 0.4, BZ + 0.4], [hx0, hzN, hx1, PZ]];
+  const stacks = [[-27, 9, 3.4], [16, -17, 3.4]];
+  const blockedL = (x, z) => inPoly(shore, x, z)
+    || rects.some(([a, b, c, d]) => x > a - BOAT_R && x < c + BOAT_R && z > b - BOAT_R && z < d + BOAT_R)
+    || stacks.some(([sx, sz, r]) => Math.hypot(x - sx, z - sz) < r + BOAT_R);
+  /** Would a boat at this world position hit the island, pier or rocks? */
+  const blocked = (x, z) => { if (Math.abs(x - O.x) > 140 || Math.abs(z - O.z) > 140) return false; const [lx, lz] = toL(x, z); return blockedL(lx, lz); };
+
+  // ---------- berths (from the station file, in local units) ----------
+  const SEA0 = [edgeX + 30, PZ + 30];
+  const BERTHS = [
+    { name: 'Berth 1', pos: [edgeX + 3.9, PZ + 3.6], yaw: Math.PI, side: 1, via: [[edgeX + 17, PZ + 21], [edgeX + 5.5, PZ + 14], [edgeX + 3.6, PZ + 8]] },
+    { name: 'Berth 2', pos: [xa1 + 1.95, PZ + 2.2], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 20], [xa1 + 3, PZ + 12], [xa1 + 2.2, PZ + 7]] },
+    { name: 'Berth 3', pos: [xa1 + 1.95, PZ + 9.4], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 22], [xa1 + 2.6, PZ + 15]] },
+    { name: 'Berth 4', pos: [xa1 - hw, BZ + 1.95], yaw: Math.PI, side: 1, via: [[edgeX + 26, PZ + 21], [xa1 + 5, BZ + 2.4]] },
+  ];
+
+  // ---------- island model ----------
+  const root = new THREE.Group(); root.name = 'paradise_station'; root.position.copy(O); root.scale.setScalar(K); root.visible = false; stage._scene.add(root);
+  const live = { palms: [], rowboats: [], posts: [], glass: [] };
+  const convert = new Map();
+  const toonFor = m => {
+    if (convert.has(m)) return convert.get(m);
+    const base = (m.name || '').replace(/_\d+$/, ''), spec = MATS[m.name] || MATS[base];
+    const extra = { ...(spec?.[1] || {}) };
+    if (extra.emissive) extra.emissive = new THREE.Color(extra.emissive);
+    if (m.map) extra.map = m.map;
+    if (m.vertexColors) extra.vertexColors = true;
+    const t = M(m.name || 'station', spec ? spec[0] : '#' + m.color.getHexString(), extra);
+    if (spec?.[1]?.emissive) live.glass.push(t);
+    convert.set(m, t); return t;
+  };
+  // the model (4.4 MB) is only fetched once the boat heads towards the station
+  let loading = false;
+  const loadIsland = () => { loading = true; new GLTFLoader().load('./models/harbor-island.glb', gltf => {
+    const src = gltf.scene.getObjectByName('harbor_island') || gltf.scene;
+    src.getObjectByName('tug_rig')?.removeFromParent();
+    src.updateMatrixWorld(true);
+    // keep animated parts as their own objects; merge everything else by material
+    const keep = new Set();
+    src.children.forEach(c => { if (/^palm_\d+$/.test(c.name)) { keep.add(c); live.palms.push({ g: c, ph: c.position.x * 0.37 + c.position.z * 0.11, q0: c.quaternion.clone() }); }
+      if (/^rowboat_\d+$/.test(c.name)) { keep.add(c); live.rowboats.push({ g: c, y0: c.position.y, ry: c.rotation.y, ph: c.position.x }); } });
+    src.traverse(o => { if (/^post_cap_\d+$/.test(o.name)) { const p = new V3(); o.getWorldPosition(p); live.posts.push(p); } });
+    const buckets = new Map(), singles = [];
+    src.traverse(o => {
+      if (!o.isMesh) return;
+      for (let p = o; p; p = p.parent) if (keep.has(p)) return;
+      if (Array.isArray(o.material)) { singles.push(o); return; }
+      const m = toonFor(o.material), g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+      const ng = g.index ? g.toNonIndexed() : g;
+      Object.keys(ng.attributes).forEach(k => { if (k === 'position' || k === 'normal' || (k === 'uv' && m.map) || (k === 'color' && m.vertexColors)) return; ng.deleteAttribute(k); });
+      if (!ng.attributes.normal) ng.computeVertexNormals();
+      if (!buckets.has(m)) buckets.set(m, []); buckets.get(m).push(ng);
+    });
+    buckets.forEach((list, m) => { const merged = mergeGeometries(list, false); if (!merged) return; const mesh = new THREE.Mesh(merged, m); mesh.name = 'station_' + m.name; mesh.castShadow = false; mesh.receiveShadow = true; root.add(mesh); });
+    singles.forEach(o => { const w = o.matrixWorld.clone(); o.material = o.material.map(toonFor); o.removeFromParent(); w.decompose(o.position, o.quaternion, o.scale); root.add(o); });
+    [...live.palms.map(p => p.g), ...live.rowboats.map(r => r.g)].forEach(g => { g.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(toonFor) : toonFor(o.material); }); root.add(g); });
+    ready = true;
+  }, undefined, err => { loading = false; console.warn('[station] island model failed to load', err); }); };
+  let ready = false;
+
+  // ---------- DOM: wallet, dock bar, markers, toast, shop modal ----------
+  const ui = document.createElement('div'); ui.className = 'stn'; document.body.appendChild(ui);
+  ui.innerHTML = `
+    <div class="stn-wallet" id="stn-wallet"><span class="pill" id="coins"><span class="coin"></span><span id="coinN">0</span></span><span class="pill" id="fuelPill"><span class="fuelbar"><i id="fuelFill"></i></span><span id="fuelN">0 L</span></span></div>
+    <div class="hud bc stn-bar" id="stn-bar" hidden><div><div class="dc-title">Paradise Station</div><div class="dc-sub" id="dockSub"></div></div><button class="btn" id="sailBtn"></button></div>
+    <button class="marker locked" id="mk-market" hidden><span class="mk"><span class="mk-name">Fish Market</span><span class="mk-sub">Sell your catch</span></span></button>
+    <button class="marker locked" id="mk-boathouse" hidden><span class="mk"><span class="mk-name">Boathouse</span><span class="mk-sub">Refuel · boat inventory</span></span></button>
+    <div id="toast"></div>
+    <div class="modal" id="stn-modal" hidden><div class="card" id="card"></div></div>`;
+  const $ = id => ui.querySelector('#' + id);
+  BERTHS.forEach((b, i) => { b.el = document.createElement('button'); b.el.className = 'marker berth'; b.el.hidden = true;
+    b.el.innerHTML = `<span class="mk"><span class="mk-name">${b.name}</span><span class="mk-sub">Moor here</span></span>`; b.el.onclick = () => startDocking(i); ui.appendChild(b.el); });
+  let toastT; const toast = msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2800); };
+  const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
+  const renderWallet = () => { $('coinN').textContent = S.coins; $('fuelN').textContent = Math.round(S.fuel) + ' L'; $('fuelFill').style.width = (S.fuel / S.cap * 100) + '%'; $('fuelFill').classList.toggle('low', S.fuel < S.cap * 0.2); };
+
+  // ---------- camera framing from the sea side, so the island never sits between camera and boat ----------
+  const ICw = () => toW(IC.x, IC.z);
+  const seaSide = (p, dist, up) => { const c = ICw(), d = new V3(p.x - c.x, 0, p.z - c.z); if (d.lengthSq() < 1) d.set(1, 0, 1); d.normalize(); return d.multiplyScalar(dist).setY(up); };
+  const frame = (focus, dist, up, dur = 1.4) => ctx.camTo?.(focus, seaSide(focus, dist, up), dur);
+  // ---------- docking ----------
+  let mode = 'sea', berth = BERTHS[0], route = null, prog = 0, dur = 1, near = false, lastWarn = 0;
+  const shops = [{ id: 'market', at: [-2, 3.5 + 1.57, -10] }, { id: 'boathouse', at: [(hx0 + hx1) / 2, 1.85 + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] }];
+  const worldAt = ([x, y, z]) => new V3(O.x + x * K, WL + y * K, O.z + z * K);
+  const ropes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), M('rope', '#e6cf9a')); m.visible = false; stage._scene.add(m); return m; });
+  const renderBar = () => {
+    const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near;
+    bar.hidden = !show; document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
+    if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = 'Moor at the pier to open the shops'; }
+    else if (mode === 'picking') { b.textContent = 'Cancel'; b.disabled = false; sub.textContent = 'Pick a berth along the pier'; }
+    else if (mode === 'docking') { b.textContent = 'Mooring…'; b.disabled = true; sub.textContent = `Approaching ${berth.name}`; }
+    else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = `Moored at ${berth.name} · shops open`; }
+    else { b.textContent = 'Heading out…'; b.disabled = true; sub.textContent = 'Leaving the harbour'; }
+    BERTHS.forEach(x => { x.el.hidden = mode !== 'picking'; });
+    ['market', 'boathouse'].forEach(id => { $('mk-' + id).hidden = mode !== 'docked'; $('mk-' + id).classList.toggle('locked', mode !== 'docked'); });
+  };
+  // a path from where the boat is to a berth, swinging round the island if the island is in the way
+  const routeTo = (bi, from) => {
+    const b = BERTHS[bi], [fx, fz] = toL(from.x, from.z), pts = [[fx, fz]];
+    const R = 32, ang = (x, z) => Math.atan2(z - IC.z, x - IC.x);
+    const crosses = (a, c) => { for (let k = 1; k < 12; k++) { const u = k / 12; if (inPoly(isl.map(p => grow(p, 3)), a[0] + (c[0] - a[0]) * u, a[1] + (c[1] - a[1]) * u)) return true; } return false; };
+    if (crosses(pts[0], SEA0)) { let a0 = ang(fx, fz); const a1 = ang(SEA0[0], SEA0[1]), d = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), n = Math.ceil(Math.abs(d) / 0.5);
+      for (let k = 1; k < n; k++) { const a = a0 + d * k / n; pts.push([IC.x + Math.cos(a) * R * 1.15, IC.z + Math.sin(a) * R]); } }
+    pts.push(SEA0, ...b.via, b.pos);
+    return new THREE.CatmullRomCurve3(pts.map(([x, z]) => toW(x, z)));
+  };
+  function startDocking(i) {
+    if (mode !== 'picking') return;
+    berth = BERTHS[i]; route = routeTo(i, ctx.boatPos()); dur = THREE.MathUtils.clamp(route.getLength() / 5, 6, 30); prog = 0; mode = 'docking';
+    ctx.onDockStart?.(); renderBar(); frame(ctx.boatPos().clone(), 40, 22, 1.6);
+  }
+  const castOff = () => { closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); const pts = [...berth.via].reverse(); route = new THREE.CatmullRomCurve3([berth.pos, ...pts, SEA0].map(([x, z]) => toW(x, z))); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 20); prog = 0; mode = 'leaving'; renderBar(); };
+  $('sailBtn').onclick = () => {
+    if (mode === 'sea') { if (!ctx.canDock || ctx.canDock()) { mode = 'picking'; renderBar(); const pier = toW(xa1 - 4, PZ + 6); frame(new V3(pier.x, WL + 2, pier.z), 75, 55); } }
+    else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); }
+    else if (mode === 'docked') castOff();
+  };
+  ['market', 'boathouse'].forEach(id => { $('mk-' + id).onclick = () => openPanel(id); });
+
+  // ---------- fish models + mini renderer for the shop windows (ported) ----------
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  let seed2 = 7; const rnd2 = () => (seed2 = (seed2 * 16807) % 2147483647) / 2147483647;
+  const UP = new V3(0, 1, 0);
+  const fishShape = pts => { const s = new THREE.Shape(); pts.forEach(([x, y, cx, cy], i) => i ? (cx !== undefined ? s.quadraticCurveTo(cx, cy, x, y) : s.lineTo(x, y)) : s.moveTo(x, y)); s.closePath(); return new THREE.ShapeGeometry(s, 10); };
+  function makeFish(f) {
+    const g = new THREE.Group(), L = f.len, H = f.h, Wd = f.w;
+    const geo = new THREE.SphereGeometry(1, 56, 28), p = geo.attributes.position, col = [], c = new THREE.Color();
+    const cB = new THREE.Color(f.back), cS = new THREE.Color(f.side), cL = new THREE.Color(f.belly), dk = new THREE.Color('#0c2224'), gold = new THREE.Color('#e9c34a'), brown = new THREE.Color('#3a2c16');
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), u = (x + 1) / 2;
+      const taper = f.puffer ? 1 : 0.3 + 0.7 * ss(0, 0.5, u), hump = y > 0 ? 1 + (f.hump || 0) * Math.sin(u * Math.PI) : 1;
+      p.setXYZ(i, x * L / 2, y * taper * hump * H / 2, z * taper * Wd / 2);
+      if (y > 0.15) c.lerpColors(cS, cB, ss(0.15, 0.75, y)); else c.lerpColors(cL, cS, ss(-0.6, 0.15, y));
+      if (f.pat === 'bars' && y > 0.2 && Math.sin(x * 26 + Math.sin(y * 5 + z * 3) * 2.2) > 0.25) c.lerp(dk, 0.7);
+      if (f.pat === 'spots' && y > 0.05 && y < 0.35 && x > -0.1 && Math.sin(x * 38) > 0.82) c.lerp(dk, 0.55);
+      if (f.pat === 'tuna' && y > 0.1 && y < 0.28) c.lerp(gold, 0.55);
+      if (f.pat === 'dots' && y > -0.15 && Math.sin(x * 22) * Math.sin(z * 22 + x * 5) > 0.55) c.lerp(brown, 0.7);
+      if (Math.abs(u - 0.78) < 0.012 && !f.puffer) c.multiplyScalar(0.6);
+      if (u > 0.8) c.multiplyScalar(0.92);
+      col.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+    const bodyM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.22 });
+    const finM = new THREE.MeshStandardMaterial({ color: f.fin, roughness: 0.5, side: THREE.DoubleSide, transparent: true, opacity: 0.88 });
+    g.add(new THREE.Mesh(geo, bodyM));
+    const T = H * (f.id === 'tuna' ? 1.05 : 0.75), Lt = L * (f.puffer ? 0.16 : 0.22), fork = f.puffer ? -Lt * 1.35 : f.id === 'snapper' ? -Lt * 0.8 : -Lt * 0.45;
+    const tail = new THREE.Mesh(fishShape([[L * 0.03, -0.06 * T], [-Lt, -T * 0.55], [-Lt, T * 0.55, fork, 0], [L * 0.03, 0.06 * T]]), finM); tail.name = 'tail'; tail.position.x = -L / 2 + L * 0.04; g.add(tail);
+    if (!f.puffer) {
+      const Hd = H * (f.id === 'snapper' ? 0.42 : 0.3);
+      const dors = new THREE.Mesh(fishShape([[0.17 * L, 0], [0.07 * L, Hd], [-0.17 * L, 0.02, -0.04 * L, Hd * 0.55]]), finM); dors.position.y = H / 2 * 0.88 * (1 + (f.hump || 0)); g.add(dors);
+      const anal = new THREE.Mesh(fishShape([[-0.05 * L, 0], [-0.14 * L, -Hd * 0.6], [-0.3 * L, -0.01, -0.22 * L, -Hd * 0.35]]), finM); anal.position.y = -H / 2 * 0.75; g.add(anal);
+      [-1, 1].forEach(s => { const pec = new THREE.Mesh(fishShape([[0, 0], [-0.17 * L, -0.06 * H, -0.12 * L, 0.06 * H], [-0.02 * L, -0.05 * H]]), finM); pec.position.set(0.24 * L, -0.1 * H, s * Wd / 2 * 0.82); pec.rotation.y = s * 0.45; g.add(pec); });
+      if (f.id === 'tuna') for (let k = 0; k < 6; k++) [-1, 1].forEach(s => { const fl = new THREE.Mesh(fishShape([[0, 0], [-0.02 * L, s * 0.06 * H], [-0.04 * L, 0]]), finM); fl.position.set(-0.27 * L - k * 0.033 * L, s * H / 2 * (0.42 - k * 0.05), 0); g.add(fl); });
+    } else {
+      const spM = new THREE.MeshStandardMaterial({ color: '#efe3b8', roughness: 0.6 }), sp = new THREE.ConeGeometry(0.012, 0.06, 5);
+      for (let k = 0; k < 90; k++) { const n = new V3(rnd2() * 2 - 1, rnd2() * 2 - 1, rnd2() * 2 - 1).normalize(); if (n.x < -0.8) continue; const m = new THREE.Mesh(sp, spM); m.position.set(n.x * L / 2, n.y * H / 2, n.z * Wd / 2); m.quaternion.setFromUnitVectors(UP, new V3(n.x / L, n.y / H, n.z / Wd).normalize()); g.add(m); }
+    }
+    const eR = H * (f.puffer ? 0.09 : 0.075), eyeX = L / 2 * 0.7, eyeZ = Wd / 2 * Math.sqrt(1 - 0.49) * (f.puffer ? 1 : 0.95);
+    const iris = new THREE.MeshStandardMaterial({ color: f.puffer ? '#2f8a4a' : '#d9c98e', metalness: 0.5, roughness: 0.25 }), pupil = new THREE.MeshStandardMaterial({ color: '#050505', roughness: 0.05 });
+    [-1, 1].forEach(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(eR, 16, 12), iris); e.position.set(eyeX, H * 0.08, s * eyeZ); g.add(e); const pp = new THREE.Mesh(new THREE.SphereGeometry(eR * 0.62, 14, 10), pupil); pp.position.set(eyeX + eR * 0.1, H * 0.08, s * (eyeZ + eR * 0.5)); g.add(pp); });
+    return g;
+  }
+  function woodCanvas(w, h, base, planks, dark) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'), ph = h / planks;
+    for (let p = 0; p < planks; p++) { const y0 = p * ph, tn = (rnd2() - 0.5) * 22;
+      x.fillStyle = `rgb(${base.map(v => Math.max(0, Math.min(255, v + tn))).join(',')})`; x.fillRect(0, y0, w, ph);
+      for (let k = 0; k < 30; k++) { const yy = y0 + rnd2() * ph, amp = 0.6 + rnd2() * 2.6, fr = 0.004 + rnd2() * 0.012, off = rnd2() * 100;
+        x.strokeStyle = `rgba(${dark},${0.08 + rnd2() * 0.2})`; x.lineWidth = 0.5 + rnd2() * 1.5; x.beginPath();
+        for (let xx = 0; xx <= w; xx += 6) { const yv = yy + Math.sin(xx * fr + off) * amp + Math.sin(xx * fr * 3.3 + off) * amp * 0.4; xx ? x.lineTo(xx, yv) : x.moveTo(xx, yv); } x.stroke(); }
+      if (rnd2() < 0.55) { const kx = rnd2() * w, ky = y0 + ph * (0.3 + rnd2() * 0.4), gr = x.createRadialGradient(kx, ky, 0, kx, ky, ph * 0.28); gr.addColorStop(0, `rgba(${dark},.75)`); gr.addColorStop(1, `rgba(${dark},0)`); x.fillStyle = gr; x.beginPath(); x.ellipse(kx, ky, ph * 0.5, ph * 0.22, 0, 0, 6.3); x.fill(); }
+      x.fillStyle = 'rgba(0,0,0,.5)'; x.fillRect(0, y0 + ph - 2, w, 2); x.fillStyle = 'rgba(255,255,255,.1)'; x.fillRect(0, y0, w, 1);
+      const jx = rnd2() * w; x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(jx, y0, 2, ph); x.fillStyle = 'rgba(30,20,10,.8)'; [jx - 10, jx + 12].forEach(nx => { x.beginPath(); x.arc(nx, y0 + ph * 0.3, 2.2, 0, 6.3); x.arc(nx, y0 + ph * 0.7, 2.2, 0, 6.3); x.fill(); });
+    }
+    return c;
+  }
+  // built lazily, the first time a shop opens
+  let shopKit = null;
+  const kit = () => {
+    if (shopKit) return shopKit;
+    const fishModels = {}; FISH.forEach(f => { fishModels[f.id] = makeFish(f); });
+    const woodLightC = woodCanvas(512, 256, [168, 116, 70], 4, '70,40,18'), woodDarkC = woodCanvas(512, 256, [104, 68, 40], 5, '30,16,6');
+    ui.style.setProperty('--wood-light', `url(${woodLightC.toDataURL()})`); ui.style.setProperty('--wood-dark', `url(${woodDarkC.toDataURL()})`);
+    const mini = new THREE.WebGLRenderer({ antialias: true, alpha: true }); mini.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
+    const studio = sc => { sc.add(new THREE.HemisphereLight('#ffffff', '#6b7b90', 1.25)); const d = new THREE.DirectionalLight('#fff2dc', 2.8); d.position.set(2, 5, 3); sc.add(d); const f2 = new THREE.DirectionalLight('#9fd8ff', 1.1); f2.position.set(-3, 2, -2); sc.add(f2); return sc; };
+    { const sc = studio(new THREE.Scene()), cam = new THREE.PerspectiveCamera(28, 240 / 140, 0.1, 50); cam.position.set(0, 0.3, 4.2); cam.lookAt(0, 0, 0); mini.setPixelRatio(1); mini.setSize(240, 140, false);
+      FISH.forEach(f => { const m = fishModels[f.id].clone(); m.scale.setScalar((f.puffer ? 1.35 : 1.85) / f.len); m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
+      mini.setPixelRatio(Math.min(2, devicePixelRatio)); }
+    // crate on ice
+    const crateSc = studio(new THREE.Scene()), crateCam = new THREE.PerspectiveCamera(34, 1.6, 0.1, 50); crateCam.position.set(0, 3.0, 2.5); crateCam.lookAt(0, 0.05, 0.1);
+    const tex = cv => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+    const wm = new THREE.MeshStandardMaterial({ map: tex(woodLightC), roughness: 0.85 }), dm = new THREE.MeshStandardMaterial({ map: tex(woodDarkC), roughness: 0.9 });
+    const B = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); crateSc.add(b); return b; };
+    B(7, 0.1, 4, dm, 0, -0.08, 0); B(2.5, 0.06, 1.6, wm, 0, 0, 0);
+    [0.1, 0.3].forEach(y => { [-0.8, 0.8].forEach(z => B(2.6, 0.15, 0.07, wm, 0, y, z)); [-1.27, 1.27].forEach(x => B(0.07, 0.15, 1.6, wm, x, y, 0)); });
+    [[-1.27, -0.8], [1.27, -0.8], [-1.27, 0.8], [1.27, 0.8]].forEach(([x, z]) => B(0.1, 0.42, 0.1, dm, x, 0.18, z));
+    const ice = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.09, 0), new THREE.MeshStandardMaterial({ color: '#eaf7ff', roughness: 0.1, transparent: true, opacity: 0.92 }), 260), o = new THREE.Object3D();
+    for (let i = 0; i < 260; i++) { o.position.set((rnd2() - 0.5) * 2.35, 0.06 + rnd2() * 0.09, (rnd2() - 0.5) * 1.45); o.rotation.set(rnd2() * 3, rnd2() * 3, rnd2() * 3); o.scale.setScalar(0.6 + rnd2() * 0.8); o.updateMatrix(); ice.setMatrixAt(i, o.matrix); }
+    crateSc.add(ice);
+    // tug preview for the boathouse: a copy of the player's boat
+    const tugSc = studio(new THREE.Scene()), tugCam = new THREE.PerspectiveCamera(30, 1.6, 0.1, 100); tugCam.position.set(0, 9, 26); tugCam.lookAt(0, 3.5, 0);
+    const tugView = new THREE.Group(); const cl = ctx.boat.clone(true); cl.position.set(0, 0, 0); cl.rotation.set(0, 0, 0); cl.traverse(x => { if (x.isLight || x.isLine || (x.material && x.material.blending === THREE.AdditiveBlending)) x.visible = false; }); tugView.add(cl); tugSc.add(tugView);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(13, 64), new THREE.MeshStandardMaterial({ color: '#2a86c2', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.88 })); water.rotation.x = -Math.PI / 2; water.position.y = 0.85; tugSc.add(water);
+    shopKit = { fishModels, mini, crateSc, crateCam, tugSc, tugCam, tugView }; return shopKit;
+  };
+  const bounce = p => { const n = 7.5625, d = 2.75; if (p < 1 / d) return n * p * p; if (p < 2 / d) return n * (p -= 1.5 / d) * p + 0.75; if (p < 2.5 / d) return n * (p -= 2.25 / d) * p + 0.9375; return n * (p -= 2.625 / d) * p + 0.984375; };
+  let panel = null, crate = {}, crateFish = [], miniT = 0, miniHost = null, miniScene = null, miniCam = null, viewYaw = 0.6, drag = null;
+  const attachMini = (host, sc, cam) => { const k = kit(); miniHost = host; miniScene = sc; miniCam = cam; host.prepend(k.mini.domElement); resizeMini(); };
+  const resizeMini = () => { if (!miniHost) return; const w = miniHost.clientWidth, h = miniHost.clientHeight; if (!w || !h) return; shopKit.mini.setSize(w, h, false); miniCam.aspect = w / h; miniCam.updateProjectionMatrix(); };
+  addEventListener('resize', resizeMini);
+  function crateAdd(id, delay = 0) { const k = kit(), f = FISH.find(q => q.id === id), m = k.fishModels[id].clone(), sc = 1.4; m.scale.setScalar(sc); m.rotation.order = 'YXZ';
+    const half = Math.max(0.05, 1.1 - f.len * sc / 2), x = (rnd2() * 2 - 1) * half, z = (rnd2() - 0.5) * 0.8, yaw = (rnd2() - 0.5) * 0.6 + (rnd2() < 0.5 ? Math.PI : 0);
+    const rest = 0.15 + f.w * sc * 0.5 + Math.min(crateFish.length, 14) * 0.03; k.crateSc.add(m);
+    crateFish.push({ m, id, x, z, yaw, rest, t0: miniT + delay, ph: rnd2() * 6.28, tail: m.getObjectByName('tail') }); }
+  const crateRemove = id => { for (let i = crateFish.length - 1; i >= 0; i--) if (crateFish[i].id === id && !crateFish[i].out) { crateFish[i].out = miniT; return; } };
+  function crateTick(t, dt) {
+    crateFish.forEach(c => { const a = t - c.t0;
+      if (c.out) { const o = t - c.out; c.m.position.y += dt * (2 + o * 8); c.m.scale.multiplyScalar(Math.max(0, 1 - dt * 3.5)); if (o > 0.7) c.dead = true; return; }
+      c.m.visible = a >= 0; if (a < 0) return;
+      const p = Math.min(1, a / 0.75), flop = Math.pow(Math.max(0, Math.sin(t * 0.9 + c.ph)), 14) + (p < 1 ? 0.6 : 0);
+      c.m.position.set(c.x, c.rest + (1 - bounce(p)) * 1.8 + flop * 0.05, c.z);
+      c.m.rotation.set(-Math.PI / 2 + Math.sin(t * 16 + c.ph) * 0.16 * flop, c.yaw + Math.sin(t * 9 + c.ph) * 0.08 * flop, 0);
+      if (c.tail) c.tail.rotation.y = Math.sin(t * 22 + c.ph) * 0.6 * flop; });
+    crateFish = crateFish.filter(c => { if (c.dead) shopKit.crateSc.remove(c.m); return !c.dead; });
+  }
+  const mray = new THREE.Raycaster(), mndc = new THREE.Vector2();
+  function crateHit(e) { const r = shopKit.mini.domElement.getBoundingClientRect(); mndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); mray.setFromCamera(mndc, shopKit.crateCam);
+    const liveF = crateFish.filter(c => !c.out && c.m.visible), hit = mray.intersectObjects(liveF.map(c => c.m), true)[0]; if (!hit) return null;
+    return liveF.find(c => { let o = hit.object; while (o) { if (o === c.m) return true; o = o.parent; } return false; }); }
+  const wireMini = () => { const el = shopKit.mini.domElement; if (el.dataset.wired) return; el.dataset.wired = '1';
+    el.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw: viewYaw }; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', e => { if (drag && panel === 'boathouse') { viewYaw = drag.yaw + (e.clientX - drag.x) * 0.012; return; } if (panel === 'market' && !drag) el.style.cursor = crateHit(e) ? 'pointer' : ''; });
+    el.addEventListener('pointerup', e => { if (drag && panel === 'market' && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) { const c = crateHit(e); if (c) { crate[c.id] = Math.max(0, (crate[c.id] || 0) - 1); crateRemove(c.id); updateMarket(); } } drag = null; }); };
+
+  // ---------- shop windows (ported markup) ----------
+  const dialTicks = (a0, a1, n, every, r, labels) => { let h = ''; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; h += `<i class="tk${i % every ? '' : ' mj'}" style="transform:rotate(${a}deg)"></i>`; }
+    labels.forEach(([a, t]) => { const rad = (a - 90) * Math.PI / 180; h += `<b class="tlab" style="left:${50 + Math.cos(rad) * r}%;top:${50 + Math.sin(rad) * r}%">${t}</b>`; }); return h; };
+  const marketShell = () => `<div class="awning"><div class="stripes"></div><div class="valance"></div></div>
+    <div class="sign"><span>Fish Market</span></div><button class="rx" data-act="close" aria-label="Close">✕</button>
+    <div class="rp-body"><section><div class="rp-h"><h3>Today’s catch</h3><button class="tagbtn" data-act="addall">Add all</button></div><div class="ice" id="catchList"></div></section>
+    <section><div class="rp-h"><h3>Selling crate</h3><span class="rp-note">Tap a fish in the crate to put it back</span></div>
+    <div class="view crate" id="crateView"><div class="scale"><div class="face">${dialTicks(-135, 135, 20, 5, 31, [[-135, 0], [-67.5, 5], [0, 10], [67.5, 15], [135, 20]])}<div class="needle" id="needle"></div><div class="hub"></div><div class="kg" id="kgRead">0.0 kg</div></div></div></div>
+    <div class="cchips" id="crateItems"></div>
+    <div class="till"><span>TOTAL</span><b id="tillN">0c</b></div>
+    <button class="sell" id="sellBtn" data-act="sell" disabled>Crate is empty</button></section></div>`;
+  let countRAF = 0;
+  const countTo = (el, to, suf = '') => { const from = +(el.dataset.v || 0); el.dataset.v = to; const t0 = performance.now(); cancelAnimationFrame(countRAF); const step = now => { const p = Math.min(1, (now - t0) / 450), v = Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))); el.textContent = v + suf; if (p < 1) countRAF = requestAnimationFrame(step); }; countRAF = requestAnimationFrame(step); };
+  function updateMarket() {
+    const inHold = FISH.filter(f => (S.hold[f.id] || 0) > 0), inCrate = FISH.filter(f => crate[f.id] > 0);
+    const n = inCrate.reduce((a, f) => a + crate[f.id], 0), total = inCrate.reduce((a, f) => a + crate[f.id] * f.price, 0), kg = inCrate.reduce((a, f) => a + crate[f.id] * f.kg, 0);
+    $('catchList').innerHTML = inHold.length ? inHold.map((f, i) => { const left = S.hold[f.id] - (crate[f.id] || 0);
+      return `<div class="fishrow ${left ? '' : 'out'}"><img src="${f.img}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag">${f.price}c</span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
+      : '<div class="rp-empty">Your hold is empty. Go fishing out at sea, then come back to sell.</div>';
+    $('crateItems').innerHTML = inCrate.map(f => `<button class="cchip" data-act="dec" data-id="${f.id}" title="Put one back"><img src="${f.img}" alt=""><span>${f.name} ×${crate[f.id]}</span><b>−</b></button>`).join('');
+    $('needle').style.transform = `rotate(${-135 + 270 * Math.min(1, kg / 20)}deg)`; $('kgRead').textContent = kg.toFixed(1) + ' kg';
+    countTo($('tillN'), total, 'c');
+    const b = $('sellBtn'); b.disabled = !n; b.textContent = n ? `Sell ${n} fish for ${total}c` : 'Crate is empty';
+  }
+  const boathouseShell = () => `<div class="roof"></div><div class="sign teal"><span>Boathouse</span><small>${berth.name}</small></div><button class="rx" data-act="close" aria-label="Close">✕</button>
+    <div class="rp-body"><section class="pump"><div class="pump-top"><span>HARBOUR FUEL</span><span class="pump-price">${FUEL_PRICE}c / L</span></div>
+    <div class="pump-face"><div class="fdial"><div class="zone"></div>${dialTicks(-120, 120, 16, 4, 30, [[-120, 'E'], [0, '½'], [120, 'F']])}<div class="needle f" id="fNeedle"></div><div class="hub"></div><div class="kg">FUEL</div></div>
+    <div class="sight" id="sight"><div class="liquid" id="liquid"><div class="wave"></div></div><div class="marks"></div></div></div>
+    <div class="counters"><div class="ctr"><label>Litres</label><output id="ctrL">000.0</output></div><div class="ctr"><label>Coins</label><output id="ctrC">000</output></div></div>
+    <div class="pump-ctrl"><button class="nozzle" id="nozzle">Hold to pump</button><div class="quick"><button class="qb" data-act="q10">+10 L</button><button class="qb" data-act="qfull">Fill up</button></div></div>
+    <div class="pump-note" id="pumpNote"></div></section>
+    <section><div class="rp-h"><h3>On board</h3><span class="rp-note" id="holdTxt"></span></div><div class="holdbar"><i id="holdFill"></i></div><div class="view" id="tugViewHost" style="height:150px;margin-bottom:10px"></div><div class="slots" id="slots"></div></section></div>`;
+  let pumping = false, pumpTarget = 0, sessL = 0, showL = 0, bubbleT = 0;
+  function updatePumpUI() {
+    if (panel !== 'boathouse') return; const r = S.fuel / S.cap;
+    $('fNeedle').style.transform = `rotate(${-120 + 240 * r}deg)`; $('liquid').style.height = (r * 100) + '%';
+    $('ctrL').textContent = showL.toFixed(1).padStart(5, '0'); $('ctrC').textContent = String(Math.round(showL * FUEL_PRICE)).padStart(3, '0');
+    $('pumpNote').textContent = `Tank ${S.fuel.toFixed(1)} / ${S.cap} L · you have ${S.coins - Math.round(sessL * FUEL_PRICE)}c`;
+    $('nozzle').classList.toggle('on', pumping || pumpTarget > 0); $('nozzle').textContent = pumping || pumpTarget > 0 ? 'Pumping…' : 'Hold to pump';
+    renderWallet();
+  }
+  function updateBoathouse() {
+    const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${HOLD_CAP}`; $('holdFill').style.width = (n / HOLD_CAP * 100) + '%';
+    $('slots').innerHTML = FISH.map(f => `<div class="slot ${S.hold[f.id] ? '' : 'zero'}"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${f.img}" alt=""><span>${f.name}</span></div>`).join('');
+    updatePumpUI();
+  }
+  function pumpTick(dt) {
+    if (!pumping && pumpTarget <= 0) return;
+    let step = Math.min(9 * dt, S.cap - S.fuel, S.coins / FUEL_PRICE - sessL); if (pumpTarget > 0) step = Math.min(step, pumpTarget);
+    if (step <= 0.0001) { stopPump(S.cap - S.fuel < 0.05 ? 'tank full' : 'out of coins'); return; }
+    S.fuel += step; sessL += step; showL = sessL; if (pumpTarget > 0) { pumpTarget -= step; if (pumpTarget <= 0.0001) { updatePumpUI(); stopPump(); return; } }
+    bubbleT -= dt; if (bubbleT <= 0) { bubbleT = 0.06; const b = document.createElement('span'); b.className = 'bub'; b.style.left = (10 + Math.random() * 75) + '%'; b.style.setProperty('--s', (3 + Math.random() * 5) + 'px'); $('sight').appendChild(b); setTimeout(() => b.remove(), 1100); }
+    updatePumpUI();
+  }
+  function startPump(target = 0) { if (S.cap - S.fuel < 0.05) return toast('The tank is already full.'); if (S.coins < FUEL_PRICE) return toast('Not enough coins for fuel. Sell some fish first.'); sessL = 0; showL = 0; pumping = !target; pumpTarget = target; updatePumpUI(); }
+  function stopPump(reason) { if (!pumping && pumpTarget <= 0) return;
+    pumping = false; pumpTarget = 0;
+    if (sessL > 0) { const cost = Math.round(sessL * FUEL_PRICE); S.coins -= cost; S.fuel = Math.min(S.cap, Math.round(S.fuel * 10) / 10); save(); toast(`Pumped ${sessL.toFixed(1)} L for ${cost}c${reason ? ' · ' + reason : ''}`); bump('coins'); }
+    sessL = 0; renderWallet(); updatePumpUI(); }
+  addEventListener('pointerup', () => { if (pumping) stopPump(); }); addEventListener('pointercancel', () => { if (pumping) stopPump(); });
+  function fly(img, toEl) { const a = img.getBoundingClientRect(), b = toEl.getBoundingClientRect(), c = img.cloneNode(); c.className = 'flyer'; c.style.animation = 'none';
+    Object.assign(c.style, { left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px' }); ui.appendChild(c);
+    const dx = b.left + b.width / 2 - a.left - a.width / 2, dy = b.top + b.height * 0.55 - a.top - a.height / 2;
+    c.animate([{ transform: 'translate(0,0) rotate(0)' }, { transform: `translate(${dx * 0.5}px,${dy * 0.5 - 90}px) rotate(-28deg) scale(1.1)`, offset: 0.5 }, { transform: `translate(${dx}px,${dy}px) rotate(12deg) scale(.7)`, opacity: 0.3 }], { duration: 480, easing: 'cubic-bezier(.3,.7,.4,1)' }).onfinish = () => c.remove(); }
+  function coinBurst(from, n, total) { const a = from.getBoundingClientRect(), b = $('coins').getBoundingClientRect(), start = S.coins - total;
+    for (let i = 0; i < n; i++) { const c = document.createElement('span'); c.className = 'coin flycoin'; c.style.left = (a.left + a.width / 2 + (Math.random() - 0.5) * 60) + 'px'; c.style.top = (a.top + a.height / 2) + 'px'; ui.appendChild(c);
+      const dx = b.left + 16 - parseFloat(c.style.left), dy = b.top + 14 - parseFloat(c.style.top);
+      c.animate([{ transform: 'translate(0,0) scale(.6)' }, { transform: `translate(${dx * 0.3 + (Math.random() - 0.5) * 120}px,${-60 - Math.random() * 80}px) scale(1.2)`, offset: 0.35 }, { transform: `translate(${dx}px,${dy}px) scale(.8)` }], { duration: 750, delay: i * 45, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'backwards' })
+        .onfinish = () => { c.remove(); $('coinN').textContent = Math.round(start + total * (i + 1) / n); if (i === n - 1) { renderWallet(); bump('coins'); } }; } }
+  function openPanel(id) {
+    if (mode !== 'docked') return;
+    const k = kit(); wireMini(); panel = id; crate = {}; const card = $('card'); card.className = 'rp ' + id; card.innerHTML = id === 'market' ? marketShell() : boathouseShell(); $('stn-modal').hidden = false; stage._controls.enabled = false;
+    if (id === 'market') { crateFish.forEach(c => k.crateSc.remove(c.m)); crateFish = []; attachMini($('crateView'), k.crateSc, k.crateCam); updateMarket(); }
+    else { attachMini($('tugViewHost'), k.tugSc, k.tugCam); showL = 0; updateBoathouse(); $('nozzle').addEventListener('pointerdown', e => { e.preventDefault(); startPump(); }); }
+  }
+  function closePanel() { stopPump(); panel = null; miniHost = null; $('stn-modal').hidden = true; stage._controls.enabled = true; }
+  $('card').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return; const a = b.dataset.act, id = b.dataset.id;
+    if (a === 'close') return closePanel();
+    if (a === 'q10') return startPump(Math.min(10, S.cap - S.fuel));
+    if (a === 'qfull') return startPump(S.cap - S.fuel);
+    if (a === 'add') { const img = b.closest('.fishrow')?.querySelector('img'); crate[id] = Math.min(S.hold[id], (crate[id] || 0) + 1); if (img) fly(img, $('crateView')); crateAdd(id, 0.38); }
+    if (a === 'dec') { crate[id] = Math.max(0, (crate[id] || 0) - 1); crateRemove(id); }
+    if (a === 'addall') { let k = 0; FISH.forEach(f => { const more = (S.hold[f.id] || 0) - (crate[f.id] || 0); for (let j = 0; j < more; j++) crateAdd(f.id, 0.1 * k++); crate[f.id] = S.hold[f.id] || 0; }); }
+    if (a === 'sell') { let n = 0, tot = 0; FISH.forEach(f => { const q = crate[f.id] || 0; n += q; tot += q * f.price; S.hold[f.id] = (S.hold[f.id] || 0) - q; });
+      S.coins += tot; crate = {}; save(); crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot; }
+    if (panel === 'market') updateMarket(); });
+  $('stn-modal').addEventListener('click', e => { if (e.target.id === 'stn-modal') closePanel(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') { if (panel) closePanel(); else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); } } });
+
+  // ---------- per frame ----------
+  const pv = new V3();
+  const place = (el, at) => { const cam = stage._camera, r = stage.getBoundingClientRect(); pv.copy(at).project(cam); const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05; el.style.display = vis ? '' : 'none';
+    if (vis) el.style.transform = `translate(${(pv.x + 1) / 2 * r.width + r.left}px, ${(1 - pv.y) / 2 * r.height + r.top}px) translate(-50%, -100%)`; };
+  const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+  function tick(t, dt) {
+    const bp = ctx.boatPos(), dist = Math.hypot(bp.x - O.x, bp.z - O.z);
+    if (!loading && dist < 3500) loadIsland();
+    root.visible = ready && dist < SHOW;
+    const wasNear = near; near = dist < NEAR; if (near !== wasNear && mode === 'sea') renderBar();
+    if (root.visible) {
+      const wind = 0.75 + 0.25 * Math.sin(t * 0.21);
+      live.palms.forEach(p => { p.g.quaternion.copy(p.q0); p.g.rotateX(wind * 0.02 * Math.sin(t * 1.05 + p.ph)); p.g.rotateZ(wind * 0.016 * Math.sin(t * 0.8 + p.ph * 1.7)); });
+      live.rowboats.forEach(r => { const w = r.g.position; r.g.position.y = r.y0 + Math.sin(t * 1.3 + r.ph) * 0.05 / K; r.g.rotation.x = Math.sin(t * 1.1 + r.ph) * 0.045; r.g.rotation.z = Math.sin(t * 0.8 + r.ph * 2) * 0.025; void w; });
+      const night = ctx.night ? ctx.night() : 0; live.glass.forEach(m => { if (m.name.startsWith('lantern')) m.emissiveIntensity = 0.5 + 1.8 * night; });
+    }
+    // moor / leave: the station drives the boat along the route
+    if (mode === 'docking' || mode === 'leaving') {
+      prog = Math.min(1, prog + dt / dur); const e = prog < 0.5 ? 2 * prog * prog : 1 - Math.pow(-2 * prog + 2, 2) / 2;
+      const u = Math.min(0.999, Math.max(0.001, e)), P = route.getPointAt(u), tan = route.getTangentAt(u), yawT = Math.atan2(-tan.z, tan.x);
+      const targetYaw = mode === 'docking' ? yawT + wrapA(berth.yaw - yawT) * ss(0.6, 0.97, e) : yawT;
+      ctx.moveBoat(P.x, P.z, ctx.boatYaw() + wrapA(targetYaw - ctx.boatYaw()) * Math.min(1, dt * 4), Math.sin(prog * Math.PI));
+      if (prog >= 1) {
+        if (mode === 'docking') { mode = 'docked'; const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`);
+          const mid = toW(xa0 + 4, PZ - 4); frame(new V3((end.x + mid.x) / 2, WL + 2, (end.z + mid.z) / 2), 62, 40, 1.6);
+          const b = ctx.boat; b.updateMatrixWorld(true);
+          berth.tie = [new V3(3.7, 2.25, 2.1 * berth.side), new V3(-3.9, 2.4, 2.1 * berth.side)].map(local => { const w = b.localToWorld(local.clone()); let best = null, bd = 1e9;
+            live.posts.forEach(p => { const pw = new V3(O.x + p.x * K, WL + (p.y - 0.25) * K, O.z + p.z * K), d = pw.distanceTo(w); if (d < bd) { bd = d; best = pw; } }); return { local, post: best }; });
+        } else { mode = 'sea'; ctx.onDockEnd?.(); }
+        renderBar();
+      }
+    }
+    // mooring lines while docked
+    const tied = mode === 'docked' && berth.tie && berth.tie.every(x => x.post);
+    ropes.forEach((m, i) => { m.visible = tied; if (!tied) return; const a = ctx.boat.localToWorld(berth.tie[i].local.clone()), b = berth.tie[i].post, d = b.clone().sub(a);
+      m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(UP, d.normalize()); });
+    // markers over the shops / berths
+    if (mode === 'docked') shops.forEach(s => place($('mk-' + s.id), worldAt(s.at)));
+    if (mode === 'picking') BERTHS.forEach(b => { const w = toW(...b.pos); place(b.el, new V3(w.x, WL + 3, w.z)); });
+    // shop window renderer
+    if (panel === 'boathouse') pumpTick(dt);
+    if (panel && miniHost && shopKit) { miniT = t;
+      if (panel === 'market') crateTick(t, dt);
+      else { if (!drag) viewYaw += dt * 0.25; shopKit.tugView.rotation.y = viewYaw; shopKit.tugView.position.y = Math.sin(t * 1.3) * 0.06; }
+      if (shopKit.mini.domElement.width !== Math.round(miniHost.clientWidth * shopKit.mini.getPixelRatio())) resizeMini();
+      shopKit.mini.render(miniScene, miniCam); }
+    void waveJS; void toScreen;
+  }
+
+  renderWallet(); renderBar();
+  return {
+    tick, blocked,
+    get mode() { return mode; },
+    /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
+    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - metres * (0.35 + 0.65 * thr) / 150);
+      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast('Fuel is low. Refuel at Paradise Station (3.7 mi W, 1.1 mi S).'); }
+      if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
+      return S.fuel > 0 ? 1 : 0.3; },
+    /** A fish was landed: pick a species by its odds and put it in the hold. Returns the fish, or null if the hold is full. */
+    addCatch() { if (holdCount() >= HOLD_CAP) { toast(`Hold full (${HOLD_CAP} fish). Sell your catch at Paradise Station.`); return null; }
+      let r = Math.random() * FISH.reduce((a, f) => a + f.odds, 0), f = FISH[0]; for (const x of FISH) { r -= x.odds; if (r <= 0) { f = x; break; } }
+      S.hold[f.id] = (S.hold[f.id] || 0) + 1; save(); return f; },
+    shoreWarn() { const now = performance.now(); if (now - lastWarn > 3000) { lastWarn = now; toast('Too shallow! Steer around the island.'); } },
+  };
+}
