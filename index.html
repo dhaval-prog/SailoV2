@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#33a8e8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Sailo — sail the Lighthouse Tug. Sail. Discover. Connect.">
+  <title>Sailo · Lighthouse Tug</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-512.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <style>html,body{margin:0;height:100%;overflow:hidden;background:#9fdcf3}three-d-stage:not(:defined){visibility:hidden}</style>
+</head>
+<body>
+<div id="splash"><svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <rect width="1200" height="800" fill="#33a8e8"></rect>
+  <rect y="470" width="1200" height="330" fill="#1c8cd6"></rect>
+  <rect x="470" y="430" width="260" height="70" rx="20" fill="#ffb21a"></rect>
+  <rect x="560" y="250" width="70" height="190" fill="#fff7ea"></rect>
+  <rect x="560" y="300" width="70" height="30" fill="#ee3427"></rect>
+  <rect x="545" y="225" width="100" height="30" fill="#ee3427"></rect>
+</svg></div>
+
+<three-d-stage name="lighthouse-tug" background="#9fdcf3" autorotate=""></three-d-stage>
+
+<div id="envui">
+  <div class="pill">
+    <button data-t="day">Day</button>
+    <button data-t="night">Night</button>
+  </div>
+  <div class="pill">
+    <button data-v="chase">Chase view</button>
+    <button data-v="top">Top view</button>
+    <div class="sep"></div>
+    <button data-z="in" class="zoom" aria-label="Zoom in">+</button>
+    <button data-z="out" class="zoom" aria-label="Zoom out">−</button>
+  </div>
+  <div class="pill weather">
+    <button data-w="clear">Clear</button>
+    <button data-w="cloudy">Cloudy</button>
+    <button data-w="rain">Rain</button>
+    <button data-w="storm">Storm</button>
+    <button data-w="fog">Fog</button>
+    <button data-w="snow">Snow</button>
+  </div>
+</div>
+
+<div id="boatmenu" style="display:none">
+  <div class="actions">
+    <button id="act-fish" class="action"><span id="act-fish-l">Go fishing</span><span class="sub">Cast a line off the stern</span></button>
+    <button id="act-anchor" class="action"><span id="act-anchor-l">Drop anchor</span><span class="sub">Hold the boat in place</span></button>
+  </div>
+  <div class="arrow"></div>
+</div>
+
+<div id="fxlayer"></div>
+<div id="status"></div>
+
+<div id="joy"><div id="knob"></div></div>
+<div id="hint">Drag stick or use WASD / arrows to sail</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
