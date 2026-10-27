@@ -436,10 +436,10 @@ body.view-top #you-tag { opacity: 1; }
 }
 #boatmenu .actions {
   display: flex;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 9px 8px; /* room for a card to zoom without being clipped */
   /* carousel: four cards in view, swipe or use the arrows for the rest */
-  max-width: calc(4 * 150px + 3 * 8px + 20px);
+  max-width: calc(4 * 112px + 3 * 6px + 20px);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding: 8px;
@@ -458,8 +458,8 @@ body.view-top #you-tag { opacity: 1; }
 #boatmenu .action {
   border: 0;
   border-radius: 14px;
-  padding: 10px 14px;
-  font: 600 14px/1.2 system-ui, sans-serif;
+  padding: 7px 10px;
+  font: 650 12px/1.15 system-ui, sans-serif;
   cursor: pointer;
   background: var(--cream);
   color: var(--ink);
@@ -467,16 +467,19 @@ body.view-top #you-tag { opacity: 1; }
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  flex: 0 0 150px;
+  flex: 0 0 112px;
   scroll-snap-align: start;
   text-align: left;
   box-shadow: 0 2px 0 var(--ink);
-  transition: transform 0.2s;
+  transition: transform 0.22s var(--spring), box-shadow 0.2s;
+  transform-origin: 50% 50%;
 }
-#boatmenu .sub { font: 500 11px/1.2 system-ui, sans-serif; color: #4a5878; }
+/* zoom on hover (mouse) or long press (touch) */
+#boatmenu .action:hover, #boatmenu .action:focus-visible, #boatmenu .action.zoom { transform: scale(1.14); position: relative; z-index: 2; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 2px 0 var(--ink); }
+#boatmenu .sub { font: 500 9.5px/1.2 system-ui, sans-serif; color: #4a5878; }
 #boatmenu .actions::-webkit-scrollbar { display: none; }
 #boatmenu { position: fixed; }
-#boatmenu .car-nav { position: absolute; top: calc(50% - 24px); width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
+#boatmenu .car-nav { position: absolute; top: calc(50% - 20px); width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
 #boatmenu .car-nav[hidden] { display: none; }
 #boatmenu .car-nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 #boatmenu .car-nav.prev { left: -12px; }
@@ -751,7 +754,7 @@ body.view-top #you-tag { opacity: 1; }
   #course-hint { bottom: calc(18px + var(--safe-b)); left: calc(50% - 30px); font-size: 12px; }
   #boatmenu .actions { gap: 6px; padding: 6px; }
   #boatmenu .actions { max-width: calc(100vw - 24px); }
-  #boatmenu .action { flex-basis: min(42vw, 150px); padding: 10px 12px; }
+  #boatmenu .action { flex-basis: min(30vw, 112px); padding: 7px 9px; }
 }
 
 /* landscape phones: keep the controls compact on short screens */

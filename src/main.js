@@ -451,7 +451,9 @@ function stepEnv(t, dt) {
   lights.hemi.color.set('#fff3dc').lerp(C('#5d70b8'), E.night); lights.hemi.groundColor.set('#4f86d6').lerp(C('#0b1430'), E.night);
   lights.hemi.intensity = (0.55 + 0.6 * E.sun) * (1 - E.night) + 0.45 * E.night + flash * 2.5;
   lights.key.color.set('#fff0d2').lerp(C('#9db4f5'), E.night); lights.key.intensity = 2.6 * E.sun * (1 - E.night) + 0.55 * E.night;
-  deckLight.intensity = E.night * 26 + E.dark * (1 - E.night) * 10; deckLight2.intensity = deckLight.intensity * 0.6;
+  // deck lights per boat (from each boat's file): the yacht's are softer and warm, so it stays dark and warm at night
+  const yachtLit = boatId === 'yacht';
+  deckLight.intensity = E.night * (yachtLit ? 14 : 26) + E.dark * (1 - E.night) * 10; deckLight2.intensity = deckLight.intensity * 0.6; deckLight2.color.set(yachtLit ? '#ffe0c0' : '#cfe0ff');
   lights.back.color.set('#8fe1ff').lerp(C('#6fb7ff'), E.night); lights.back.intensity = 1.3 * (0.5 + 0.5 * E.sun) * (1 - E.night) + 0.9 * E.night;
   moon.material.opacity = E.night * Math.max(0.15, 1 - E.cover * 0.85); moonHalo.material.opacity = moon.material.opacity * 0.12;
   mat.glass.emissiveIntensity = 0.3 + 1.6 * E.night;
@@ -474,7 +476,7 @@ const hud = initHud({
   stage, getState: () => state, setView, zoomBy, faceNorth, recenter,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
   getBoat: () => boatId, boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
-  setBoat: id => { if (id === boatId) return true; if (ACT.anchor !== 'up' || ACT.fish !== 'off' || stationBusy()) return false; applyBoat(id); splash(boat.position.x, boat.position.z, 30, 1.2); floatText(boat.position.clone().setY(9), BOATS[boatId].name, '#7ff0c8'); return true; },
+  setBoat: id => { if (id === boatId) return true; if (ACT.anchor !== 'up' || ACT.fish !== 'off' || stationBusy()) return false; applyBoat(id); startDropIn(); floatText(boat.position.clone().setY(11), BOATS[boatId].name, '#7ff0c8'); return true; },
   yachtFlag: () => ({ flag: motorYacht.flag, colours: motorYacht.flagColours, set: v => motorYacht.setFlag(v) }),
   sailStyle: () => ({ style: sailBoat.style, colours: sailBoat.styleColours, set: v => sailBoat.setStyle(v) }),
   setNight: n => { state.night = n; }, setWeather: w => { if (PRESET[w]) state.w = w; },
@@ -533,6 +535,16 @@ function applyBoat(id) {
   try { localStorage.setItem('sailo:boat', boatId); } catch { /* storage blocked */ }
 }
 applyBoat(boatId);
+// a newly chosen boat drops into the water: falls, splashes, bobs a couple of times and settles
+const modelOf = id => id === 'tug' ? tugModel : id === 'sail' ? sailBoat.group : motorYacht.group;
+let dropIn = null;
+const startDropIn = () => { const m = modelOf(boatId); dropIn = { m, y: 7, v: 0, hits: 0, t: 0 }; m.position.y = 7; m.rotation.set(0.12, 0, -0.18); };
+function stepDropIn(dt) {
+  if (!dropIn) return; const d = dropIn; d.t += dt; d.v -= 34 * dt; d.y += d.v * dt;
+  if (d.y <= 0) { d.y = 0; if (d.hits === 0) { splash(boat.position.x, boat.position.z, 46, 1.6); setTimeout(() => splash(boat.position.x + 2.5, boat.position.z - 1.5, 18, 0.9), 90); ripple(boat.position.x, boat.position.z, 1.4, 2.2); }
+    d.hits++; d.v = -d.v * (d.hits === 1 ? 0.34 : 0.28); if (d.hits > 3 || Math.abs(d.v) < 0.6) { d.m.position.y = 0; d.m.rotation.set(0, 0, 0); dropIn = null; return; } }
+  d.m.position.y = d.y; const wob = Math.exp(-d.t * 2.2); d.m.rotation.set(0.12 * wob * Math.cos(d.t * 9), 0, -0.18 * wob * Math.cos(d.t * 7));
+}
 const rodRot = new THREE.Group(); rodPivot.add(rodRot);
 add('rod_handle', new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), mat.rubber, 0, 0.25, 0, rodRot);
 add('rod_reel', new THREE.CylinderGeometry(0.1, 0.1, 0.08, 14), mat.red, 0.08, 0.45, 0, rodRot).rotation.z = Math.PI / 2;
@@ -778,6 +790,14 @@ document.getElementById('act-friends').addEventListener('click', () => { menu.st
   const paintNav = () => { prev.hidden = track.scrollLeft < 4; next.hidden = track.scrollLeft + track.clientWidth > track.scrollWidth - 4; };
   prev.addEventListener('click', () => track.scrollBy({ left: -158, behavior: 'smooth' })); next.addEventListener('click', () => track.scrollBy({ left: 158, behavior: 'smooth' }));
   track.addEventListener('scroll', paintNav, { passive: true }); new ResizeObserver(paintNav).observe(track); }
+// long press on touch zooms a card (like hover on desktop); a long press doesn't fire the card's action
+{ let lp = null, held = false;
+  menu.querySelectorAll('.action').forEach(card => {
+    card.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; held = false; clearTimeout(lp); lp = setTimeout(() => { held = true; card.classList.add('zoom'); if (navigator.vibrate) navigator.vibrate(8); }, 380); });
+    const end = () => { clearTimeout(lp); setTimeout(() => card.classList.remove('zoom'), 120); };
+    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end); card.addEventListener('pointerleave', end);
+    card.addEventListener('click', e => { if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  }); }
 ['act-fish', 'act-anchor'].forEach(id => { const b = document.getElementById(id); b.addEventListener('pointerenter', () => b.style.transform = 'translateY(-2px)'); b.addEventListener('pointerleave', () => b.style.transform = 'none'); });
 paintStatus();
 
@@ -858,6 +878,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   stepActions(t, dt);
   stepCourse(t, dt);
   station.tick(t, dt);
+  stepDropIn(dt);
   // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
   { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
     const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;
