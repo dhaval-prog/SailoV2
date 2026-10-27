@@ -38,7 +38,7 @@
     <div class="who">
       <h2 id="acct-title" class="sr-only">Account settings</h2>
       <label class="name-field"><input id="acct-name" value="Captain" maxlength="18" spellcheck="false" aria-label="Captain name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></label>
-      <div class="rank"><span class="badge" id="acct-rank">Deckhand</span> Lighthouse Tug · Paradise</div>
+      <div class="rank"><span class="badge" id="acct-rank">Deckhand</span> Lighthouse Tug · Pune Paradise</div>
     </div>
     <button id="acct-close" class="icon-btn" aria-label="Close settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </header>
@@ -106,29 +106,40 @@
 <div id="fxlayer"></div>
 <div id="loc" class="loc" aria-label="Location">
   <span class="loc-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17c2 0 2-1.5 4.5-1.5S10 17 12 17s2.5-1.5 4.5-1.5S19 17 21 17"/><path d="M3 21c2 0 2-1.5 4.5-1.5S10 21 12 21s2.5-1.5 4.5-1.5S19 21 21 21"/><path d="M8 13c.5-3.5 2-6.5 4-9 2 2.5 3.5 5.5 4 9" class="sail"/><path d="M12 4v9"/></svg></span>
-  <span class="loc-text"><b>Paradise</b><span id="loc-pos">0.0 mi N · 0.0 mi E</span></span>
+  <span class="loc-text"><b>Pune Paradise</b><span id="loc-pos">0.0 mi N · 0.0 mi E</span></span>
 </div>
 <div id="status"></div>
 <div id="edge-warn" role="status"></div>
-<div id="welcome" aria-hidden="true"><small>Welcome to</small><b>Paradise</b><span>200 square miles of open ocean</span></div>
+<div id="welcome" aria-hidden="true"><small>Welcome to</small><b>Pune Paradise</b><span>200 square miles of open ocean</span></div>
 <div id="you-tag" aria-hidden="true"><span class="you-chip">You</span><span class="you-ring"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#fff7ea"/><path d="M7 14.5c0-3 4-5.5 9-5.5s9 2.5 9 5.5z" fill="#2343a0"/><rect x="6" y="14" width="20" height="2.6" rx="1.3" fill="#152042"/><circle cx="16" cy="11.6" r="1.6" fill="#ffb21a"/><path d="M9.5 18.5c1.4 4.2 3.8 6.5 6.5 6.5s5.1-2.3 6.5-6.5z" fill="#f2c9a0"/></svg><b id="you-lvl">1</b></span></div>
 <div id="shutter" aria-hidden="true"></div>
 <div id="course-hint">Tap anywhere on the water to set a course</div>
 
-<!-- helm: analog stick (bottom left) -->
+<!-- helm: wooden steering wheel (bottom left) -->
 <div id="helm">
-  <div id="hint">Drag stick or use WASD / arrows to sail</div>
-  <div id="joy" role="application" aria-label="Steering stick">
+  <div id="hint">Drag the wheel or use WASD / arrows to sail</div>
+  <div id="joy" role="application" aria-label="Steering wheel">
     <svg class="joy-dial" viewBox="0 0 160 160" aria-hidden="true">
-      <defs><linearGradient id="spdg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ff0c8"/><stop offset="1" stop-color="#ffb21a"/></linearGradient></defs>
-      <circle class="track" cx="80" cy="80" r="74"/>
-      <circle id="joy-speed" class="speed" cx="80" cy="80" r="74" pathLength="100"/>
-      <circle class="inner" cx="80" cy="80" r="46"/>
-      <g class="chev"><path data-d="n" d="M73 22l7-7 7 7"/><path data-d="s" d="M73 138l7 7 7-7"/><path data-d="w" d="M22 73l-7 7 7 7"/><path data-d="e" d="M138 73l7 7-7 7"/></g>
-      <g class="ticks"><path d="M80 10v5M80 145v5M10 80h5M145 80h5"/></g>
+      <defs>
+        <linearGradient id="spdg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ff0c8"/><stop offset="1" stop-color="#ffb21a"/></linearGradient>
+        <radialGradient id="woodg" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#d9a066"/><stop offset="0.6" stop-color="#a86a35"/><stop offset="1" stop-color="#6e4120"/></radialGradient>
+        <g id="spoke">
+          <path d="M80 66V26" fill="none" stroke="#8a5428" stroke-width="6" stroke-linecap="round"/>
+          <path d="M80 22V7" fill="none" stroke="#b97a3f" stroke-width="9" stroke-linecap="round"/>
+        </g>
+      </defs>
+      <circle id="joy-speed" class="speed" cx="80" cy="80" r="77" pathLength="100"/>
+      <g id="wheel-rot">
+        <use href="#spoke"/><use href="#spoke" transform="rotate(45 80 80)"/><use href="#spoke" transform="rotate(90 80 80)"/><use href="#spoke" transform="rotate(135 80 80)"/>
+        <use href="#spoke" transform="rotate(180 80 80)"/><use href="#spoke" transform="rotate(225 80 80)"/><use href="#spoke" transform="rotate(270 80 80)"/><use href="#spoke" transform="rotate(315 80 80)"/>
+        <circle class="rim" cx="80" cy="80" r="53"/>
+        <circle class="rim-line" cx="80" cy="80" r="53"/>
+        <circle class="hub" cx="80" cy="80" r="15"/>
+        <path class="mark" d="M80 20v10"/>
+      </g>
     </svg>
     <div id="joy-dir" aria-hidden="true"></div>
-    <div id="knob"><span class="knob-core"></span></div>
+    <div id="knob"></div>
   </div>
   <div id="speedo"><b id="spd">0.0</b><span>kn</span><i id="gear">Idle</i></div>
 </div>

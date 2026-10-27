@@ -5,12 +5,12 @@ const AREA_SQ_MI = 200;
 const SIDE = Math.sqrt(AREA_SQ_MI) * MILE; // ≈ 22.76 km (14.14 mi) per side
 
 export const WORLD = {
-  name: 'Paradise',
+  name: 'Pune Paradise',
   areaSqMi: AREA_SQ_MI,
   areaKm2: AREA_SQ_MI * MILE * MILE / 1e6, // ≈ 518 km²
   side: SIDE,
   half: SIDE / 2, // ≈ 11.38 km from the harbour to each edge
-  warn: 600, // metres from the edge where the "leaving Paradise" warning starts
+  warn: 600, // metres from the edge where the "leaving Pune Paradise" warning starts
   mile: MILE,
 };
 
