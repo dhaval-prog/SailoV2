@@ -227,7 +227,7 @@ export function initHud(api) {
   $('tb-fleet-dot').hidden = seen;
   const SAIL = '<svg viewBox="0 0 32 32"><path d="M15 3v17M15 4c4.2 3.5 7 8.5 7.6 14H15M14 7c-2.6 3-4.4 6.8-4.8 11H14"/><path d="M4 21.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
   const YACHT = '<svg viewBox="0 0 32 32"><path d="M9 13h9l3 4H7z"/><path d="M12 13V9h5l2 4M19 9V6"/><path d="M3 18h26l-3 5.2a2 2 0 0 1-1.7 1H7.6a2 2 0 0 1-1.7-1z"/></svg>';
-  const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' } };
+  const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' }, dinghy: { ico: SAIL, sub: 'Daysailer with tall mast and genoa · heels under sail' } };
   const openGarage = () => {
     try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
@@ -243,19 +243,29 @@ export function initHud(api) {
       <div class="seg3 seg2" id="sh-flag-on"><button data-on="1" class="${fl.on ? 'on' : ''}">Flag up</button><button data-on="0" class="${fl.on ? '' : 'on'}">No flag</button></div>
       ${fl.on ? `<div class="sh-sw-row"><span>Colour</span><div class="sh-sw">${yf.colours.map(c => `<button class="sh-swatch sh-fsw${fl.c === c ? ' on' : ''}" style="background:${c}" data-c="${c}" aria-label="Flag ${c}"></button>`).join('')}</div></div>
       <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-fimg" type="file" accept="image/*" hidden></label>${fl.img ? '<button class="sh-btn ghost" id="sh-fimgx">Remove image</button>' : ''}<small>Shows pixelated on the flag</small></div>` : ''}`;
+    const ds = api.dinghySail(), dsl = ds.sail;
+    const dinghyUI = `<h4>Sail colour · Dinghy Sailing Boat</h4>
+      <div class="sh-sw-row"><div class="sh-sw">${ds.colours.map(c => `<button class="sh-swatch sh-dsw${dsl.c === c ? ' on' : ''}" style="background:${c}" data-c="${c}" aria-label="Sail ${c}"></button>`).join('')}</div></div>
+      <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-dimg" type="file" accept="image/*" hidden></label>${dsl.img ? '<button class="sh-btn ghost" id="sh-dimgx">Remove image</button>' : ''}<small>Shows pixelated on the mainsail</small></div>`;
     openSheet('Garage', `My fleet · ${boats.length} boats`, `
       ${boats.map(card).join('')}
       <div class="sh-msg" id="sh-fleet-msg" hidden></div>
       <div class="sh-stats"><div class="sh-stat"><b>${Math.round(ECON.fuel)} L</b><span>Fuel of ${ECON.cap} L</span></div><div class="sh-stat"><b>${hold}/30</b><span>Fish in hold</span></div><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div></div>
       <div class="sh-stats"><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div><div class="sh-stat"><b>${Math.round(lastStats.topKn)} kn</b><span>Top speed</span></div></div>
       ${styleUI}
-      ${flagUI}`);
+      ${flagUI}
+      ${dinghyUI}`);
     sheetBody.querySelectorAll('.sh-pick').forEach(b => b.addEventListener('click', () => {
       if (api.setBoat(b.dataset.boat)) { openGarage(); paintFleet(); }
       else { const m = $('sh-fleet-msg'); m.hidden = false; m.textContent = 'Raise the anchor, stop fishing and leave the berth before switching boats.'; } }));
     sheetBody.querySelectorAll('#sh-mode [data-mode]').forEach(b => b.addEventListener('click', () => { ss.set({ mode: b.dataset.mode }); openGarage(); }));
     sheetBody.querySelectorAll('.sh-swatch').forEach(b => b.addEventListener('click', () => { const c = [...st.c]; c[+b.dataset.row] = b.dataset.c; ss.set({ c }); openGarage(); }));
     $('sh-imgx')?.addEventListener('click', () => { ss.set({ img: null }); openGarage(); });
+    sheetBody.querySelectorAll('.sh-dsw').forEach(b => b.addEventListener('click', () => { ds.set({ c: b.dataset.c }); openGarage(); }));
+    $('sh-dimgx')?.addEventListener('click', () => { ds.set({ img: null }); openGarage(); });
+    $('sh-dimg')?.addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
+      rd.onload = () => { const i = new Image(); i.onload = () => { const k = 48 / Math.max(i.width, i.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
+        c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); ds.set({ img: c.toDataURL('image/png') }); openGarage(); }; i.src = rd.result; }; rd.readAsDataURL(f); });
     sheetBody.querySelectorAll('#sh-flag-on [data-on]').forEach(b => b.addEventListener('click', () => { yf.set({ on: b.dataset.on === '1' }); openGarage(); }));
     sheetBody.querySelectorAll('.sh-fsw').forEach(b => b.addEventListener('click', () => { yf.set({ c: b.dataset.c }); openGarage(); }));
     $('sh-fimgx')?.addEventListener('click', () => { yf.set({ img: null }); openGarage(); });
