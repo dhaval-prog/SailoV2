@@ -342,7 +342,7 @@ export function buildIsland(ctx) {
   meshes.forEach(o => { if (/^(pennant|flag_line|flag_\d|nav_lamp|grass_patch|path_stone|crab_)/.test(o.name)) return; const l = new THREE.Mesh(inkGeo(o.geometry), bold.test(o.name) ? inkThick : inkThin); l.name = o.name + '_outline'; l.userData.ink = true; o.add(l); });
   const beaconHalo = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: '#ff2a1f', transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
   beaconHalo.position.set(BE.x, BE.top + 1.45, BE.z); root.add(beaconHalo);
-  const beaconPL = new THREE.PointLight('#ff2a1f', 4, 7 * ctx.scale, 2); beaconPL.position.copy(beaconHalo.position); root.add(beaconPL);
+  const beaconPL = new THREE.PointLight('#ff2a1f', 4, 7 * ctx.scale, 2), LK = Math.pow(ctx.scale, 1.3), BK = ctx.scale * ctx.scale; // lights keep their reach on the scaled-up island beaconPL.position.copy(beaconHalo.position); root.add(beaconPL);
 
   // ---------------- source: painted sand (ripples, grains, pebbles, wet edge) ----------------
   const NOISE = `
@@ -414,8 +414,10 @@ export function buildIsland(ctx) {
       if (!buckets.has(m)) buckets.set(m, []); buckets.get(m).push(g);
     });
     statics.forEach(o => o.removeFromParent());
-    buckets.forEach((list, m) => { const merged = mergeGeometries(list, false); if (!merged) return; const mesh = new THREE.Mesh(merged, m); mesh.name = 'merged_' + m.name; mesh.frustumCulled = false; root.add(mesh); });
+    buckets.forEach((list, m) => { const merged = mergeGeometries(list, false); if (!merged) return; const mesh = new THREE.Mesh(merged, m); mesh.name = 'merged_' + m.name; mesh.frustumCulled = false; const ink = m.name === 'ink_outline'; mesh.castShadow = mesh.receiveShadow = !ink; root.add(mesh); });
   }
+
+  root.traverse(o => { if (o.isMesh && !o.userData.ink && o.material.type !== 'MeshBasicMaterial') o.castShadow = o.receiveShadow = true; });
 
   // ---------------- per frame (source: treeTick, crabTick, flags, beacon, foam, rowboats, night) ----------------
   const tq = new THREE.Quaternion(), te = new THREE.Euler();
@@ -443,7 +445,7 @@ export function buildIsland(ctx) {
     // flags swing on their poles and the cloth ripples
     windT.value = t; flags.forEach(f => { f.fg.rotation.y = 0.35 + Math.sin(t * 3 + f.ph) * 0.22; });
     // end-of-pier beacon blinks
-    const on = (t % 1.4) < 0.85 ? 1 : 0.12; mat.navRed.emissiveIntensity = on * (1 + night); beaconHalo.material.opacity = 0.5 * on; beaconPL.intensity = 4 * on * (1 + 2 * night);
+    const on = (t % 1.4) < 0.85 ? 1 : 0.12; mat.navRed.emissiveIntensity = on; beaconHalo.material.opacity = 0.5 * on; beaconPL.intensity = 4 * BK * on;
     // foam breathes along the shore and around the posts
     shoreFoam.forEach((m, i) => { const s = 1 + Math.sin(t * 0.9 + i * 1.7) * 0.008; m.scale.set(s, s, 1); m.material.opacity = m.userData.o * (0.8 + 0.2 * Math.sin(t * 1.3 + i)); });
     postFoam.forEach(m => { const p = (t * 0.5 + m.userData.ph) % 1; m.scale.setScalar(0.9 + p * 0.9); m.material.opacity = 0.75 * (1 - p * 0.8); });
@@ -452,7 +454,7 @@ export function buildIsland(ctx) {
       boatFoam[i].position.y = FY + h; const s = 1 + Math.sin(t * 1.6 + b.ph) * 0.06; boatFoam[i].scale.set(2.15 * s, 0.85 * s, 1); });
     // night: lanterns glow and flicker, fireflies over the bushes
     mat.glass.emissiveIntensity = 0.6 + 2.4 * night;
-    lampFx.forEach((l, i) => { const fl = 1 + Math.sin(t * 9 + i * 2) * 0.05 + Math.sin(t * 23 + i) * 0.03; l.pl.intensity = 7 * night * fl; l.halo.material.opacity = 0.55 * night * fl; l.halo.quaternion.copy(camera.quaternion); });
+    lampFx.forEach((l, i) => { const fl = 1 + Math.sin(t * 9 + i * 2) * 0.05 + Math.sin(t * 23 + i) * 0.03; l.pl.intensity = 7 * LK * night * fl; l.halo.material.opacity = 0.55 * night * fl; l.halo.quaternion.copy(camera.quaternion); });
     fireflies.material.opacity = night * 0.95;
     if (night > 0.01) { const a = ffGeo.attributes.position; ffBase.forEach(([x, y, z, ph], i) => a.setXYZ(i, x + Math.sin(t * 0.5 + ph) * 0.9, y + Math.sin(t * 0.9 + ph * 2) * 0.35, z + Math.cos(t * 0.4 + ph) * 0.9)); a.needsUpdate = true; }
   }
