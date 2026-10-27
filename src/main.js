@@ -236,7 +236,9 @@ const makeSea = waves => new THREE.ShaderMaterial({
       vec3 n = normalize(cross(dFdx(wp), dFdy(wp))); if (n.y < 0.0) n = -n;
       vec3 sunD = uSun;
       float lamb = dot(n, sunD);
-      col *= 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb);
+      // wave shading fades out with the waves, so the near patch blends into the open sea instead of showing as a square
+      float wf = 1.0 - smoothstep(40.0, 66.0, length(p - bp));
+      col *= mix(1.0, 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb), wf);
       col = mix(col, lite, smoothstep(0.25, 0.55, vh) * 0.45);
       float capN = noise(p * 1.3 + vec2(time * 0.6, 0.0));
       col = mix(col, vec3(0.95, 1.0, 1.0), smoothstep(0.42, 0.5, vh + (capN - 0.5) * 0.35) * 0.75);
@@ -244,7 +246,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float spec = pow(max(dot(reflect(-sunD, n), vdir), 0.0), 60.0);
       float tw = step(0.72, noise(p * 2.6 + vec2(time * 1.7, -time * 1.3)));
       col *= uTint;
-      col += vec3(1.0, 0.98, 0.9) * step(0.35, spec * tw) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec;
+      col += vec3(1.0, 0.98, 0.9) * step(0.35, spec * tw) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec * wf;
       #else
       col *= uTint;
       #endif
@@ -344,7 +346,7 @@ const PRESET = {
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
-const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 33, side: 50, up: 100 } };
+const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 53, side: 79, up: 55 } };
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
 stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
@@ -583,7 +585,7 @@ function stepActions(t, dt) {
 }
 // click the boat to open the action menu
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
-// ===== top view: tap the water to set a course, the tug steers itself there =====
+// ===== tap the water (either view) to set a course, the tug steers itself there =====
 const seaPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -WL), tapP = new THREE.Vector3();
 const course = { on: false, p: new THREE.Vector3(), k: 1, out: false };
 const markG = new THREE.Group(); markG.name = 'course_buoy'; markG.visible = false; stage._scene.add(markG);
@@ -635,7 +637,7 @@ stage.addEventListener('pointerup', e => {
   const hit = ray.intersectObject(boat, true).length > 0;
   const wasOpen = menu.style.display !== 'none';
   menu.style.display = hit && !wasOpen ? 'flex' : 'none';
-  if (!hit && !wasOpen && state.view === 'top' && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP);
+  if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP); // both views: tap the water to set a course
 });
 document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
 document.getElementById('act-anchor').addEventListener('click', () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); menu.style.display = 'none'; });
@@ -702,7 +704,7 @@ const stats = { dist: 0, top: 0 };
   stepActions(t, dt);
   stepCourse(t, dt);
   { const off = stage._camera.position.clone().sub(stage._controls.target);
-    hud.update({ x: boat.position.x, z: boat.position.z, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
+    hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
@@ -721,7 +723,7 @@ stage._exportObj = clean(stage._exportObj.bind(stage));
 stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
-if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the wheel to sail · tap the boat for actions';
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Steer with the wheel, or tap the water to set a course';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 // the helm hint is a one-time guide: it fades after the first steer (or a few seconds) and stays hidden on later visits
 { const hint = document.getElementById('hint'), KEY = 'sailo-hint-seen'; let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }
