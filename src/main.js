@@ -419,7 +419,7 @@ const rings = [0, 1, 2].map(i => { const r = new THREE.Mesh(new THREE.RingGeomet
 const wake = Array.from({ length: 40 }, () => { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), foamMat.clone()); m.rotation.x = -Math.PI / 2; m.position.y = WL + 0.012; m.visible = false; m.userData.age = 99; seaGroup.add(m); return m; });
 let wakeI = 0, wakeT = 0;
 hug.rotation.order = 'YXZ'; rings.forEach(r => r.rotation.order = 'YXZ'); boat.rotation.order = 'YXZ';
-// drive input: joystick + keyboard
+// drive input: steering wheel + keyboard
 const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
@@ -639,7 +639,7 @@ document.getElementById('act-anchor').addEventListener('click', () => { ACT.anch
 ['act-fish', 'act-anchor'].forEach(id => { const b = document.getElementById(id); b.addEventListener('pointerenter', () => b.style.transform = 'translateY(-2px)'); b.addEventListener('pointerleave', () => b.style.transform = 'none'); });
 paintStatus();
 
-const chev = [...document.querySelectorAll('.joy-dial .chev path')], youTag = document.getElementById('you-tag');
+const wheelUI = document.getElementById('wheel-rot'), youTag = document.getElementById('you-tag');
 const stats = { dist: 0, top: 0 };
 (function tick() {
   const t = clock.getElapsedTime();
@@ -659,14 +659,14 @@ const stats = { dist: 0, top: 0 };
     stage._controls.autoRotate = false;
   }
   if (ACT.anchor !== 'up') thr = 0;
-  { const lit = { n: thr > 0.35, s: thr < -0.35, e: str > 0.35, w: str < -0.35 }; chev.forEach(c => c.classList.toggle('lit', lit[c.dataset.d])); }
   steerS += (str - steerS) * Math.min(1, dt * 4);
+  wheelUI.style.transform = `rotate(${steerS * 120}deg)`; // on-screen wheel turns with the helm
   if (!stage._exporting) {
     vel += (thr * MAXV - vel) * Math.min(1, dt * 0.7);
     const sv = vel / MAXV;
     yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
-    // Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
+    // Pune Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
     const [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt), dx = nx - boat.position.x, dz = nz - boat.position.z;
     if (dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
     boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
@@ -718,9 +718,9 @@ stage._exportObj = clean(stage._exportObj.bind(stage));
 stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
-if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the stick to sail · tap the boat for actions';
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Drag the wheel to sail · tap the boat for actions';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
-// dev-only hook for testing far corners of Paradise
+// dev-only hook for testing far corners of Pune Paradise
 if (import.meta.env.DEV) window.__sailo = { WORLD, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

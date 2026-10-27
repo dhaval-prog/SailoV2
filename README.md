@@ -10,14 +10,14 @@ Sail. Discover. Connect.
 | Mobile (Android, iOS) | Capacitor | `android/`, `ios/` native projects |
 
 ## Features
-- **Paradise**: a bounded 200 sq mi ocean, a square about 22.8 km (14.1 mi) on each side, centred on the harbour. A location chip shows where you are (miles N/S and E/W of the harbour). A warning appears within 600 m of the edge, and the tug is held at the border. World size and helpers live in `src/world.js`, ready for islands and coastlines.
+- **Pune Paradise**: a bounded 200 sq mi ocean, a square about 22.8 km (14.1 mi) on each side, centred on the harbour. A location chip shows where you are (miles N/S and E/W of the harbour). A warning appears within 600 m of the edge, and the tug is held at the border. World size and helpers live in `src/world.js`, ready for islands and coastlines.
 - A hand-built tug with cel shading and ink outlines: lighthouse tower, cabin, stack, fenders, pennant lines, ship's wheel and a spinning propeller.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
 - At night you get stars, a moon, a rotating lighthouse beam, deck lights and blinking nav lights.
 - **Camera dock** (bottom right): top view, chase view (default), photo capture, compass (tap to face north), zoom in/out and recenter.
-- **Chase view**: sail with the analog stick (speed ring, direction glow, gear readout), WASD or the arrow keys.
-- **Top view**: the stick hides; tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the stick or keys takes back control. `V` toggles views.
+- **Chase view**: sail with the wooden steering wheel (turns as you steer, speed ring, gear readout), WASD or the arrow keys.
+- **Top view**: the wheel hides; tap or click anywhere on the water to drop a course buoy and the tug steers itself there. Touching the wheel or keys takes back control. `V` toggles views.
 - Tap or click the boat to open the action menu:
   - **Go fishing**: cast, wait for a bite, reel in and keep a catch count.
   - **Drop anchor** / **Raise anchor**.
@@ -50,7 +50,7 @@ App id: `com.sailo.app`. The icons and splash screens come from `resources/` via
 ```
 index.html               UI overlay markup
 src/main.js              scene: boat model, sea, sky, weather, sailing, fishing, anchor
-src/world.js             Paradise: world size, bounds and position helpers
+src/world.js             Pune Paradise: world size, bounds and position helpers
 src/hud.js               settings panel, camera dock and HUD readouts
 src/three-d-stage.js     <three-d-stage> renderer / camera / controls / exporter element
 src/styles.css           overlay styles + mobile breakpoints
