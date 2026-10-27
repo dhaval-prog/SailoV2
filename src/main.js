@@ -274,9 +274,27 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), new THREE.Shad
       vec3 col = mix(uHor, uMid, smoothstep(0.0, 0.06, y));
       col = mix(col, uTop, smoothstep(0.06, 0.55, y));
       col = mix(col, col * 0.93, smoothstep(0.6, 0.7, fbm(vec2(atan(dir.z, dir.x) * 6.0, y * 30.0))) * step(0.05, y) * 0.6);
-      vec2 sc = vec2(atan(dir.z, dir.x) * 90.0, y * 180.0); vec2 ci = floor(sc); float sh = hash(ci);
-      float star = step(0.986, sh) * (1.0 - smoothstep(0.08, 0.38, length(fract(sc) - 0.5))) * (0.6 + 0.4 * sin(time * (2.0 + sh * 5.0) + sh * 50.0));
-      col += vec3(0.95, 0.97, 1.0) * star * uStars * smoothstep(0.04, 0.25, y);
+      // stars: three layers spread evenly over the sphere, mostly faint with a few bright ones,
+      // tinted blue-white to warm, with a soft glow on the brightest and scintillation that grows near the horizon
+      vec3 sky3 = vec3(0.0);
+      float alt = smoothstep(0.02, 0.22, y), scint = mix(0.9, 0.35, smoothstep(0.05, 0.5, y));
+      for (int l = 0; l < 3; l++) {
+        float fl = float(l), S = 140.0 + fl * 120.0;
+        vec3 q = dir * S, c = floor(q), f = fract(q) - 0.5;
+        vec3 h = fract(sin(vec3(dot(c, vec3(127.1, 311.7, 74.7)), dot(c, vec3(269.5, 183.3, 246.1)), dot(c, vec3(113.5, 271.9, 124.6)))) * 43758.5453);
+        float keep = step(0.55 + fl * 0.1, h.x);
+        float d = length(f - (h.zxy - 0.5) * 0.82);
+        float mag = pow(h.y, 3.0 + fl * 2.5);                 // brightness: power law, most stars dim
+        float core = exp(-d * d * mix(700.0, 180.0, mag));    // brighter stars have a wider core
+        float halo = exp(-d * d * 30.0) * mag * mag * 0.5;
+        float tw = 1.0 - scint * (0.5 + 0.5 * sin(time * (3.0 + h.z * 7.0) + h.x * 60.0)) * (0.35 + 0.65 * h.z);
+        vec3 tint = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.86, 0.68), h.z); tint = mix(tint, vec3(1.0), 0.45);
+        sky3 += tint * (core * (0.1 + 3.0 * mag) * (0.4 + 0.6 * fract(h.x * 13.7)) + halo) * tw * keep;
+      }
+      // faint milky way band
+      float band = exp(-pow(dot(dir, normalize(vec3(0.35, 0.55, -0.76))) / 0.2, 2.0));
+      float mw = band * smoothstep(0.35, 0.8, fbm(vec2(atan(dir.z, dir.x) * 5.0, dir.y * 9.0) + 3.1)) * 0.14;
+      col += (sky3 + vec3(0.62, 0.7, 0.95) * mw) * uStars * alt;
       col += uFlash * vec3(0.5, 0.55, 0.7) * smoothstep(-0.05, 0.4, y);
       gl_FragColor = vec4(col, 1.0); }`,
 }));
@@ -329,10 +347,22 @@ const snowSeed = Array.from({ length: SNN }, () => [Math.random() * 90 - 45, Mat
 const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: '#ffffff', size: 0.24, transparent: true, opacity: 0, depthWrite: false, fog: false })); snow.frustumCulled = false; stage._scene.add(snow);
 // lighthouse beam (night)
 const beamPivot = new THREE.Group(); beamPivot.position.set(0, 3.76, 0); tower.add(beamPivot); outlines.push(beamPivot);
-const beamMat = new THREE.MeshBasicMaterial({ color: '#fff2b0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: false });
+// soft light shaft: bright at the lantern, fading along its length and towards its silhouette edges
+const beamMat = new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false,
+  uniforms: { opacity: { value: 0 }, color: { value: new THREE.Color('#ffe9a8') } },
+  vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: `uniform float opacity; uniform vec3 color; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+    void main(){ float along = 1.0 - vUv.y; float face = abs(dot(normalize(vN), normalize(vV)));
+      float a = pow(face, 1.6) * pow(1.0 - along, 1.4) * smoothstep(0.0, 0.06, along);
+      gl_FragColor = vec4(color * a * opacity * 2.2, 1.0); }` });
+Object.defineProperty(beamMat, 'opacity', { get() { return this.uniforms.opacity.value; }, set(v) { if (this.uniforms) this.uniforms.opacity.value = v; } });
 [0, Math.PI].forEach(r => { const g = new THREE.ConeGeometry(2.6, 28, 20, 1, true); g.translate(0, -14, 0); g.rotateZ(Math.PI / 2); g.rotateZ(-0.3); const b = new THREE.Mesh(g, beamMat); b.rotation.y = r; beamPivot.add(b); });
-const poolMat = new THREE.MeshBasicMaterial({ color: '#fff2b0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-const pools = [0, Math.PI].map(r => { const m = new THREE.Mesh(new THREE.CircleGeometry(3.2, 32), poolMat); m.rotation.order = 'YXZ'; m.scale.set(2.2, 1, 1); m.userData.r = r; stage._scene.add(m); return m; });
+// pools of light where the beam meets the water: a soft radial glow, no hard edge
+const softTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.7, 'rgba(255,255,255,0.15)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const poolMat = new THREE.MeshBasicMaterial({ color: '#ffe9a8', map: softTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const pools = [0, Math.PI].map(r => { const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), poolMat); m.rotation.order = 'YXZ'; m.scale.set(2.2, 1, 1); m.userData.r = r; stage._scene.add(m); return m; });
 const lanternW = new THREE.Vector3();
 // weather + time of day
 const C = c => new THREE.Color(c);
@@ -344,6 +374,8 @@ const PRESET = {
   fog:    { top: '#b8d0dc', mid: '#d4e2e8', hor: '#e4edf0', tint: [0.86, 0.9, 0.93], cover: 0.6, dark: 0.1, amp: 0.7, fog: [6, 75], cfade: 0.12, rain: 0, snow: 0, sun: 0.5, storm: 0 },
   snow:   { top: '#9fb6cc', mid: '#c9d8e3', hor: '#eef3f6', tint: [0.76, 0.84, 0.9], cover: 0.9, dark: 0.22, amp: 0.9, fog: [70, 280], cfade: 1, rain: 0, snow: 1, sun: 0.5, storm: 0 },
 };
+// NIGHT_MIST_RAW is the same mist for the hand-written sea/sky shaders, which take colours without the sRGB conversion
+const fogCol = new THREE.Color(), shaderHaze = new THREE.Color(), NIGHT_MIST = new THREE.Color('#4a5b73'), NIGHT_MIST_RAW = NIGHT_MIST.clone().convertLinearToSRGB();
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
@@ -357,7 +389,7 @@ let camAnim = null;
 const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new THREE.Vector3();
 // interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
-const animCam = (to, ty1, dur = 1.3) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0 }; };
+const animCam = (to, ty1, dur = 1.3, focus = null) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0, fo: focus || new THREE.Vector3() }; };
 const setView = v => { state.view = v; animCam(viewOffset(v), v === 'top' ? WL : 2.5); };
 const recenter = () => setView(state.view);
 const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };
@@ -371,7 +403,7 @@ const deckLight2 = new THREE.PointLight('#cfe0ff', 0, 18, 1.6); deckLight2.posit
 function stepEnv(t, dt) {
   if (zoomAnim && !camAnim) { zoomAnim.k = Math.min(1, zoomAnim.k + dt / 0.35); const e = 1 - Math.pow(1 - zoomAnim.k, 3); stage._camera.position.copy(stage._controls.target).add(zoomAnim.from.clone().lerp(zoomAnim.to, e)); if (zoomAnim.k >= 1) zoomAnim = null; }
   if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / camAnim.dur); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); const tg = stage._controls.target, r = camAnim.rel;
-    tg.set(boat.position.x + r.x * (1 - e), r.y + (camAnim.ty1 - r.y) * e, boat.position.z + r.z * (1 - e)); stage._camera.position.copy(tg).add(lerpOff(camAnim.from, camAnim.to, e, animOff)); if (camAnim.k >= 1) camAnim = null; }
+    tg.set(boat.position.x + r.x * (1 - e) + camAnim.fo.x * e, r.y + (camAnim.ty1 - r.y) * e, boat.position.z + r.z * (1 - e) + camAnim.fo.z * e); stage._camera.position.copy(tg).add(lerpOff(camAnim.from, camAnim.to, e, animOff)); if (camAnim.k >= 1) camAnim = null; }
   const P = PRESET[state.w], n = state.night ? 1 : 0, k = Math.min(1, dt * 1.2);
   const dim = 1 - 0.45 * P.dark;
   [['top'], ['mid'], ['hor']].forEach(([key]) => { tmp.set(P[key]).lerp(NIGHT[key].clone().multiplyScalar(dim), n); E[key].lerp(tmp, k); });
@@ -381,13 +413,17 @@ function stepEnv(t, dt) {
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
   if (P.storm) { nextBolt -= dt; if (nextBolt <= 0) { flash = 1; nextBolt = 2.5 + Math.random() * 6; setTimeout(() => { flash = 0.8; }, 140); } }
   flash = Math.max(0, flash - dt * 4.5);
-  ENV.amp = E.amp; seaU.uAmp.value = E.amp; seaU.uTint.value.copy(E.tint); seaU.uHaze.value.copy(E.hor); seaU.uFog.value.set(E.fogN, E.fogF); seaU.uFlash.value = flash;
+  ENV.amp = E.amp; seaU.uAmp.value = E.amp; seaU.uTint.value.copy(E.tint); // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
+  const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);
+  const fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy), fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
+  fogCol.copy(E.hor).lerp(NIGHT_MIST, foggy * E.night * 0.85); shaderHaze.copy(E.hor).lerp(NIGHT_MIST_RAW, foggy * E.night * 0.7);
+  seaU.uHaze.value.copy(shaderHaze); seaU.uFog.value.set(fogNear, fogFar); seaU.uFlash.value = flash;
   seaU.uSun.value.set(0.45, 0.75, 0.35).normalize().lerp(new THREE.Vector3(-0.53, 0.46, -0.71), E.night).normalize();
   seaU.uSpec.value = Math.max(0, 1.1 - E.cover * 0.4 - E.dark) * (1 - 0.4 * E.night);
-  skyU.uTop.value.copy(E.top); skyU.uMid.value.copy(E.mid); skyU.uHor.value.copy(E.hor); skyU.uStars.value = E.night * Math.max(0, 1 - E.cover * 0.75); skyU.uFlash.value = flash;
+  skyU.uTop.value.copy(E.top).lerp(shaderHaze, foggy * E.night * 0.35); skyU.uMid.value.copy(E.mid).lerp(shaderHaze, foggy * E.night * 0.7); skyU.uHor.value.copy(shaderHaze); skyU.uStars.value = E.night * Math.max(0, 1 - E.cover * 0.75); skyU.uFlash.value = flash;
   cloudU.cover.value = E.cover; cloudU.dark.value = E.dark; cloudU.fade.value = E.cfade; cloudU.flash.value = flash;
   cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#4a5c86'), E.night * 0.85);
-  stage._scene.fog.color.copy(E.hor); const camD = stage._camera.position.distanceTo(stage._controls.target); stage._scene.fog.near = Math.max(E.fogN, camD * 1.05); stage._scene.fog.far = Math.max(E.fogF, camD * 1.05 + 60);
+  stage._scene.fog.color.copy(fogCol); stage._scene.fog.near = fogNear; stage._scene.fog.far = fogFar;
   lights.hemi.color.set('#fff3dc').lerp(C('#7488bb'), E.night); lights.hemi.groundColor.set('#4f86d6').lerp(C('#14244c'), E.night);
   lights.hemi.intensity = Math.max(0.6 * E.night, (0.55 + 0.6 * E.sun) * (1 - 0.6 * E.night)) + flash * 2.5;
   lights.key.color.set('#fff0d2').lerp(C('#a9c1ff'), E.night); lights.key.intensity = 2.6 * E.sun * (1 - E.night) + 0.9 * E.night;
@@ -423,7 +459,8 @@ const hugShape = outline(1.1); hugShape.holes.push(outline(1.0, new THREE.Path()
 const hug = new THREE.Mesh(new THREE.ShapeGeometry(hugShape, 24), foamMat); hug.rotation.x = -Math.PI / 2; hug.position.y = WL + 0.01; seaGroup.add(hug);
 const rings = [0, 1, 2].map(i => { const r = new THREE.Mesh(new THREE.RingGeometry(1, 1.04, 96), foamMat.clone()); r.rotation.x = -Math.PI / 2; r.position.y = WL + 0.008 + i * 0.001; seaGroup.add(r); return r; });
 
-const wake = Array.from({ length: 40 }, () => { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), foamMat.clone()); m.rotation.x = -Math.PI / 2; m.position.y = WL + 0.012; m.visible = false; m.userData.age = 99; seaGroup.add(m); return m; });
+const wakeMat = new THREE.MeshBasicMaterial({ color: '#f2fdff', map: softTex, transparent: true, opacity: 0.85, depthWrite: false });
+const wake = Array.from({ length: 40 }, () => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), wakeMat.clone()); m.rotation.x = -Math.PI / 2; m.position.y = WL + 0.012; m.visible = false; m.userData.age = 99; seaGroup.add(m); return m; });
 let wakeI = 0, wakeT = 0;
 hug.rotation.order = 'YXZ'; rings.forEach(r => r.rotation.order = 'YXZ'); boat.rotation.order = 'YXZ';
 // drive input: steering wheel + keyboard
@@ -443,14 +480,18 @@ const clock = new THREE.Clock();
 // ===== boat actions: fishing + anchor =====
 const ACT = { fish: 'off', anchor: 'up', catch: 0 };
 // anchor (stowed on starboard bow)
-const anchorG = new THREE.Group(); anchorG.name = 'anchor'; const ANC = { x: 3.4, z: 1.98, y0: 1.55 }; anchorG.position.set(ANC.x, ANC.y0, ANC.z); boat.add(anchorG);
-add('anchor_shank', new THREE.CylinderGeometry(0.05, 0.05, 0.8, 10), mat.metal, 0, 0, 0, anchorG);
-add('anchor_stock', new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), mat.metal, 0, 0.3, 0, anchorG).rotation.x = Math.PI / 2;
-add('anchor_ring', new THREE.TorusGeometry(0.08, 0.025, 8, 20), mat.metal, 0, 0.47, 0, anchorG).rotation.y = Math.PI / 2;
-const crown = add('anchor_crown', new THREE.TorusGeometry(0.3, 0.05, 8, 24, Math.PI), mat.metal, 0, -0.12, 0, anchorG); crown.rotation.set(0, Math.PI / 2, Math.PI);
-[-1, 1].forEach(s => add('anchor_fluke_' + (s > 0 ? 'a' : 'b'), new THREE.ConeGeometry(0.08, 0.2, 4), mat.metal, 0, -0.08, s * 0.3, anchorG).rotation.x = s * 0.5);
-const chain = add('anchor_chain', new THREE.CylinderGeometry(0.035, 0.035, 1, 6), mat.rubber, ANC.x, 2.0, ANC.z); chain.visible = false;
-add('hawse_pipe', new THREE.CylinderGeometry(0.1, 0.1, 0.12, 12), mat.rubber, ANC.x, 2.22, ANC.z - 0.05).rotation.x = Math.PI / 2;
+const anchorG = new THREE.Group(); anchorG.name = 'anchor'; const ANC = { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }; anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s); boat.add(anchorG);
+const anchorBody = new THREE.Group(); anchorBody.rotation.y = Math.PI / 2; anchorG.add(anchorBody); // stock and flukes lie flat along the hull side
+add('anchor_shank', new THREE.CylinderGeometry(0.05, 0.05, 0.8, 10), mat.metal, 0, 0, 0, anchorBody);
+add('anchor_stock', new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), mat.metal, 0, 0.3, 0, anchorBody).rotation.x = Math.PI / 2;
+add('anchor_ring', new THREE.TorusGeometry(0.08, 0.025, 8, 20), mat.metal, 0, 0.47, 0, anchorBody).rotation.y = Math.PI / 2;
+const crown = add('anchor_crown', new THREE.TorusGeometry(0.3, 0.05, 8, 24, Math.PI), mat.metal, 0, -0.12, 0, anchorBody); crown.rotation.set(0, Math.PI / 2, Math.PI);
+[-1, 1].forEach(s => add('anchor_fluke_' + (s > 0 ? 'a' : 'b'), new THREE.ConeGeometry(0.08, 0.2, 4), mat.metal, 0, -0.08, s * 0.3, anchorBody).rotation.x = s * 0.5);
+// chain: a run of alternating links from the hawse pipe down to the anchor ring
+const LINKS = 70, LINK = 0.17, chain = new THREE.InstancedMesh(new THREE.TorusGeometry(0.075, 0.022, 6, 12).scale(1, 1.45, 1), mat.metal, LINKS);
+chain.name = 'anchor_chain'; chain.count = 0; chain.visible = false; chain.frustumCulled = false; boat.add(chain);
+const linkM = new THREE.Matrix4(), linkQ = [new THREE.Quaternion(), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)], linkP = new THREE.Vector3(), linkS = new THREE.Vector3(1, 1, 1);
+add('hawse_pipe', new THREE.CylinderGeometry(0.12, 0.12, 0.5, 12), mat.rubber, ANC.x, 2.48, ANC.z - 0.25).rotation.x = Math.PI / 2;
 // fishing rod (stern, port side)
 const rodPivot = new THREE.Group(); rodPivot.position.set(-3.9, 2.35, -1.35); rodPivot.visible = false; boat.add(rodPivot);
 const rodRot = new THREE.Group(); rodPivot.add(rodRot);
@@ -487,7 +528,7 @@ const paintStatus = () => {
   if (ACT.anchor === 'down') s += chip('Anchored', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'dropping') s += chip('Dropping anchor…', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'raising') s += chip('Raising anchor…', 'rgba(21,32,66,0.6)');
-  if (ACT.fish !== 'off') s += chip(ACT.fish === 'bite' ? 'Fish on!' : 'Fishing', 'rgba(238,52,39,0.7)');
+  if (ACT.fish !== 'off') s += chip(ACT.fish === 'bite' ? 'Fish on!' : ACT.fish === 'aim' ? 'Tap the sea to cast' : 'Fishing · tap to recast', 'rgba(238,52,39,0.7)');
   if (ACT.catch) s += chip('Catch: ' + ACT.catch, 'rgba(44,196,168,0.7)');
   statusEl.innerHTML = s;
   document.getElementById('act-fish-l').textContent = ACT.fish === 'off' ? 'Go fishing' : 'Stop fishing';
@@ -497,29 +538,57 @@ const paintStatus = () => {
 const F = { k: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), wait: 0, rip: 0 };
 const A = { k: 0, depth: 0, rip: 0, splashed: false };
 const tipW = new THREE.Vector3(), tmpV = new THREE.Vector3(), up = new THREE.Vector3();
-function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } ACT.fish = 'casting'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); paintStatus(); }
+// casting range: a ring on the water around the boat; tap anywhere inside it to cast there
+const CAST = { min: 6, max: 24 };
+const castRing = new THREE.Group(); castRing.visible = false; stage._scene.add(castRing);
+const castFill = new THREE.Mesh(new THREE.RingGeometry(CAST.min, CAST.max, 96), new THREE.MeshBasicMaterial({ color: '#bfefff', transparent: true, opacity: 0.08, depthWrite: false }));
+const castEdge = new THREE.Mesh(new THREE.RingGeometry(CAST.max - 0.18, CAST.max, 160), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7, depthWrite: false }));
+const castIn = new THREE.Mesh(new THREE.RingGeometry(CAST.min - 0.1, CAST.min, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
+[castFill, castEdge, castIn].forEach(m => { m.rotation.x = -Math.PI / 2; castRing.add(m); });
+F.target = new THREE.Vector3();
+function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Tap the sea inside the circle to cast', '#bfefff'); paintStatus(); }
+/** Cast to a spot (clamped into the ring). Returns false when not ready to cast. */
+function castAt(p) {
+  if (ACT.fish !== 'aim' && ACT.fish !== 'waiting') return false;
+  const off = p.clone().sub(boat.position).setY(0), L = off.length() || 1; off.setLength(Math.min(CAST.max, Math.max(CAST.min, L)));
+  F.target.copy(boat.position).add(off).setY(WL);
+  if (ACT.fish === 'waiting') { bobber.visible = false; fishLine.visible = false; }
+  ACT.fish = 'casting'; F.k = 0; ripple(F.target.x, F.target.z, 0.5, 0.8); paintStatus(); return true;
+}
 function stopFishing() { if (ACT.fish === 'off') return; ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
-function dropAnchor() { if (ACT.anchor !== 'up') return; ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; chain.visible = true; paintStatus(); }
-function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = 0; paintStatus(); }
+// while the anchor drops or comes up, the camera swings in close to the bow so you can watch it
+let anchorCamT = -1;
+const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  const focus = fwd.clone().multiplyScalar(ANC.x).addScaledVector(side, ANC.z);
+  animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 1.1, focus); anchorCamT = 0; };
+function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false); ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
+function raiseAnchor() { if (ACT.anchor !== 'down') return; ACT.anchor = 'raising'; A.k = -0.5; A.up = false; anchorCam(); paintStatus(); }
 const fishNames = ['Mackerel', 'Sardine', 'Snapper', 'Tuna', 'Sea bass', 'Bluefish'];
 function stepActions(t, dt) {
   // ---- anchor ----
-  const hawseY = 2.1;
+  const hawseY = 2.45;
   if (ACT.anchor === 'dropping') {
-    A.k += dt; const d = 0.5 * 7 * A.k * A.k; anchorG.position.y = ANC.y0 - d; anchorG.rotation.x = Math.sin(A.k * 9) * 0.2 * Math.max(0, 1 - A.k);
+    A.k += dt; const k = Math.max(0, A.k - 1.2); const d = Math.min(0.5 * 5 * k * k, 2.2 * k + 0.2); anchorG.position.y = ANC.y0 - d; anchorG.rotation.x = Math.sin(k * 7) * 0.25 * Math.max(0, 1 - k * 0.6);
     anchorG.getWorldPosition(tmpV);
-    if (!A.splashed && tmpV.y < WL + waveJS(tmpV.x, tmpV.z, t)) { A.splashed = true; splash(tmpV.x, tmpV.z, 26, 1.2); }
-    if (anchorG.position.y < -8) { ACT.anchor = 'down'; anchorG.visible = false; paintStatus(); }
+    const wl = WL + waveJS(tmpV.x, tmpV.z, t);
+    if (!A.splashed && k > 0.15 && tmpV.y - 0.45 * ANC.s < wl) { A.splashed = true; splash(tmpV.x, tmpV.z, 34, 1.4); floatText(tmpV.clone().setY(wl + 2.2), 'Splash!', '#bfefff'); }
+    if (A.splashed) { A.bub -= dt; if (A.bub <= 0) { A.bub = 0.22; ripple(tmpV.x + (Math.random() - 0.5) * 0.6, tmpV.z + (Math.random() - 0.5) * 0.6, 0.3, 1.2); emit(tmpV.x, wl, tmpV.z, (Math.random() - 0.5) * 0.6, 0.8 + Math.random(), (Math.random() - 0.5) * 0.6); } }
+    if (anchorG.position.y < -8) { ACT.anchor = 'down'; anchorG.visible = false; floatText(tmpV.clone().setY(wl + 2.2), 'Anchored', '#fff7ea'); paintStatus(); }
   } else if (ACT.anchor === 'raising') {
-    A.k += dt; anchorG.visible = true; anchorG.position.y = Math.min(ANC.y0, -8 + A.k * 4.2);
+    A.k += dt; anchorG.visible = true; anchorG.position.y = Math.min(ANC.y0, -8 + Math.max(0, A.k) * 3.2); anchorG.rotation.x = Math.sin(t * 5) * 0.12;
     anchorG.getWorldPosition(tmpV);
     const wl = WL + waveJS(tmpV.x, tmpV.z, t);
     if (tmpV.y > wl - 0.2 && tmpV.y < wl + 1.2 && Math.random() < 0.5) emit(tmpV.x, tmpV.y - 0.3, tmpV.z, (Math.random() - 0.5) * 0.4, -0.5, (Math.random() - 0.5) * 0.4);
     if (Math.abs(tmpV.y - wl) < 0.08 && !A.up) { A.up = true; splash(tmpV.x, tmpV.z, 12, 0.7); }
-    if (anchorG.position.y >= ANC.y0) { ACT.anchor = 'up'; A.up = false; chain.visible = false; anchorG.rotation.set(0, 0, 0); anchorG.scale.setScalar(1.15); floatText(tmpV.clone().setY(tmpV.y + 1), 'Clank!', '#fff7ea'); paintStatus(); }
+    if (anchorG.position.y >= ANC.y0) { ACT.anchor = 'up'; A.up = false; chain.visible = false; chain.count = 0; anchorG.rotation.set(0, 0, 0); anchorG.scale.setScalar(ANC.s * 1.15); floatText(tmpV.clone().setY(tmpV.y + 1), 'Clank!', '#fff7ea'); paintStatus(); }
   }
-  if (anchorG.scale.x > 1) anchorG.scale.setScalar(Math.max(1, anchorG.scale.x - dt * 0.6));
-  if (chain.visible) { const bot = Math.max(anchorG.position.y + 0.47, -8); const len = hawseY - bot; chain.scale.y = Math.max(0.01, len); chain.position.y = hawseY - len / 2; chain.rotation.x = ACT.anchor === 'down' ? Math.sin(t * 0.8) * 0.06 : 0; }
+  if (anchorG.scale.x > ANC.s) anchorG.scale.setScalar(Math.max(ANC.s, anchorG.scale.x - dt * 0.9));
+  if (chain.visible) { // links from the hawse pipe to the anchor ring, swaying a little
+    const bot = Math.max(anchorG.position.y + 0.47 * ANC.s, -8), len = hawseY - bot, n = Math.min(LINKS, Math.floor(len / LINK)), sway = ACT.anchor === 'down' ? Math.sin(t * 0.8) * 0.06 : Math.sin(t * 3) * 0.03;
+    for (let i = 0; i < n; i++) { const yy = hawseY - (i + 0.5) * LINK; linkP.set(ANC.x + sway * (hawseY - yy), yy, ANC.z); linkM.compose(linkP, linkQ[i & 1], linkS); chain.setMatrixAt(i, linkM); }
+    chain.count = n; chain.instanceMatrix.needsUpdate = true; }
+  // bring the camera back once the anchor has settled
+  if (anchorCamT >= 0 && (ACT.anchor === 'up' || ACT.anchor === 'down')) { anchorCamT += dt; if (anchorCamT > 1.4) { anchorCamT = -1; setView(state.view); } }
   if (ACT.anchor === 'down') {
     vel *= Math.pow(0.05, dt); yaw += Math.sin(t * 0.25) * dt * 0.03;
     A.rip -= dt; if (A.rip <= 0) { A.rip = 1.6; anchorG.getWorldPosition(tmpV); const cw = new THREE.Vector3(ANC.x, 0, ANC.z).applyMatrix4(boat.matrixWorld); ripple(cw.x, cw.z, 0.45, 1.8); }
@@ -529,6 +598,14 @@ function stepActions(t, dt) {
     rodPivot.scale.setScalar(Math.min(1, rodPivot.scale.x + dt * 4));
     if (Math.abs(vel) > 2 && ACT.fish !== 'reelin') stopFishing();
   }
+  if (ACT.fish !== 'off') { // swing the rod round to face where the line is going
+    const loc = boat.worldToLocal(tmpV.copy(ACT.fish === 'aim' ? boat.position : F.target)), dx = loc.x - rodPivot.position.x, dz = loc.z - rodPivot.position.z;
+    if (ACT.fish !== 'aim' && Math.hypot(dx, dz) > 1) { const th = Math.atan2(dz, -dx), d = Math.atan2(Math.sin(th - rodPivot.rotation.y), Math.cos(th - rodPivot.rotation.y)); rodPivot.rotation.y += d * Math.min(1, dt * 8); } }
+  const ringOn = ACT.fish === 'aim' || ACT.fish === 'waiting' || ACT.fish === 'casting' || ACT.fish === 'bite';
+  castRing.visible = castRing.scale.x > 0.02 || ringOn;
+  if (castRing.visible) { castRing.scale.setScalar(THREE.MathUtils.clamp(castRing.scale.x + (ringOn ? dt * 3 : -dt * 4), 0.01, 1));
+    castRing.position.set(boat.position.x, WL + 0.08 + waveJS(boat.position.x, boat.position.z, t) * 0.3, boat.position.z);
+    castEdge.material.opacity = (ACT.fish === 'aim' ? 0.55 + 0.35 * Math.sin(t * 4) : 0.3); castFill.material.opacity = ACT.fish === 'aim' ? 0.1 : 0.04; }
   rodTip.getWorldPosition(tipW);
   const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const restTilt = 0.95;
@@ -537,7 +614,7 @@ function stepActions(t, dt) {
     if (F.k < 0.45) rodRot.rotation.z = THREE.MathUtils.lerp(restTilt, -0.25, F.k / 0.45);
     else if (F.k < 0.7) rodRot.rotation.z = THREE.MathUtils.lerp(-0.25, restTilt + 0.35, (F.k - 0.45) / 0.25);
     else rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 6);
-    if (F.k >= 0.6 && !bobber.visible) { bobber.visible = true; fishLine.visible = true; F.from.copy(tipW); F.to.copy(boat.position).addScaledVector(fwd, -14 - Math.random() * 4).addScaledVector(side, -4 + Math.random() * 3); F.fk = 0; }
+    if (F.k >= 0.6 && !bobber.visible) { bobber.visible = true; fishLine.visible = true; F.from.copy(tipW); F.to.copy(F.target); F.fk = 0; }
     if (bobber.visible) { F.fk += dt / 0.9; const e = Math.min(1, F.fk); bobber.position.lerpVectors(F.from, F.to, e); bobber.position.y = THREE.MathUtils.lerp(F.from.y, WL, e) + Math.sin(e * Math.PI) * 4;
       if (e >= 1) { splash(F.to.x, F.to.z, 10, 0.6); ACT.fish = 'waiting'; F.wait = 2.5 + Math.random() * 4; F.rip = 0; paintStatus(); } }
   } else if (ACT.fish === 'waiting' || ACT.fish === 'bite') {
@@ -563,7 +640,8 @@ function stepActions(t, dt) {
     bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.5;
     rodRot.rotation.z = THREE.MathUtils.lerp(restTilt + 0.15, restTilt - 0.45, Math.sin(e * Math.PI));
     if (e >= 1) { fish.visible = false; bobber.visible = false; fishLine.visible = false; ACT.catch++; const nm = fishNames[Math.floor(Math.random() * fishNames.length)]; floatText(land.clone().setY(land.y + 1.5), '+1 ' + nm, '#7ff0c8'); for (let i = 0; i < 14; i++) emit(land.x, land.y, land.z, (Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2); ACT.fish = 'recast'; F.k = 0; paintStatus(); }
-  } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'casting'; F.k = 0; } }
+  } else if (ACT.fish === 'recast') { F.k += dt; rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5); if (F.k > 1.2) { ACT.fish = 'aim'; castAt(F.target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3))); } }
+  else if (ACT.fish === 'aim') rodRot.rotation.z += (restTilt - rodRot.rotation.z) * Math.min(1, dt * 5);
   else if (ACT.fish === 'reelin') {
     F.k += dt / 0.7; const e = Math.min(1, F.k);
     if (bobber.visible) { bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.2; }
@@ -641,6 +719,7 @@ stage.addEventListener('pointerup', e => {
   const hit = ray.intersectObject(boat, true).length > 0;
   const wasOpen = menu.style.display !== 'none';
   menu.style.display = hit && !wasOpen ? 'flex' : 'none';
+  if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP) && ACT.fish !== 'off') { castAt(tapP); return; }
   if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP); // both views: tap the water to set a course
 });
 document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
@@ -692,7 +771,7 @@ const stats = { dist: 0, top: 0 };
     wakeT += dt;
     if (Math.abs(vel) > 0.6 && wakeT > 0.07) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }
   }
-  wake.forEach(w => { if (!w.visible) return; w.userData.age += dt; const a = w.userData.age / 2.6; if (a >= 1) { w.visible = false; return; } w.scale.setScalar(w.userData.s * (0.6 + a * 2.4)); w.position.y = WL + waveJS(w.position.x, w.position.z, t) + 0.05; w.material.opacity = (1 - a) * 0.7; });
+  wake.forEach(w => { if (!w.visible) return; w.userData.age += dt; const a = w.userData.age / 2.6; if (a >= 1) { w.visible = false; return; } w.scale.setScalar(w.userData.s * (0.6 + a * 2.4)); w.position.y = WL + waveJS(w.position.x, w.position.z, t) + 0.05; w.material.opacity = (1 - a) * 0.7 * (1 - 0.5 * E.night); });
   seaU.bp.value.set(boat.position.x, boat.position.z); seaU.yaw.value = yaw;
   seaMesh.position.x = seaNear.position.x = sky.position.x = cloudGroup.position.x = hug.position.x = boat.position.x;
   seaMesh.position.z = seaNear.position.z = sky.position.z = cloudGroup.position.z = hug.position.z = boat.position.z;

@@ -503,29 +503,30 @@ body.view-top #you-tag { opacity: 1; }
 /* live clock + weather chip, under the location chip */
 .clock {
   position: fixed;
-  top: calc(var(--gut) + 62px + var(--safe-t));
+  top: calc(var(--gut) + 60px + var(--safe-t));
   left: calc(var(--gut) + var(--safe-l));
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 3px 11px 4px;
   border-radius: 999px;
   background: var(--dock);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow), inset 0 0 0 1px var(--rim);
+  box-shadow: inset 0 0 0 1px var(--rim);
   color: #fff;
+  opacity: 0.4;
   pointer-events: none;
-  font: 600 11.5px/1 system-ui, sans-serif;
+  font: 500 14px/1 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
+  letter-spacing: 0.01em;
 }
-.clock-time { display: flex; align-items: baseline; gap: 7px; }
-.clock-time b { font: 800 14px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-.clock-time span { color: rgba(255, 255, 255, 0.7); }
-.clock-wx { display: flex; align-items: center; gap: 5px; padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, 0.18); }
+.clock-time { display: flex; align-items: baseline; gap: 6px; }
+.clock-time b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.clock-time span { color: rgba(255, 255, 255, 0.85); }
+.clock-wx { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, 0.25); }
 .clock-wx[hidden] { display: none; }
-.clock-wx i { display: grid; width: 20px; height: 20px; }
+.clock-wx i { display: grid; width: 15px; height: 15px; }
 .clock-wx i svg { width: 100%; height: 100%; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+.clock-wx span { font-weight: 700; }
 .loc-ico { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(160deg, #3fc1f0, #1c8cd6); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
 .loc-ico svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .loc-ico .sail { fill: rgba(255, 255, 255, 0.9); }
@@ -650,7 +651,7 @@ body.view-top #you-tag { opacity: 1; }
 
 /* ---------- phones ---------- */
 @media (max-width: 640px) {
-  .clock { top: calc(var(--gut) + 54px + var(--safe-t)); padding: 5px 10px; gap: 8px; }
+  .clock { top: calc(var(--gut) + 52px + var(--safe-t)); }
   :root { --gut: 14px; }
   .acct-btn { width: 48px; height: 48px; }
   .acct-panel {
