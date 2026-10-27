@@ -1,0 +1,8 @@
+{
+  "appId": "com.sailo.app",
+  "appName": "Sailo",
+  "webDir": "dist",
+  "backgroundColor": "#33a8e8",
+  "android": { "backgroundColor": "#33a8e8" },
+  "ios": { "backgroundColor": "#33a8e8", "contentInset": "never" }
+}
