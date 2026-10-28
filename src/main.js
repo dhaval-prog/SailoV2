@@ -485,6 +485,7 @@ const hud = initHud({
   getBoat: () => sinkOut ? sinkOut.id : boatId,
   boatStatus,
   fishCollection: () => ({ log: fishLog, stars, img: id => station.fishImage(id) }),
+  coins: () => station.coins(), spend: n => station.spend(n),
   // switching: not mid-animation, at anchor, while fishing or while mooring / leaving; an empty boat can only be taken out at Paradise Station (to refuel it)
   setBoat: id => { const cur = sinkOut ? sinkOut.id : boatId; if (id === cur) return 'ok'; if (sinkOut || dropIn) return 'busy';
     if (ACT.anchor !== 'up' || ACT.fish !== 'off' || station.mode === 'docking' || station.mode === 'leaving' || station.mode === 'picking') return 'busy';

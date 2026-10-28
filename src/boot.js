@@ -19,4 +19,7 @@ async function chooseChart() {
 }
 
 await chooseChart();
+// a new city's station goes to a real harbour: look it up once and keep it with the chart
+{ const c = savedChart() || window.__sailoChart;
+  if (c && c.station === undefined) { const { findHarbour } = await import('./harbour.js'); const st = await findHarbour(c); if (st !== undefined) window.__sailoChart = setChart({ ...c, station: st }); } }
 await import('./main.js');

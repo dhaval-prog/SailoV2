@@ -4,7 +4,7 @@
 
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
-import { STATION, S as ECON, FISH } from './station.js';
+import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
 
@@ -140,8 +140,13 @@ export function initHud(api) {
   document.title = `Sailo · ${WORLD.name}`;
   // change city: pick another and the page reloads into it (your spot in each city is remembered)
   $('map-city').textContent = where ? `${WORLD.name} · ${where}` : WORLD.name;
-  $('map-change').addEventListener('click', async () => { const { openPicker } = await import('./picker.js'); const c = await openPicker({ current: CHART.id });
-    if (c) { api.beforeLeave?.(); setChart(c); location.reload(); } });
+  // the world map: every city chart; fly to one (coins) to sail it. Your spot in each city is remembered.
+  let worldOpen = false;
+  const openWorld = async () => { if (worldOpen) return; worldOpen = true; setMap(false); const { openWorldMap } = await import('./worldmap.js');
+    const wm = openWorldMap({ current: CHART, coins: () => api.coins(), travel: (c, fare) => { if (!api.spend(fare)) return false; setChart(c); return true; } });
+    const t = setInterval(() => { if (!document.querySelector('.wm')) { clearInterval(t); worldOpen = false; } }, 500); void wm; };
+  $('map-change').addEventListener('click', openWorld);
+  $('tb-world')?.addEventListener('click', openWorld);
   const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map, for sizing marks
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = mapSvg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
@@ -163,7 +168,8 @@ export function initHud(api) {
   { const g = el('g', { transform: `translate(${STATION.x} ${STATION.z})`, class: 'map-station map-mark', 'data-x': STATION.x, 'data-y': STATION.z });
     el('ellipse', { rx: u * 2.4, ry: u * 1.8, class: 'map-island', 'stroke-width': u * 0.4 }, g);
     el('path', { d: `M${-u * 0.3} ${u * 0.6}Q${-u * 0.2} ${-u * 0.6} ${u * 0.4} ${-u * 1.4}M${u * 0.4} ${-u * 1.4}q${-u * 1.4} ${-u * 0.1} ${-u * 1.8} ${u * 0.6}M${u * 0.4} ${-u * 1.4}q${u * 1.4} ${-u * 0.1} ${u * 1.8} ${u * 0.6}`, class: 'map-palm', 'stroke-width': u * 0.45 }, g);
-    el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station'; }
+    el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station';
+    if (STATION.at) el('text', { x: 0, y: u * 8.4, class: 'map-label map-label-sub', 'font-size': u * 2.3 }, g).textContent = `at ${STATION.at}`; }
   // compass rose and scale bar
   const northG = el('g', {});
   el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, northG);
@@ -247,7 +253,7 @@ export function initHud(api) {
       const k = view.w / mapSvg.getBoundingClientRect().width; view.cx = drag.cx - dx * k; view.cz = drag.cz - dy * k; applyView(); mapSvg.classList.add('panning'); } });
   const ptrUp = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) { drag = null; mapSvg.classList.remove('panning'); } };
   addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
-  $('map-zin').addEventListener('click', () => zoomAt(0.5)); $('map-zout').addEventListener('click', () => zoomAt(2));
+  $('map-zin').addEventListener('click', () => zoomAt(0.5)); $('map-zout').addEventListener('click', () => { if (view.w >= V0 - 1) openWorld(); else zoomAt(2); });
   $('map-zboat').addEventListener('click', () => { view.cx = boatXY[0]; view.cz = boatXY[1]; zoomAt(Math.min(1, 6000 / view.w)); });
   let mapOpen = false, lastFocus = null;
   const setMap = open => {
@@ -314,9 +320,11 @@ export function initHud(api) {
   const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' }, dinghy: { ico: SAIL, sub: 'Daysailer with tall mast and genoa · heels under sail' } };
   // fish collection: every species you've caught, with your count and heaviest fish; the rest are silhouettes
   const collectionUI = () => { const fc = api.fishCollection(), got = FISH.filter(f => fc.log[f.id]).length;
-    return `<h4>Fish collection · ${got} / ${FISH.length} species</h4><div class="sh-fishes">${FISH.map(f => { const r = fc.log[f.id], st = fc.stars(f);
-      return `<div class="sh-fish${r ? '' : ' locked'}" title="${r ? f.name : 'Not caught yet'}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
-        <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : 'Not caught yet'}</small></div>`; }).join('')}</div>`; };
+    // species that live in these waters first; the rest say where to travel to catch them
+    const list = [...FISH].sort((a, b) => (!localOdds(a)) - (!localOdds(b)));
+    return `<h4>Fish collection · ${got} / ${FISH.length} species</h4><p class="sh-note">Local waters: <b>${REGION.name}</b>. Travel to other seas for their fish.</p><div class="sh-fishes">${list.map(f => { const r = fc.log[f.id], st = fc.stars(f), here = localOdds(f) > 0;
+      return `<div class="sh-fish${r ? '' : ' locked'}${here ? '' : ' away'}" title="${r ? f.name : here ? 'Lives in these waters' : 'Found in ' + fishWhere(f)}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
+        <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : here ? 'Not caught yet' : `Found in ${fishWhere(f)}`}</small></div>`; }).join('')}</div>`; };
   const openGarage = () => {
     try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
@@ -352,7 +360,7 @@ export function initHud(api) {
       const r = api.setBoat(b.dataset.boat);
       if (r === 'ok') { closeSheet(); paintFleet(); return; }
       const m = $('sh-fleet-msg'); m.hidden = false;
-      m.textContent = r === 'nofuel' ? 'That boat has no fuel. Moor at Paradise Station (3.7 mi W, 1.1 mi S), then switch to it there and refuel at the Boathouse.' : 'Raise the anchor and stop fishing first (and wait while mooring).'; }));
+      m.textContent = r === 'nofuel' ? `That boat has no fuel. Moor at Paradise Station (${STATION.where}), then switch to it there and refuel at the Boathouse.` : 'Raise the anchor and stop fishing first (and wait while mooring).'; }));
     sheetBody.querySelectorAll('#sh-mode [data-mode]').forEach(b => b.addEventListener('click', () => { ss.set({ mode: b.dataset.mode }); openGarage(); }));
     sheetBody.querySelectorAll('.sh-swatch').forEach(b => b.addEventListener('click', () => { const c = [...st.c]; c[+b.dataset.row] = b.dataset.c; ss.set({ c }); openGarage(); }));
     $('sh-imgx')?.addEventListener('click', () => { ss.set({ img: null }); openGarage(); });
@@ -375,7 +383,7 @@ export function initHud(api) {
   paintFleet();
   $('tb-fleet').addEventListener('click', openGarage);
   // search: places in this chart; picking one pins a course there
-  const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: 'Fish Market · Boathouse · fuel', x: STATION.x, z: STATION.z }];
+  const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: `${STATION.at ? STATION.at + ' · ' : ''}Fish Market · Boathouse · fuel`, x: STATION.x, z: STATION.z }];
   const openSearch = () => {
     openSheet('Search', 'Find a place and sail there', '<input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"><div id="sh-results" class="sheet-body"></div>');
     const q = $('sh-q'), res = $('sh-results');
@@ -393,7 +401,7 @@ export function initHud(api) {
   // inbox
   const openInbox = () => openSheet('Inbox', 'Messages from the harbour', `
     <div class="sh-msg"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
-    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, 3.7 mi W · 1.1 mi S. Use Search to sail there.</div>`);
+    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`);
   $('tb-inbox').addEventListener('click', openInbox);
   // add friends: share an invite link carrying your captain code
   const openFriends = () => {
