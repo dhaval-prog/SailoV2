@@ -1,6 +1,6 @@
-// Floating Pune place names over the 3D sea (a DOM layer above the canvas, nothing in the
+// Floating place names (Pune, or the active chart's city) over the 3D sea (a DOM layer above the canvas, nothing in the
 // water itself). Which names show depends on how far out the camera is zoomed:
-//   level 1 (far out)  regions: Pune, Pimpri-Chinchwad, East/West/South/North Pune
+//   level 1 (far out)  regions: the city and its neighbours (Pune: also East/West/South/North Pune)
 //   level 2            major neighbourhoods
 //   level 3 (default)  major + smaller localities
 //   level 4 (close in) + landmarks, roads and residential societies near the boat
@@ -8,7 +8,7 @@
 // true direction, with the distance. Labels never overlap each other, the boat or the
 // fishing game. Also announces "Entering …" / "Leaving …" as the boat crosses localities.
 
-import { regionList, placeList, poisNear, ensure, zoneAt } from './geo.js';
+import { regionList, placeList, poisNear, ensure, zoneAt, groupLabel } from './geo.js';
 
 const NEAR = 330;       // metres: beyond this a name floats on the horizon (past the fog)
 const HORIZON = 1700;   // metres from the camera where horizon names are projected
@@ -99,7 +99,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       } else pend = null;
     }
     if (queue.length && t > toastT) { const { verb, z } = queue.shift(); toastT = t + 1.6;
-      toast.innerHTML = `<small>${verb}</small><b></b>${z.group ? `<span>${z.group === 'Central' ? 'Central Pune' : z.group + ' Pune'}</span>` : ''}`; toast.querySelector('b').textContent = z.name;
+      toast.innerHTML = `<small>${verb}</small><b></b>${z.group ? `<span>${groupLabel(z.group)}</span>` : ''}`; toast.querySelector('b').textContent = z.name;
       toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show'); }
   }
 

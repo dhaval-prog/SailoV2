@@ -5,7 +5,8 @@
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH } from './station.js';
-import { regionList, placeList, poiList, ensure, zoneAt, onChange } from './geo.js';
+import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
+import { CHART, setChart } from './chart.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -129,7 +130,18 @@ export function initHud(api) {
 
   // ---- map (compass button): the whole ocean, the boat, and click-to-pin a course ----
   const mapEl = $('map'), mapSvg = $('map-svg');
-  $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · Pune's real localities`; if ($('welcome-sub')) $('welcome-sub').textContent = `${WORLD.areaSqMi} square miles of Pune, turned into open ocean`;
+  // the active city's names everywhere the page mentions it
+  const where = [CHART.region, CHART.country].filter(Boolean).join(', ');
+  $('map-title').textContent = WORLD.name; $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · ${WORLD.city}'s real localities`;
+  document.querySelector('#loc .loc-text b').textContent = WORLD.name; document.querySelector('#welcome b').textContent = WORLD.name;
+  if ($('welcome-sub')) $('welcome-sub').textContent = `${WORLD.areaSqMi} square miles of ${WORLD.city}, turned into open ocean`;
+  { const r = document.querySelector('.rank'); if (r?.lastChild?.nodeType === 3) r.lastChild.textContent = ` Lighthouse Tug · ${WORLD.name}`; }
+  { const l = document.querySelector('.live-sub'); if (l) l.textContent = `Follows the real sky over ${WORLD.city}`; }
+  document.title = `Sailo · ${WORLD.name}`;
+  // change city: pick another and the page reloads into it (your spot in each city is remembered)
+  $('map-city').textContent = where ? `${WORLD.name} · ${where}` : WORLD.name;
+  $('map-change').addEventListener('click', async () => { const { openPicker } = await import('./picker.js'); const c = await openPicker({ current: CHART.id });
+    if (c) { api.beforeLeave?.(); setChart(c); location.reload(); } });
   const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map, for sizing marks
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = mapSvg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
@@ -191,7 +203,7 @@ export function initHud(api) {
     scaleP.setAttribute('d', `M0 ${-u * k}V0H${len}V${-u * k}`); scaleP.setAttribute('stroke-width', u * 0.4 * k);
     scaleT.setAttribute('x', len / 2); scaleT.setAttribute('y', -u * 2 * k); scaleT.setAttribute('font-size', u * 2.8 * k);
     scaleT.textContent = len < 500 ? `${len} m` : len === WORLD.mile / 2 ? '½ mi' : len === 500 ? '500 m' : `${+(len / WORLD.mile).toFixed(1)} mi`;
-    $('map-zoom-l').textContent = ['', 'Pune', 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
+    $('map-zoom-l').textContent = ['', WORLD.city, 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
     placeMarks(); geoDirty = true;
     ensure(x0, y0, x0 + view.w, y0 + view.w, mapLevel() === 4);
   };
@@ -362,12 +374,12 @@ export function initHud(api) {
   const paintFleet = () => { $('tb-fleet-n').textContent = api.boats().length; $('tb-fleet').setAttribute('aria-label', `My fleet: ${api.boats().length} boats`); };
   paintFleet();
   $('tb-fleet').addEventListener('click', openGarage);
-  // search: places in Pune Paradise; picking one pins a course there
+  // search: places in this chart; picking one pins a course there
   const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: 'Fish Market · Boathouse · fuel', x: STATION.x, z: STATION.z }];
   const openSearch = () => {
     openSheet('Search', 'Find a place and sail there', '<input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"><div id="sh-results" class="sheet-body"></div>');
     const q = $('sh-q'), res = $('sh-results');
-    PLACES.length = 2; placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: p.group ? `${p.group} Pune` : 'Pune', x: p.x, z: p.z }));
+    PLACES.length = 2; placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: groupLabel(p.group), x: p.x, z: p.z }));
     const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term)).slice(0, term ? 40 : 12);
       res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go">${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))} · Sail</span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
     q.addEventListener('input', paint);
@@ -387,7 +399,7 @@ export function initHud(api) {
   const openFriends = () => {
     let dev = ''; try { dev = localStorage.getItem('sailo:device') || ''; } catch { /* storage blocked */ }
     const code = (dev.replace(/-/g, '').slice(0, 6) || 'SAILOR').toUpperCase(), link = `${location.origin}${location.pathname}?invite=${code}`;
-    openSheet('Add friends', 'Invite a friend to sail Pune Paradise', `
+    openSheet('Add friends', `Invite a friend to sail ${WORLD.name}`, `
       <div class="sh-msg">Share your invite link. Your friend opens it on their phone or computer and starts sailing.</div>
       <h4>Your captain code</h4><div class="sh-code">${code}</div>
       <button class="sh-btn" id="sh-share">${navigator.share ? 'Share invite link' : 'Copy invite link'}</button>
@@ -396,7 +408,7 @@ export function initHud(api) {
     const copyBtn = () => $('sh-copy') || $('sh-share');
     const copy = async () => { try { await navigator.clipboard.writeText(link); copyBtn().textContent = 'Link copied'; } catch { copyBtn().textContent = link; } };
     $('sh-copy')?.addEventListener('click', copy);
-    $('sh-share').addEventListener('click', async () => { if (navigator.share) { try { await navigator.share({ title: 'Sail with me in Pune Paradise', text: `Join me on the water! Captain code ${code}`, url: link }); } catch { /* cancelled */ } } else copy(); });
+    $('sh-share').addEventListener('click', async () => { if (navigator.share) { try { await navigator.share({ title: `Sail with me in ${WORLD.name}`, text: `Join me on the water! Captain code ${code}`, url: link }); } catch { /* cancelled */ } } else copy(); });
   };
   const lastStats = { catchN: 0, distNm: 0, topKn: 0, x: 0, z: 0 };
 
