@@ -6,8 +6,8 @@
 //   level 4 (close in) + landmarks, roads and residential societies near the boat
 // Names within 1 km float on the water at their real spot; a few farther ones (at most 5) float on
 // the horizon in their true direction, nearer ones lower and larger, with the distance. The compass
-// strip at the top shows the rest, plus Paradise Station and your course. Tap any name to sail
-// there. Labels never overlap each other, the boat or the fishing game. Also announces
+// strip at the top shows the rest, plus Paradise Station and your course. Tap a name and it becomes a
+// boat icon: tap the boat to sail there. Labels never overlap each other, the boat or the fishing game. Also announces
 // "Entering …" / "Leaving …" as the boat crosses localities.
 
 import { regionList, placeList, poisNear, ensure, zoneAt, groupLabel } from './geo.js';
@@ -23,13 +23,12 @@ export const levelFor = d => d < 35 ? 4 : d < 90 ? 3 : d < 170 ? 2 : 1;
 const bearing = (dx, dz) => (Math.atan2(dx, -dz) * 180 / Math.PI + 360) % 360; // degrees clockwise from north (−z)
 const wrap = a => ((a + 540) % 360) - 180;
 const fmtKm = m => (m >= 10000 ? Math.round(m / 1000) : (m / 1000).toFixed(1)) + ' km';
-const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 /**
  * ctx: THREE, stage, boat, WL, toScreen, avoid() -> screen rects to keep clear, onZone(zone),
  *      sailTo(x, z) -> true when a course was set, station { x, z, name }, course() -> {x, z} | null, busy() -> true while fishing
  */
-export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy }) {
+export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy, night }) {
   const layer = document.createElement('div'); layer.id = 'geo-labels'; document.body.appendChild(layer);
   const toast = document.createElement('div'); toast.id = 'geo-toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast);
   const pool = new Map(); // key -> { el, on, dist, w, h }
@@ -40,9 +39,9 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   const node = (key, p) => {
     let n = pool.get(key); if (n) return n;
     const el = document.createElement('button'); el.type = 'button'; el.className = `gl gl-${p.kind}`; el.tabIndex = -1;
-    el.innerHTML = `${p.cat ? `<i style="background:${CAT[p.cat] || '#fff'}"></i>` : ''}<b></b><small></small>`;
+    el.innerHTML = `${p.cat ? `<i style="background:${CAT[p.cat] || '#fff'}"></i>` : ''}<b></b><small></small><span class="gl-boat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v13M12 4.5c3.4 2.9 5.4 6.6 5.9 10.5H12M11 7c-2.2 2.4-3.4 5-3.8 8H11"/><path d="M3.5 17.5h17l-2 2.8a2 2 0 0 1-1.6.8H7.1a2 2 0 0 1-1.6-.8z"/></svg></span>`;
     el.querySelector('b').textContent = p.kind === 'region' || p.kind === 'major' || p.kind === 'minor' ? p.name.toUpperCase() : p.name;
-    el.addEventListener('click', e => { e.stopPropagation(); ask(p, el); });
+    el.addEventListener('click', e => { e.stopPropagation(); pick(key, p, el); });
     layer.appendChild(el); n = { el, on: false, dist: null, w: 0, h: 0 }; pool.set(key, n); return n;
   };
   const measure = n => { n.w = n.el.offsetWidth; n.h = n.el.offsetHeight; }; // real size (spaced capitals are wider than they look)
@@ -60,21 +59,16 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   }
   let bRect = [0, 0, 0, 0];
 
-  // ---- "Sail to …?" ----
-  const pop = document.createElement('div'); pop.className = 'gl-ask'; pop.hidden = true; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Set a course'); document.body.appendChild(pop);
-  let popT = 0;
-  function ask(p, anchor) {
-    const d = Math.hypot(p.x - boat.position.x, p.z - boat.position.z);
-    pop.innerHTML = `<div><small>Sail to</small><b>${esc(p.name)}</b><span>${d < 1000 ? Math.round(d) + ' m' : fmtKm(d)} away</span></div><button type="button" class="gl-ask-go">Sail</button><button type="button" class="gl-ask-x" aria-label="Cancel">×</button>`;
-    const r = anchor.getBoundingClientRect(); pop.hidden = false;
-    const pw = pop.offsetWidth, ph = pop.offsetHeight, x = Math.min(innerWidth - pw - 10, Math.max(10, r.left + r.width / 2 - pw / 2)), below = r.bottom + 10 + ph < innerHeight - 10;
-    pop.style.left = x + 'px'; pop.style.top = (below ? r.bottom + 10 : r.top - ph - 10) + 'px';
-    pop.querySelector('.gl-ask-go').onclick = () => { pop.hidden = true; sailTo(p.x, p.z, p.name); };
-    pop.querySelector('.gl-ask-x').onclick = () => { pop.hidden = true; };
-    pop.querySelector('.gl-ask-go').focus({ preventScroll: true }); popT = performance.now();
+  // ---- tap a name: it turns into a boat icon; tap the boat to sail there, anywhere else to cancel ----
+  let armed = null; // { key, p, el }
+  const disarm = () => { if (!armed) return; armed.el.classList.remove('armed'); armed.el.setAttribute('aria-label', armed.p.name); armed = null; };
+  function pick(key, p, el) {
+    if (armed?.key === key) { const target = armed.p; disarm(); sailTo(target.x, target.z, target.name); return; }
+    disarm(); armed = { key, p, el }; el.classList.add('armed'); el.setAttribute('aria-label', `Sail to ${p.name}`);
   }
-  addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target) && performance.now() - popT > 200) pop.hidden = true; }, true);
-  addEventListener('keydown', e => { if (e.key === 'Escape') pop.hidden = true; });
+  let cancelAt = -1e9; // a tap that only cancels shouldn't also set a course on the sea
+  addEventListener('pointerdown', e => { if (armed && !armed.el.contains(e.target)) { disarm(); cancelAt = performance.now(); } }, true);
+  addEventListener('keydown', e => { if (e.key === 'Escape') disarm(); });
 
   // ---- compass strip (top centre): heading ticks, nearby places, the station and your course ----
   const strip = document.createElement('div'); strip.id = 'compass-strip'; strip.setAttribute('aria-label', 'Compass');
@@ -85,8 +79,8 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   const ticks = [...tape.children].map(el => ({ el, a: +el.dataset.a }));
   const mpool = new Map();
   const mark = (key, p, cls) => { let m = mpool.get(key); if (m) return m;
-    const el = document.createElement('button'); el.type = 'button'; el.className = `cs-m ${cls}`; el.innerHTML = `<i></i><b></b>`; el.querySelector('b').textContent = p.name;
-    el.addEventListener('click', e => { e.stopPropagation(); ask(p, el); }); marks.appendChild(el); m = { el, on: false, w: 0 }; mpool.set(key, m); return m; };
+    const el = document.createElement('button'); el.type = 'button'; el.className = `cs-m ${cls}`; el.innerHTML = `<i></i><b></b><span class="gl-boat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v13M12 4.5c3.4 2.9 5.4 6.6 5.9 10.5H12M11 7c-2.2 2.4-3.4 5-3.8 8H11"/><path d="M3.5 17.5h17l-2 2.8a2 2 0 0 1-1.6.8H7.1a2 2 0 0 1-1.6-.8z"/></svg></span>`; el.querySelector('b').textContent = p.name;
+    el.setAttribute('aria-label', p.name); el.addEventListener('click', e => { e.stopPropagation(); pick('m:' + key, p, el); }); marks.appendChild(el); m = { el, on: false, w: 0 }; mpool.set(key, m); return m; };
   function paintStrip(camHead) {
     const W = strip.clientWidth, ppd = W / (STRIP.span * 2), bx = boat.position.x, bz = boat.position.z;
     for (const t of ticks) { const dx = wrap(t.a - camHead); t.el.style.display = Math.abs(dx) > STRIP.span ? 'none' : ''; if (Math.abs(dx) <= STRIP.span) t.el.style.transform = `translateX(${(W / 2 + dx * ppd).toFixed(1)}px)`; }
@@ -108,7 +102,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       const d = Math.hypot(it.p.x - bx, it.p.z - bz); m.el.title = `${it.p.name} · ${d < 1000 ? Math.round(d) + ' m' : fmtKm(d)}`;
       m.el.style.transform = `translateX(${x.toFixed(1)}px)`;
     }
-    mpool.forEach((m, k) => { if (!show.has(k) && m.on) { m.on = false; m.el.classList.remove('on'); } });
+    mpool.forEach((m, k) => { if (!show.has(k) && m.on) { m.on = false; m.el.classList.remove('on'); if (armed?.el === m.el) disarm(); } });
   }
 
   function update(t) {
@@ -121,7 +115,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
     camXZ.set(cam.position.x, cam.position.z);
     const camHead = bearing(tgt.x - cam.position.x, tgt.z - cam.position.z);
     paintStrip(camHead);
-    layer.classList.toggle('busy', !!busy?.());
+    layer.classList.toggle('busy', !!busy?.()); layer.classList.toggle('night', !!night?.());
     const W = innerWidth, H = innerHeight, cand = [];
     const consider = (key, p, rank) => {
       const dx = p.x - camXZ.x, dz = p.z - camXZ.y, dist = Math.hypot(p.x - tgt.x, p.z - tgt.z), far = rank === 0 || dist > NEAR;
@@ -159,7 +153,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       n.el.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -100%) scale(${sc.toFixed(3)})`;
       if (!n.on) { n.on = true; n.el.classList.add('on'); n.el.tabIndex = 0; }
     }
-    pool.forEach((n, k) => { if (!show.has(k) && n.on) { n.on = false; n.el.classList.remove('on'); n.el.tabIndex = -1; } });
+    pool.forEach((n, k) => { if (!show.has(k) && n.on) { n.on = false; n.el.classList.remove('on'); n.el.tabIndex = -1; if (armed?.el === n.el) disarm(); } });
     zones(t);
   }
 
@@ -180,5 +174,5 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show'); }
   }
 
-  return { update, get level() { return level; }, get zone() { return cur; } };
+  return { update, get cancelled() { return performance.now() - cancelAt < 800; }, get level() { return level; }, get zone() { return cur; } };
 }
