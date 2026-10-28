@@ -10,6 +10,7 @@ import { buildIsland } from './station-island.js';
 import { CHART, WORLD, project, formatOffset } from './world.js';
 import { regionAt, regionName } from './regions.js';
 import { MORE_FISH, buildSpecies } from './fish-species.js';
+import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
 import './station.css';
 
 const MILE = 1609.344;
@@ -55,13 +56,18 @@ export const FISH = [
   { id: 'barramundi', name: 'Barramundi', price: 50, kg: 6, len: 1.1, h: 0.32, w: 0.18, back: '#6d7a6a', side: '#d3d8cc', belly: '#f3f3ec', fin: '#7c7f6a', pat: 'none', hump: 0.12, odds: 7, where: 'southern' },
   // sharks, rays, oddballs and freshwater fish (fish-species.js)
   ...MORE_FISH,
+  // Indian freshwater, deep-sea, reef and lagoon, river and lake, and odd-shaped fish (fish-species-2.js)
+  ...MORE_FISH_2,
 ];
+FISH.forEach(f => { if (RENAMES[f.id]) f.name = RENAMES[f.id]; });
 /** This chart's ocean region (decides the local fish). */
 export const REGION = regionAt(CHART.lat, CHART.lng);
 const WARM = new Set(['puffer', 'tuna', 'barracuda', 'mahi', 'swordfish', 'sailfish', 'permit', 'snapper']), COLD = new Set(['cod', 'flounder']);
 /** How likely a species is here: regional fish only in their own waters; warm-water fish are scarce
  *  in cold northern seas, where cod and flounder are commoner (and rarer in the tropics). */
 export const localOdds = f => { const r = REGION.id; if (f.where) return f.where === r ? f.odds : 0;
+  if (f.warm) return f.odds * (r === 'north' ? 0.15 : 1); // reef and lagoon fish: scarce in cold seas
+  if (f.cold) return f.odds * (r === 'arabian' || r === 'westpac' ? 0.4 : r === 'north' ? 2 : 1);
   if (WARM.has(f.id)) return f.odds * (r === 'north' ? 0.15 : 1);
   if (COLD.has(f.id)) return f.odds * (r === 'north' ? 3 : r === 'arabian' || r === 'westpac' ? 0.5 : 1);
   return f.odds; };

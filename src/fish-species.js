@@ -162,6 +162,22 @@ export function buildSpecies(THREE, f, H) {
       case 'box': if (s(x * 34, y * 30 + z * 30) > 0.7) c.lerp(C('#141414'), 0.85); break;
       case 'cow': if (s(x * 38, y * 34 + z * 34) > 0.72) c.lerp(C('#3a8ad8'), 0.85); break;
       case 'manta': break;
+      case 'bars': if (y > 0.2 && Math.sin(x * 26 + Math.sin(y * 5 + z * 3) * 2.2) > 0.25) c.lerp(dk, 0.7); break;
+      case 'lines': if (y > -0.5 && Math.abs(Math.sin(y * 17)) > 0.9) c.lerp(dk, 0.45); break;
+      case 'tailspot': if (Math.hypot(x + 0.72, y) < 0.12 && Math.abs(z) > 0.25) c.lerp(dk, 0.85); break;
+      case 'danio': if (y > -0.55 && y < 0.55 && Math.abs(Math.sin(y * 13)) > 0.75) c.lerp(C('#2a3a9a'), 0.8); break;
+      case 'clown': { const b = [0.55, 0.0, -0.6].reduce((m, bx) => Math.min(m, Math.abs(x - bx)), 9); if (b < 0.1) c.set('#f8f8f4'); else if (b < 0.13) c.set('#141414'); break; }
+      case 'parrot': if (Math.abs(Math.sin(x * 40 + Math.abs(y) * 9)) < 0.12) c.lerp(C('#f2a0c0'), 0.5); if (x > 0.6 && Math.sin(y * 24 + x * 10) > 0.6) c.lerp(C('#f29a3a'), 0.6); break;
+      case 'surgeon': if (x < -0.55 && x > -0.75 && y < 0.1 && y > -0.25) c.lerp(C('#f2d21a'), 0.9); if (Math.sin(y * 30 + x * 4) > 0.85) c.lerp(dk, 0.5); break;
+      case 'butterfly': if (Math.abs(x - 0.55) < 0.08 && y > -0.6) c.set('#141414'); else if (y > 0.05 && x < 0.4) c.lerp(C('#f2d22a'), 0.85); if (Math.hypot(x + 0.4, y - 0.45) < 0.12 && Math.abs(z) > 0.2) c.set('#141414'); break;
+      case 'goat': if (Math.abs(y - 0.02) < 0.09) c.lerp(C('#f2c41a'), 0.85); break;
+      case 'grunt': if (y > -0.5 && Math.abs(Math.sin(y * 14 + x * 1.5)) > 0.82) c.lerp(C('#3a6ad8'), 0.75); break;
+      case 'snook': if (Math.abs(y - 0.08) < 0.035) c.lerp(dk, 0.85); break;
+      case 'bluelines': if (y > -0.4 && y < 0.5 && Math.abs(Math.sin(y * 12)) > 0.9) c.lerp(C('#3a8ae8'), 0.8); break;
+      case 'grouper': if (s(x * 38 + z * 9, y * 32) > 0.62) c.lerp(C('#e8d4b8'), 0.6); else if (nz(x * 2, y * 2, z, 2) > 0.3) c.lerp(dk, 0.3); break;
+      case 'archer': if (y > -0.1 && Math.abs(Math.sin(x * 9 + 0.6)) > 0.85) c.lerp(C('#1a1a14'), 0.85); break;
+      case 'wrasse': if (Math.abs(y - 0.05) < 0.13 && x < 0.95) c.lerp(C('#141418'), 0.9 * ss(0.95, 0.2, x)); break;
+      case 'charspots': if (y > -0.4 && s(x * 44, y * 36 + z * 11) > 0.74) c.lerp(C(y > 0.2 ? '#e8e4d8' : '#f07a5a'), 0.8); break;
       default: break;
     }
     return c;
@@ -185,7 +201,8 @@ export function buildSpecies(THREE, f, H) {
     mesh(new THREE.TubeGeometry(curve, 10, Math.max(0.004, Hh * 0.018), 5), mat); } };
 
   if (f.kind === 'shark') buildShark(); else if (f.kind === 'ray') buildRay(); else if (f.kind === 'horse') buildHorse(); else if (f.kind === 'eel') buildEel();
-  else if (f.kind === 'angler') buildAngler(); else if (f.kind === 'mola') buildMola(); else if (f.kind === 'box') buildBox(); else if (f.kind === 'spiny') buildSpiny(); else buildBony();
+  else if (f.kind === 'angler') buildAngler(); else if (f.kind === 'mola') buildMola(); else if (f.kind === 'box') buildBox(); else if (f.kind === 'spiny') buildSpiny(); else if (f.kind === 'blob') buildBlob(); else buildBony();
+  if (f.photo) photophores();
   return g;
 
   // ---------------------------------------------------------------------------------------- sharks
@@ -200,7 +217,8 @@ export function buildSpecies(THREE, f, H) {
     };
     const geo = bodyGeo(L, Hh, Wd, prof, (c, x, y, z, u) => { shade(c, y, f.pat === 'sharp'); paint(c, x, y, z, f.pat);
       if (u > 0.68 && u < 0.8 && Math.abs(z) > 0.55 && y > -0.35 && y < 0.35 && Math.abs(Math.sin(u * 140)) < (f.gape ? 0.3 : 0.16)) c.multiplyScalar(0.55); // gill slits
-      if (u > 0.93 && y < -0.1) c.multiplyScalar(0.7); });
+      if (u > 0.93 && y < -0.1) c.multiplyScalar(0.7);
+      if (f.collar && u > 0.66 && u < 0.72 && y < 0.2) c.set('#1a1410'); }); // cookiecutter: the dark collar
     mesh(geo, std({ vertexColors: true, roughness: 0.55, metalness: 0.05 }));
     const fm = finMat(f.fin, 1), dh = Hh * 0.95 * (f.dorsalH || 1), tip = f.tips ? finMat(f.tips, 1) : fm, R = f.roundFins;
     // first dorsal: a swept triangle (rounded for nurse / goblin)
@@ -285,6 +303,16 @@ export function buildSpecies(THREE, f, H) {
   }
   function buildHorse() {
     const colour = (c, u, ny) => { shade(c, ny * 0.8); if (Math.sin(u * 160) > 0.7) c.multiplyScalar(0.82); return c; };
+    if (f.dragon) { // leafy seadragon: a long, gently curved body hung with leaf-shaped lobes
+      const cv = new THREE.CatmullRomCurve3([new V3(-L * 0.48, -L * 0.18, 0), new V3(-L * 0.3, -L * 0.04, 0), new V3(-L * 0.08, L * 0.03, 0), new V3(L * 0.14, L * 0.04, 0), new V3(L * 0.28, L * 0.1, 0)]);
+      tubeBody(cv, u => Hh * 0.5 * (0.2 + 0.8 * ss(0, 0.55, u)) * (1 + 0.3 * Math.exp(-Math.pow((u - 0.6) / 0.15, 2))), colour, 110, 0.18);
+      const hm = std({ color: f.side, roughness: 0.45 }); const hd = cv.getPointAt(1);
+      cone(Hh * 0.18, L * 0.2, hm, hd.x + L * 0.1, hd.y + L * 0.01, 0, 0, 0, -Math.PI / 2 - 0.1, 10);
+      const lm = finMat(f.fin, 0.92), leaf = (sz) => fishShape([[0, 0], [sz * 0.5, sz * 0.5, sz * 0.6, sz * 0.15], [sz * 0.15, sz], [-sz * 0.25, sz * 0.6, -sz * 0.35, sz * 0.25]]);
+      [[0.2, 1, 0.12], [0.35, -1, 0.16], [0.5, 1, 0.14], [0.62, -1, 0.18], [0.72, 1, 0.13], [0.82, -1, 0.1], [0.9, 1, 0.09], [0.06, -1, 0.1]].forEach(([u, sg, sz]) => {
+        const P = cv.getPointAt(u); [-1, 1].forEach(side => { const lf = mesh(leaf(L * sz), lm, P.x, P.y + sg * Hh * 0.3, side * Hh * 0.2); lf.rotation.set(side * 0.5, side * 0.3, sg > 0 ? 0.3 : Math.PI - 0.3); }); });
+      const t = new THREE.Object3D(); t.name = 'tail'; g.add(t);
+      eyes(hd.x - L * 0.01, hd.y + Hh * 0.18, Hh * 0.38, Hh * 0.16, '#3a2a10'); return; }
     if (f.pipe) { // straight and thin, with a tube snout and a little fan tail
       const cv = new THREE.CatmullRomCurve3([new V3(-L / 2, 0, 0), new V3(-L * 0.1, 0.01, 0), new V3(L * 0.3, 0, 0), new V3(L / 2 - L * 0.08, 0.005, 0)]);
       tubeBody(cv, u => Hh * 0.5 * (0.35 + 0.65 * ss(0, 0.5, u)) * (1 - 0.25 * ss(0.85, 1, u)), colour, 90, 0.12);
@@ -314,7 +342,30 @@ export function buildSpecies(THREE, f, H) {
     const cv = new THREE.CatmullRomCurve3(pts);
     const colour = (c, u, ny, nzv) => { shade(c, ny); paint(c, u * 2 - 1, ny, nzv, f.pat); return c; };
     tubeBody(cv, u => (f.oar ? Hh * 0.5 : Hh * 0.5) * (0.12 + 0.88 * ss(0, 0.35, u)) * (1 - 0.45 * ss(0.9, 1, u)), colour, 140);
-    if (f.oar) { // flattened ribbon: squash sideways
+    if (f.gulper) { // a tiny body behind an enormous hinged mouth, and a whip tail with a glowing tip
+      const P = cv.getPointAt(0.97), mm = std({ color: '#1a1a22', side: THREE.DoubleSide, roughness: 0.7 });
+      const jaw = (sgn) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(L * 0.12, sgn * Hh * 2.2, L * 0.3, sgn * Hh * 1.6); sh.lineTo(L * 0.3, 0); sh.closePath(); return new THREE.ShapeGeometry(sh, 10); };
+      [-1, 1].forEach(sg => mesh(jaw(sg), mm, P.x - L * 0.08, P.y, 0));
+      const sac = mesh(new THREE.SphereGeometry(1, 20, 14), std({ color: '#2a2a34', roughness: 0.6, side: THREE.DoubleSide }), P.x + L * 0.06, P.y - Hh * 0.6, 0); sac.scale.set(L * 0.13, Hh * 1.6, Hh * 1.4);
+      const T0 = cv.getPointAt(0); mesh(new THREE.SphereGeometry(Hh * 0.18, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff6ab0', emissive: '#ff4aa0', emissiveIntensity: 1.6 }), T0.x, T0.y, T0.z);
+      eyes(P.x - L * 0.06, P.y + Hh * 0.3, Hh * 0.25, Hh * 0.12, '#1b1b1b');
+    } else if (f.electric) { // no dorsal: one long anal fin ripples the whole length of the belly
+      const bot = []; for (let k = 0; k <= 30; k++) { const u = 0.04 + k / 30 * 0.76, P = cv.getPointAt(u), r = Hh * 0.5 * (0.12 + 0.88 * ss(0, 0.35, u)); bot.push([P.x, P.y - r * 0.85]); }
+      const fs = [...bot, ...[...bot].reverse().map(([x, y], i) => [x, y - Hh * 0.35 * Math.sin((1 - i / 30) * Math.PI * 0.9 + 0.1)])]; mesh(fishShape(fs), finMat(f.fin, 0.8));
+      const P = cv.getPointAt(0.96); eyes(P.x, P.y + Hh * 0.18, Hh * 0.3, Hh * 0.06);
+    } else if (f.ribbon) { // electric blue with a yellow fin and jaw, and flared nostrils
+      const top = []; for (let k = 0; k <= 30; k++) { const u = 0.05 + k / 30 * 0.85, P = cv.getPointAt(u); top.push([P.x, P.y + Hh * 0.42]); }
+      mesh(fishShape([...top, ...[...top].reverse().map(([x, y]) => [x, y + Hh * 0.45])]), finMat(f.fin, 0.95));
+      const P = cv.getPointAt(0.97), ym = std({ color: '#f2d21a' }); cone(Hh * 0.35, L * 0.06, ym, P.x + L * 0.02, P.y - Hh * 0.18, 0, 0, 0, -Math.PI / 2, 8);
+      [-1, 1].forEach(sg => { const fl = cone(Hh * 0.35, Hh * 0.6, ym, P.x + L * 0.04, P.y + Hh * 0.45, sg * Hh * 0.2, sg * 0.4, 0, -0.6, 8); fl.scale.set(1, 1, 0.5); });
+      eyes(P.x - L * 0.01, P.y + Hh * 0.2, Hh * 0.35, Hh * 0.12, '#f2d21a');
+    } else if (f.garden) { // pale with black spots; it stands up out of the sand in an S
+      g.children[0].geometry.dispose(); g.remove(g.children[0]);
+      const sc = new THREE.CatmullRomCurve3([new V3(0, -L * 0.45, 0), new V3(0.02 * L, -L * 0.15, 0), new V3(-0.04 * L, L * 0.12, 0), new V3(0.05 * L, L * 0.32, 0), new V3(0.14 * L, L * 0.4, 0)]);
+      tubeBody(sc, u => Hh * 0.5 * (0.5 + 0.5 * ss(0, 0.2, u)) * (1 - 0.3 * ss(0.9, 1, u)), (c, u, ny, nzv) => { shade(c, ny * 0.4); if (Math.sin(u * 90) * Math.sin(nzv * 9) > 0.5) c.lerp(dk, 0.8); return c; }, 90);
+      const P = sc.getPointAt(0.97); eyes(P.x, P.y + Hh * 0.15, Hh * 0.4, Hh * 0.18);
+      mesh(new THREE.CylinderGeometry(L * 0.12, L * 0.16, L * 0.04, 20), std({ color: '#e8dcb8', roughness: 0.9 }), 0, -L * 0.45, 0); // its patch of sand
+    } else if (f.oar) { // flattened ribbon: squash sideways
       g.children[0].scale.z = 0.35;
       // the red dorsal fin all down the back, and the crest plumes at the head
       const shape = []; for (let k = 0; k <= 30; k++) { const u = k / 30, P = cv.getPointAt(u); shape.push([P.x, P.y + Hh * 0.42 + Hh * 0.16 * (0.5 + 0.5 * Math.sin(u * 90))]); }
@@ -334,18 +385,24 @@ export function buildSpecies(THREE, f, H) {
 
   // ------------------------------------------------------------------------------------ anglerfish
   function buildAngler() {
-    const geo = bodyGeo(L, Hh, Wd, (u, y) => { const head = ss(0.25, 0.75, u); return { h: 0.35 + 0.65 * head * (y < 0 ? 1.1 : 1), w: 0.3 + 0.7 * head, y: 0 }; },
+    const round = f.round || f.frog;
+    const geo = bodyGeo(L, Hh, Wd, (u, y) => { if (round) return { h: 0.5 + 0.5 * ss(0, 0.4, u), w: 0.5 + 0.5 * ss(0, 0.4, u), y: 0 }; const head = ss(0.25, 0.75, u); return { h: 0.35 + 0.65 * head * (y < 0 ? 1.1 : 1), w: 0.3 + 0.7 * head, y: 0 }; },
       (c, x, y, z) => { c.lerpColors(cS, cB, ss(-0.3, 0.6, y)); if (nz(x * 3, y * 3, z * 3, 2) > 0.4) c.multiplyScalar(0.75); });
     mesh(geo, std({ vertexColors: true, roughness: 0.7, metalness: 0.05 }));
     // the gaping mouth: a dark wedge across the front, ringed with needle teeth
     const mo = mesh(new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, Math.PI * 0.42, Math.PI * 0.2), std({ color: '#120c0a', side: THREE.DoubleSide, roughness: 0.9 }), L / 2 * 0.92, -Hh * 0.02, 0); mo.scale.set(L * 0.08, Hh * 0.42, Wd * 0.48); mo.rotation.z = -Math.PI / 2 + 0.25;
+    if (f.frog) { const p = g.children[0].geometry.attributes.position; for (let i = 0; i < p.count; i++) { const k = 1 + 0.09 * (nz(p.getX(i) * 12, p.getY(i) * 12, p.getZ(i) * 12, 1.4) + 0.3); p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k); } g.children[0].geometry.computeVertexNormals();
+      [-1, 1].forEach(s2 => { const arm = mesh(new THREE.CapsuleGeometry(Hh * 0.06, Hh * 0.3, 4, 8), std({ color: f.side, roughness: 0.6 }), L * 0.12, -Hh * 0.42, s2 * Wd * 0.42); arm.rotation.set(s2 * 0.4, 0, 0.5);
+        const hand = mesh(fishShape([[0, 0], [-0.08 * L, -Hh * 0.12, -0.02 * L, -Hh * 0.18], [-0.1 * L, 0]]), finMat(f.fin, 1), L * 0.06, -Hh * 0.62, s2 * Wd * 0.5); hand.rotation.y = s2 * 0.3; }); }
+    if (f.bumps) { const bm = std({ color: f.side, roughness: 0.6 }), UP2 = new V3(0, 1, 0); for (let k = 0; k < 70; k++) { const n = new V3(rnd2() * 2 - 1, rnd2() * 2 - 1, rnd2() * 2 - 1).normalize(); if (n.x > 0.7) continue;
+      const m = mesh(new THREE.ConeGeometry(Hh * 0.03, Hh * 0.08, 5), bm, n.x * L / 2, n.y * Hh / 2, n.z * Wd / 2); m.quaternion.setFromUnitVectors(UP2, n); } }
     const tm = std({ color: '#efe8d8', roughness: 0.3 });
-    for (let k = 0; k < 16; k++) { const a = (k / 15 - 0.5) * 2.2, z = Math.sin(a) * Wd * 0.4, xx = L / 2 * 0.9 - (1 - Math.cos(a)) * L * 0.08;
+    if (!f.frog) for (let k = 0; k < 16; k++) { const a = (k / 15 - 0.5) * 2.2, z = Math.sin(a) * Wd * 0.4, xx = L / 2 * 0.9 - (1 - Math.cos(a)) * L * 0.08;
       cone(0.008, Hh * (0.12 + (k % 3) * 0.04), tm, xx, Hh * 0.16, z, Math.PI, 0, 0, 4); cone(0.008, Hh * (0.14 + (k % 2) * 0.05), tm, xx + 0.01, -Hh * 0.2, z, 0, 0, 0, 4); }
     // the lure: a thin rod from the forehead, a glowing bulb at the end
     const rod = new THREE.QuadraticBezierCurve3(new V3(L * 0.22, Hh * 0.42, 0), new V3(L * 0.4, Hh * 0.95, 0), new V3(L * 0.62, Hh * 0.7, 0));
     mesh(new THREE.TubeGeometry(rod, 12, 0.008, 5), std({ color: '#4a3a30' }));
-    mesh(new THREE.SphereGeometry(Hh * 0.08, 14, 10), new THREE.MeshStandardMaterial({ color: '#c8fff4', emissive: '#7ff0e0', emissiveIntensity: 1.6, roughness: 0.2 }), L * 0.62, Hh * 0.66, 0);
+    mesh(new THREE.SphereGeometry(Hh * 0.08, 14, 10), f.frog ? std({ color: '#f2f0e0', roughness: 0.8 }) : new THREE.MeshStandardMaterial({ color: '#c8fff4', emissive: '#7ff0e0', emissiveIntensity: 1.6, roughness: 0.2 }), L * 0.62, Hh * 0.66, 0); // frogfish: a little white tassel, not a light
     const t = mesh(fishShape([[0, 0], [-L * 0.16, Hh * 0.3, -L * 0.12, 0], [-L * 0.16, -Hh * 0.3]]), finMat(f.fin), -L / 2 + L * 0.04, 0, 0); t.name = 'tail';
     [-1, 1].forEach(s => { const p = mesh(fishShape([[0, 0], [-0.12 * L, Hh * 0.12, -0.1 * L, 0], [-0.08 * L, -Hh * 0.16]]), finMat(f.fin), 0, -Hh * 0.1, s * Wd * 0.4); p.rotation.y = s * 0.6; });
     eyes(L * 0.26, Hh * 0.26, Wd * 0.3, Hh * 0.035, '#a8a088');
@@ -402,6 +459,28 @@ export function buildSpecies(THREE, f, H) {
     eyes(L / 2 * 0.62, Hh * 0.12, Wd * 0.36, Hh * 0.11, '#3a8a4a');
   }
 
+  // ------------------------------------------------------------------------------------ blobfish
+  function buildBlob() { // a soft, sagging pink body with a drooping nose and a sad mouth
+    const geo = bodyGeo(L, Hh, Wd, (u, y) => ({ h: (0.3 + 0.7 * ss(0, 0.55, u)) * (y < 0 ? 1.15 : 0.9), w: 0.3 + 0.7 * ss(0, 0.5, u), y: -0.18 * ss(0.5, 1, u) * (y > 0 ? 1 : 0.4) }),
+      (c, x, y, z) => { c.lerpColors(cL, cB, ss(-0.5, 0.6, y)); if (nz(x * 4, y * 4, z * 4, 1.2) > 0.5) c.multiplyScalar(0.94); }, 56);
+    const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); if (y < 0) p.setY(i, y * (1 + 0.25 * Math.sin((x / L + 0.5) * Math.PI))); } geo.computeVertexNormals();
+    mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, emissive: '#3a1414', emissiveIntensity: 0.25 }));
+    const nm = new THREE.MeshStandardMaterial({ color: f.back, roughness: 0.5, emissive: '#3a1414', emissiveIntensity: 0.25 });
+    const nose = mesh(new THREE.SphereGeometry(1, 20, 14), nm, L * 0.45, -Hh * 0.02, 0); nose.scale.set(L * 0.12, Hh * 0.3, Wd * 0.22);
+    const mo = mesh(new THREE.TorusGeometry(Wd * 0.2, Hh * 0.025, 6, 20, Math.PI), std({ color: '#b86a6a' }), L * 0.42, -Hh * 0.3, 0); mo.rotation.set(0, Math.PI / 2, 0);
+    const fm = finMat(f.fin, 0.85), t = mesh(fishShape([[0, 0], [-L * 0.16, Hh * 0.22, -L * 0.14, 0], [-L * 0.16, -Hh * 0.22]]), fm, -L / 2 + L * 0.04, -Hh * 0.05, 0); t.name = 'tail';
+    [-1, 1].forEach(s => { const pc = mesh(fishShape([[0, 0], [-0.12 * L, Hh * 0.1], [-0.1 * L, -Hh * 0.14]]), fm, L * 0.05, -Hh * 0.15, s * Wd * 0.45); pc.rotation.y = s * 0.6; });
+    eyes(L * 0.34, Hh * 0.12, Wd * 0.3, Hh * 0.05, '#2a1a1a');
+  }
+
+  // photophores: two rows of small lights along the belly (deep-sea fish, the cookiecutter's glow)
+  function photophores() {
+    const gm = new THREE.MeshStandardMaterial({ color: f.photo, emissive: f.photo, emissiveIntensity: 1.8, roughness: 0.3 }), n = Math.round(10 + L * 10), dotR = Math.max(0.004, Hh * 0.035);
+    for (let k = 0; k < n; k++) { const u = 0.12 + k / (n - 1) * 0.72, x = (u - 0.5) * L, prof = 0.3 + 0.7 * ss(0, 0.5, u);
+      const yb = -Hh / 2 * prof * (f.keel ? 1 + 1.1 * Math.sin(Math.min(1, u * 1.25) * Math.PI) * ss(0.15, 0.55, u) : 1) * 0.92;
+      [-1, 1].forEach(s => { mesh(new THREE.SphereGeometry(dotR, 6, 4), gm, x, yb * 0.92, s * Wd / 2 * prof * 0.42); mesh(new THREE.SphereGeometry(dotR * 0.8, 6, 4), gm, x, yb * 0.55, s * Wd / 2 * prof * 0.8); }); }
+  }
+
   // ------------------------------------------------------------------------------------ bony fish
   function buildBony() {
     const prof = (u, y) => {
@@ -411,6 +490,9 @@ export function buildSpecies(THREE, f, H) {
       if (f.duck) { h *= 1 - 0.45 * ss(0.8, 1, u); w *= 1 - 0.15 * ss(0.8, 1, u); }
       if (f.snoutCone) { h *= 1 - 0.5 * ss(0.82, 1, u); w *= 1 - 0.5 * ss(0.82, 1, u); }
       const hump = y > 0 ? 1 + (f.hump || 0) * Math.sin(u * Math.PI) : 1;
+      if (f.keel && y < 0) h *= 1 + 1.3 * Math.sin(Math.min(1, u * 1.25) * Math.PI) * ss(0.15, 0.55, u); // hatchetfish: the deep, thin belly
+      if (f.swallow && y < 0) { const b = Math.exp(-Math.pow((u - 0.48) / 0.16, 2)); h *= 1 + 1.6 * b; w *= 1 + 1.2 * b; } // a whole meal in the stomach
+      if (f.knife && y < 0) h *= 1 + 0.2 * ss(0.3, 0.7, u); // featherbacks: the belly deepens toward the long anal fin
       return { h: h * hump, w, y: f.flatHead && y < 0 ? 0.15 * ss(0.6, 1, u) : 0 };
     };
     const geo = bodyGeo(L, Hh, Wd, prof, (c, x, y, z, u) => { shade(c, y); paint(c, x, y, z, f.pat);
@@ -418,7 +500,12 @@ export function buildSpecies(THREE, f, H) {
       if (f.plates && u < 0.78 && (Math.abs(Math.sin(x * 30)) < 0.07 || Math.abs(y) < 0.03)) c.multiplyScalar(0.72); }); // armour plate seams
     if (f.warty) { const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + f.warty * 0.12 * (nz(x * 9, y * 9, z * 9, 1.6) + 0.3);
       p.setXYZ(i, x, y * k, z * k); } geo.computeVertexNormals(); }
-    mesh(geo, std({ vertexColors: true, metalness: f.shine ? 0.45 : f.smooth ? 0.05 : 0.22, roughness: f.smooth ? 0.55 : 0.28 }));
+    const glass = !!f.glass;
+    mesh(geo, std({ vertexColors: true, metalness: f.shine ? 0.45 : f.smooth ? 0.05 : 0.22, roughness: f.smooth ? 0.55 : 0.28, transparent: glass, opacity: glass ? (f.glass === 'pink' ? 0.72 : 0.42) : 1, depthWrite: !glass }));
+    if (glass) { // see-through: the spine, ribs and a silvery gut show inside
+      const bm = std({ color: f.glass === 'pink' ? '#d89a98' : '#e8eef0', roughness: 0.4 }); const sp = mesh(new THREE.CylinderGeometry(Hh * 0.025, Hh * 0.015, L * 0.82, 6), bm, -L * 0.04, Hh * 0.04, 0); sp.rotation.z = Math.PI / 2;
+      for (let k = 0; k < 9; k++) { const r = mesh(new THREE.CylinderGeometry(Hh * 0.008, Hh * 0.008, Hh * 0.6, 4), bm, L * 0.22 - k * L * 0.06, -Hh * 0.08, 0); r.rotation.z = 0.25; }
+      mesh(new THREE.SphereGeometry(Hh * 0.22, 14, 10), std({ color: '#c8d4dc', metalness: 0.7, roughness: 0.2 }), L * 0.12, -Hh * 0.12, 0).scale.set(1.6, 1, 0.7); }
     const fm = finMat(f.redFins ? '#e0752e' : f.fin, f.fins === 'flowing' ? 0.7 : 0.88), Hd = Hh * (f.fins === 'flowing' ? 0.4 : 0.32);
     // tail
     const Lt = L * (f.tail === 'veil' ? 0.38 : f.tail === 'lobed' ? 0.2 : 0.22), T = Hh * (f.tail === 'veil' ? 1.1 : 0.78);
@@ -427,6 +514,9 @@ export function buildSpecies(THREE, f, H) {
       : f.tail === 'lobed' ? [[L * 0.03, -0.06 * T], [-Lt * 0.8, -T * 0.6], [-Lt * 0.75, -T * 0.08], [-Lt * 1.15, 0, -Lt, -0.05], [-Lt * 0.75, T * 0.08], [-Lt * 0.8, T * 0.6], [L * 0.03, 0.06 * T]]
       : f.tail === 'hetero' ? [[L * 0.03, -0.05 * T], [-Lt * 0.6, -T * 0.4], [-Lt * 0.3, 0.02, -Lt * 0.4, -T * 0.05], [-Lt * 1.3, T * 0.75], [L * 0.03, 0.12 * T, -Lt * 0.5, T * 0.2]]
       : f.tail === 'veil' ? [[L * 0.03, -0.06 * T], [-Lt, -T * 0.6, -Lt * 0.6, -T * 0.7], [-Lt * 0.8, 0, -Lt * 1.15, -T * 0.2], [-Lt, T * 0.6, -Lt * 1.15, T * 0.2], [L * 0.03, 0.06 * T, -Lt * 0.6, T * 0.7]]
+      : f.tail === 'lunate' ? [[L * 0.03, -0.05 * T], [-Lt * 0.9, -T * 0.75, -Lt * 0.3, -T * 0.45], [-Lt * 0.55, 0, -Lt * 0.75, -T * 0.4], [-Lt * 0.9, T * 0.75, -Lt * 0.75, T * 0.4], [L * 0.03, 0.05 * T, -Lt * 0.3, T * 0.45]]
+      : f.tail === 'trunc' ? [[L * 0.03, -0.08 * T], [-Lt * 0.85, -T * 0.5, -Lt * 0.4, -T * 0.5], [-Lt * 0.9, T * 0.5, -Lt * 1.0, 0], [L * 0.03, 0.08 * T, -Lt * 0.4, T * 0.5]]
+      : f.knife ? [[L * 0.03, -0.05 * T], [-Lt * 0.5, -T * 0.25, -Lt * 0.4, 0], [-Lt * 0.5, T * 0.25], [L * 0.03, 0.05 * T]]
       : f.lowLobe ? [[L * 0.03, -0.06 * T], [-Lt * 1.25, -T * 0.7], [-Lt * 0.4, 0, -Lt * 0.6, -T * 0.2], [-Lt * 0.95, T * 0.5], [L * 0.03, 0.06 * T]]
       : [[L * 0.03, -0.06 * T], [-Lt, -T * 0.55], [-Lt, T * 0.55, -Lt * 0.45, 0], [L * 0.03, 0.06 * T]];
     const tail = mesh(fishShape(tailPts), fm, -L / 2 + L * 0.04, f.tail === 'hetero' ? Hh * 0.05 : 0, 0); tail.name = 'tail';
@@ -440,15 +530,19 @@ export function buildSpecies(THREE, f, H) {
     else if (ld === 'twin') { mesh(fishShape([[0.2 * L, 0], [0.12 * L, Hd * 1.1], [-0.02 * L, Hd * 0.4], [-0.02 * L, 0]]), fm, 0, top * 0.92); mesh(fishShape([[-0.05 * L, 0], [-0.1 * L, Hd * 0.85], [-0.26 * L, Hd * 0.3], [-0.26 * L, 0]]), fm, 0, top * 0.85); }
     else if (ld === 'spiny' || f.spiny) { const sm = finMat(f.fin, 0.7), x0 = 0.22 * L, x1 = -0.2 * L, n = 10;
       const pts = [[x0, 0]]; for (let k = 0; k <= n; k++) { const x = x0 + (x1 - x0) * k / n, hk = Hd * (k < n * 0.5 ? 1.25 : 0.95) * (0.7 + 0.3 * Math.sin(k / n * Math.PI)); pts.push([x + 0.012 * L, hk * 0.75], [x, hk]); } pts.push([x1 - 0.06 * L, 0]); mesh(fishShape(pts), sm, 0, top * 0.92); }
+    else if (ld === 'none') { /* no dorsal fin */ }
+    else if (f.tinyDorsal) mesh(fishShape([[0.02 * L, 0], [-0.02 * L, Hd * 0.6], [-0.08 * L, 0]]), fm, 0, top * 0.98);
     else if (!f.dorsalBack) mesh(fishShape([[0.17 * L, 0], [0.07 * L, Hd], [-0.17 * L, 0.02, -0.04 * L, Hd * 0.55]]), fm, 0, top);
     if (f.dorsalBack) mesh(fishShape([[-0.2 * L, 0], [-0.28 * L, Hd * 0.9], [-0.36 * L, 0]]), fm, 0, top * 0.75);
     if (f.adipose) mesh(fishShape([[-0.26 * L, 0], [-0.29 * L, Hd * 0.35, -0.26 * L, Hd * 0.3], [-0.33 * L, 0]]), fm, 0, top * 0.62);
     if (f.finlets) for (let k = 0; k < 9; k++) mesh(fishShape([[0, 0], [-0.01 * L, Hd * 0.6], [-0.05 * L, 0]]), fm, 0.18 * L - k * 0.065 * L, top * 0.95, 0);
     // anal fin
-    if (ld !== 'full') mesh(fishShape([[-0.05 * L, 0], [-0.14 * L, -Hd * 0.6], [-0.3 * L, -0.01, -0.22 * L, -Hd * 0.35]]), fm, 0, -Hh / 2 * 0.75);
+    if (f.knife) mesh(fishShape([[0.2 * L, 0], [0.1 * L, -Hd * 0.9], [-0.5 * L, -Hd * 0.5], [-0.52 * L, 0]]), fm, 0, -Hh / 2 * 0.7); // the long, rippling anal fin
+    else if (ld !== 'full') mesh(fishShape([[-0.05 * L, 0], [-0.14 * L, -Hd * 0.6], [-0.3 * L, -0.01, -0.22 * L, -Hd * 0.35]]), fm, 0, -Hh / 2 * 0.75);
     else mesh(fishShape([[0.02 * L, 0], [-0.04 * L, -Hd * 0.5], [-0.4 * L, -Hd * 0.45], [-0.42 * L, 0]]), fm, 0, -Hh / 2 * 0.85);
     // pectorals: normal, wings (flying fish), legs (mudskipper), lobes (coelacanth, lungfish, bichir)
     [-1, 1].forEach(s => {
+      if (f.chimaera) { const wg = mesh(fishShape([[0, 0], [-0.32 * L, -0.06 * L, -0.12 * L, 0.06 * L], [-0.3 * L, -0.12 * L], [-0.02 * L, -0.06 * L]]), finMat(f.fin, 0.85), 0.2 * L, -Hh * 0.12, s * Wd * 0.45); wg.rotation.set(s * -1.0, s * -0.25, -0.1); return; }
       if (f.wings) { const wg = mesh(fishShape([[0, 0], [-0.5 * L, 0.12 * L, -0.25 * L, 0.2 * L], [-0.62 * L, 0.02 * L], [-0.05 * L, -0.03 * L]]), finMat('#b8d4f2', 0.8), 0.22 * L, Hh * 0.08, s * Wd * 0.45); wg.rotation.set(s * -0.55, s * -0.2, 0.05); return; }
       if (f.lobed) { const thin = f.lobed === 'thin', lb = mesh(new THREE.CapsuleGeometry(Hh * (thin ? 0.04 : 0.07), L * (thin ? 0.16 : 0.12), 4, 8), std({ color: f.side, roughness: 0.6 }), 0.2 * L, -Hh * 0.18, s * Wd * 0.5); lb.rotation.set(s * 0.9, 0, 1.1);
         const lf = mesh(fishShape([[0, 0], [-0.1 * L, Hh * 0.12, -0.06 * L, Hh * 0.14], [-0.1 * L, -Hh * 0.08]]), fm, 0.13 * L, -Hh * 0.32, s * Wd * 0.62); lf.rotation.y = s * 0.7;
@@ -462,7 +556,7 @@ export function buildSpecies(THREE, f, H) {
     });
     // head features
     const eyeX = L / 2 * (f.topEyes ? 0.74 : 0.7), eyeY = f.topEyes ? Hh * (0.3 + 0.12 * f.topEyes) : Hh * 0.08, eyeZ = Wd / 2 * (f.topEyes ? 0.45 : 0.9);
-    eyes(eyeX, eyeY, eyeZ, Hh * (f.topEyes ? 0.11 * f.topEyes + 0.04 : f.glowEye ? 0.1 : 0.075), f.glowEye ? '#f0f0c0' : f.redFins ? '#e8b030' : '#d9c98e', !!f.glowEye);
+    if (!f.dome) eyes(eyeX, eyeY, eyeZ, Hh * (f.topEyes ? 0.11 * f.topEyes + 0.04 : f.glowEye ? 0.1 : f.bigEye ? 0.13 : 0.075), f.glowEye ? '#f0f0c0' : f.redEye ? '#d8302a' : f.redFins ? '#e8b030' : '#d9c98e', !!f.glowEye);
     if (f.earFlap) [-1, 1].forEach(s => { const e = mesh(new THREE.CircleGeometry(Hh * 0.09, 14), std({ color: '#141a22', side: THREE.DoubleSide }), L * 0.24, Hh * 0.05, s * Wd * 0.48); e.rotation.y = s * 0.2; if (typeof f.earFlap === 'string') { const r = mesh(new THREE.RingGeometry(Hh * 0.06, Hh * 0.09, 14), std({ color: f.earFlap, side: THREE.DoubleSide }), L * 0.24, Hh * 0.05, s * (Wd * 0.48 + 0.001)); r.rotation.y = s * 0.2; } });
     if (f.whiskers) whiskers(f.whiskers, L / 2 * 0.94, -Hh * (f.flatHead ? 0.05 : 0.1), Hh * (f.flatHead ? 0.9 : f.snoutCone ? 0.35 : 0.4), finMat(f.fin, 1));
     if (f.bigMouth) { const m = mesh(new THREE.BoxGeometry(L * 0.06, Hh * 0.04, Wd * 0.7), std({ color: '#2a1a14' }), L / 2 * 0.92, -Hh * 0.04, 0); m.rotation.z = -0.3; }
@@ -476,6 +570,33 @@ export function buildSpecies(THREE, f, H) {
     if (f.snoutCone) cone(Hh * 0.16, L * f.snoutCone, std({ color: f.side, roughness: 0.5 }), L / 2 + L * f.snoutCone * 0.35, -Hh * 0.04, 0, 0, 0, -Math.PI / 2 - 0.1, 10);
     if (f.scutes) { const sm = std({ color: '#d8dade', roughness: 0.4 }); for (let k = 0; k < 13; k++) { const x = L * 0.36 - k * L * 0.06; cone(Hh * 0.04, Hh * 0.1, sm, x, Hh * 0.46 * (1 - Math.abs(x / L) * 0.6), 0, 0, 0, 0, 4); [-1, 1].forEach(s => cone(Hh * 0.03, Hh * 0.08, sm, x, Hh * 0.02, s * Wd * 0.47 * (1 - Math.abs(x / L) * 0.8), s * Math.PI / 2, 0, 0, 4)); } }
     // (corydoras / pleco armour is in the 'plates' look of their colouring)
+    const glow = col => new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.5, roughness: 0.3 });
+    const front = L / 2 * 0.95;
+    if (f.fangs) { const tm = std({ color: '#f2f0e8', roughness: 0.25, metalness: 0.1 }), n = f.fangs, fl = Hh * (f.fangLen || 0.5);
+      for (let k = 0; k < n; k++) { const zz = (k / (n - 1) - 0.5) * Wd * 0.6, up = k % 2 === 0, len = fl * (0.6 + 0.4 * Math.abs(Math.sin(k * 2.3)));
+        cone(0.006 + Hh * 0.015, len, tm, front + 0.004, up ? -Hh * 0.04 - len * 0.3 : Hh * 0.04 + len * 0.3, zz, up ? 0 : Math.PI, 0, up ? -0.25 : 0.25, 5); } }
+    if (f.gape) { const mo = mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, Math.PI * (0.5 - 0.15 * f.gape), Math.PI * 0.3 * f.gape), std({ color: '#140a0c', side: THREE.DoubleSide, roughness: 0.9 }), front - L * 0.02, -Hh * 0.04, 0); mo.scale.set(L * 0.06, Hh * (0.35 + 0.5 * f.gape), Wd * 0.45); mo.rotation.z = -Math.PI / 2 + 0.2;
+      if (f.gape >= 1) { const jaw = mesh(new THREE.CylinderGeometry(Hh * 0.025, Hh * 0.02, L * 0.22, 6), std({ color: f.side }), front - L * 0.04, -Hh * 0.38, 0); jaw.rotation.z = Math.PI / 2 - 0.55; } } // loosejaw: the jaw with no floor
+    if (f.chinLure) { const c2 = new THREE.QuadraticBezierCurve3(new V3(front - L * 0.05, -Hh * 0.38, 0), new V3(front - L * 0.05, -Hh * 1.4, 0), new V3(front + L * 0.12, -Hh * 1.9, 0)); mesh(new THREE.TubeGeometry(c2, 12, 0.004, 4), std({ color: f.fin }));
+      mesh(new THREE.SphereGeometry(Hh * 0.09, 10, 8), glow(f.photo || '#7ff0ff'), front + L * 0.12, -Hh * 1.9, 0); }
+    if (f.dorsalLure) { const c2 = new THREE.QuadraticBezierCurve3(new V3(L * 0.22, Hh * 0.45, 0), new V3(L * 0.35, Hh * 1.8, 0), new V3(L * 0.55, Hh * 1.1, 0)); mesh(new THREE.TubeGeometry(c2, 12, 0.004, 4), std({ color: f.fin }));
+      mesh(new THREE.SphereGeometry(Hh * 0.08, 10, 8), glow(f.photo || '#7ff0ff'), L * 0.55, Hh * 1.1, 0); }
+    if (f.redLight) [-1, 1].forEach(s => { mesh(new THREE.SphereGeometry(Hh * 0.09, 10, 8), glow('#ff2a2a'), L * 0.32, -Hh * 0.02, s * Wd * 0.42).scale.set(1.4, 0.8, 0.5); });
+    if (f.dome) { mesh(new THREE.SphereGeometry(Hh * 0.55, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#dff4ff', transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.1, depthWrite: false }), L * 0.26, Hh * 0.3, 0).scale.set(1.4, 1.1, 0.9);
+      [-1, 1].forEach(s => { const e = mesh(new THREE.CylinderGeometry(Hh * 0.08, Hh * 0.08, Hh * 0.35, 12), glow('#4af06a'), L * 0.27, Hh * 0.5, s * Wd * 0.14); e.material.emissiveIntensity = 0.6; }); }
+    if (f.tripod) { const rm = std({ color: f.fin, roughness: 0.5 }); [-1, 1].forEach(s => { const r = mesh(new THREE.CylinderGeometry(0.004, 0.004, L * 0.7, 4), rm, L * 0.12, -Hh * 0.5 - L * 0.3, s * Wd * 0.25); r.rotation.set(s * 0.12, 0, 0.35); });
+      const tr = mesh(new THREE.CylinderGeometry(0.004, 0.004, L * 0.6, 4), rm, -L * 0.55, -Hh * 0.2 - L * 0.24, 0); tr.rotation.z = -0.75;
+      [-1, 1].forEach(s => { const p2 = mesh(new THREE.CylinderGeometry(0.003, 0.003, L * 0.4, 4), rm, L * 0.15, Hh * 0.6, s * Wd * 0.45); p2.rotation.set(s * 0.5, 0, -0.9); }); }
+    if (f.beak) { const bm = std({ color: f.back, roughness: 0.35 }), bl = L * f.beak;
+      if (f.beakLower) { const b2 = cone(Hh * 0.08, bl, std({ color: '#e85a3a' }), front + bl / 2, -Hh * 0.12, 0, 0, 0, -Math.PI / 2, 8); b2.scale.set(1, 1, 0.7); }
+      else { [0.03, -0.03].forEach(dy => { const b2 = cone(Hh * 0.1, bl, bm, front + bl / 2, dy * Hh * 4, 0, 0, 0, -Math.PI / 2, 8); b2.scale.set(1, 1, 0.7); }); } }
+    if (f.parrotBeak) { const pb = mesh(new THREE.SphereGeometry(Hh * 0.14, 14, 10), std({ color: '#e8f0ea', roughness: 0.3 }), front + L * 0.02, -Hh * 0.06, 0); pb.scale.set(0.8, 1, 1.1); }
+    if (f.tubeSnout) cone(Hh * 0.06, L * f.tubeSnout * 2, std({ color: f.side }), front + L * f.tubeSnout, Hh * 0.02, 0, 0, 0, -Math.PI / 2, 10);
+    if (f.sucker) { const sk = mesh(new THREE.CylinderGeometry(1, 1, 1, 20), std({ color: '#5a5e66', roughness: 0.6 }), L * 0.28, Hh * 0.46, 0); sk.scale.set(L * 0.16, Hh * 0.05, Wd * 0.34);
+      for (let k = 0; k < 10; k++) mesh(new THREE.BoxGeometry(0.003, Hh * 0.06, Wd * 0.55), std({ color: '#2a2e34' }), L * 0.16 + k * L * 0.026, Hh * 0.48, 0); }
+    if (f.suckerMouth) mesh(new THREE.TorusGeometry(Hh * 0.06, Hh * 0.025, 8, 14), std({ color: '#c4a08a' }), front - L * 0.02, -Hh * 0.32, 0).rotation.x = Math.PI / 2;
+    if (f.ocelli) [-1, 1].forEach(s => { for (let k = 0; k < 6; k++) { const x = -0.05 * L - k * 0.07 * L; mesh(new THREE.CircleGeometry(Hh * 0.07, 14), std({ color: '#f4f4f0', side: THREE.DoubleSide }), x, -Hh * 0.18, s * Wd * 0.47);
+      mesh(new THREE.CircleGeometry(Hh * 0.05, 14), std({ color: '#141414', side: THREE.DoubleSide }), x, -Hh * 0.18, s * (Wd * 0.47 + 0.002)); } });
     if (f.tassels) { const tm = finMat(f.fin, 1); for (let k = 0; k < 5; k++) cone(0.006, Hh * 0.12, tm, L * 0.32 - k * L * 0.06, Hh * 0.38, (k % 2 ? 1 : -1) * Wd * 0.3, 0, 0, 0, 4); }
     if (f.scalesBig) { /* gar: diamond scales come from the pattern */ }
   }
