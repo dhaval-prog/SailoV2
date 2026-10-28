@@ -7,7 +7,7 @@
 
 import { feature, mesh } from 'topojson-client';
 import { WORLD_CITIES, kmBetween, fareFor, regionAt } from './regions.js';
-import { chartFor, visitedCharts } from './chart-store.js';
+import { chartFor, visitedCharts, homeChart } from './chart-store.js';
 import { searchCities } from './geocode.js';
 
 const TOKEN = (import.meta.env && import.meta.env.VITE_MAPBOX_TOKEN) || '';
@@ -117,7 +117,7 @@ export function openWorldMap({ current, coins, travel }) {
   const onUp = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) drag = null; };
   addEventListener('pointermove', onMove); addEventListener('pointerup', onUp); addEventListener('pointercancel', onUp);
   $('wm-in').addEventListener('click', () => zoomAt(0.5)); $('wm-out').addEventListener('click', () => zoomAt(2));
-  $('wm-home').addEventListener('click', () => { view.cx = mx(current.lng); view.cy = my(current.lat); view.w = W / 12; apply(); });
+  $('wm-home').addEventListener('click', () => { view.cx = mx(current.lng); view.cy = my(current.lat); view.w = W / 12; apply(); select(pins.get(current.id)); });
 
   // ---- drawing labels and pins (screen-sized, never overlapping) ----
   let mbNames = [], mbKey = '';
@@ -158,14 +158,21 @@ export function openWorldMap({ current, coins, travel }) {
   const loop = () => { if (!el.isConnected) return; if (dirty) paint(); requestAnimationFrame(loop); }; loop();
 
   // ---- choosing a city ----
+  // your current city's card also shows your home city (the first one you sailed) and a way back
+  const home = homeChart();
+  const homeCol = () => { if (!home || home.id === current.id) return `<div class="wm-fly wm-home-col"><small>${home ? 'This is your home city' : ''}</small></div>`;
+    const km = kmBetween(current, home); return `<div class="wm-fly wm-home-col"><small><b>Home · ${esc(home.name)}</b><br>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" id="wm-gohome">Fly home · ${fareFor(km)}c</button></div>`; };
   const pickEl = $('wm-pick');
   function select(p) {
     const st = stateOf(p), c = p.chart, km = kmBetween(current, c), fare = fareFor(km), where = [c.region, c.country].filter(Boolean).join(', '), reg = regionAt(c.lat, c.lng).name;
     pickEl.hidden = false;
     pickEl.innerHTML = `<div class="wm-pick-main"><b>${esc(c.name || c.city + ' Waters')}</b><small>${esc(where)}${where ? ' · ' : ''}${esc(reg)}</small>
       <span class="wm-tag ${st}">${st === 'here' ? 'You are here' : st === 'open' ? 'Unlocked' : 'Locked · fly there to unlock'}</span></div>
-      ${st === 'here' ? '' : `<div class="wm-fly"><small>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" id="wm-go">Fly · ${fare}c</button></div>`}
+      ${st === 'here' ? homeCol() : `<div class="wm-fly"><small>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" id="wm-go">Fly · ${fare}c</button></div>`}
       <p class="wm-msg" id="wm-msg"></p>`;
+    $('wm-gohome')?.addEventListener('click', () => { const h = home && addPin(home), hf = fareFor(kmBetween(current, home)), have = coins();
+      if (have < hf) { $('wm-msg').textContent = `You need ${hf} coins to fly home (you have ${have}). Sell fish at Paradise Station to earn more.`; return; }
+      fly(h, hf); });
     $('wm-go')?.addEventListener('click', () => { const have = coins();
       if (have < fare) { $('wm-msg').textContent = `You need ${fare} coins (you have ${have}). Sell fish at Paradise Station to earn more.`; return; }
       fly(p, fare); });

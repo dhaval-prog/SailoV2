@@ -47,8 +47,14 @@ export const clampToWorld = (x, z, pad = 0) => {
 /** Metres from (x, z) to the nearest edge (negative once outside). */
 export const edgeDistance = (x, z) => WORLD.half - Math.max(Math.abs(x), Math.abs(z));
 
-/** "1.2 mi N · 0.4 mi E" style readout relative to the harbour (−z is north). */
-export const formatPosition = (x, z) => {
+/** "1.2 mi N · 0.4 mi E": an offset from the harbour (−z is north). */
+export const formatOffset = (x, z) => {
   const f = (v, pos, neg) => `${(Math.abs(v) / MILE).toFixed(1)} mi ${v >= 0 ? pos : neg}`;
   return `${f(-z, 'N', 'S')} · ${f(x, 'E', 'W')}`;
+};
+
+/** "19.0728° N · 72.8826° E": the real-world position of a point in this chart. */
+export const formatPosition = (x, z) => {
+  const [lat, lng] = unproject(x, z);
+  return `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lng).toFixed(4)}° ${lng >= 0 ? 'E' : 'W'}`;
 };

@@ -131,7 +131,6 @@ export function initHud(api) {
   // ---- map (compass button): the whole ocean, the boat, and click-to-pin a course ----
   const mapEl = $('map'), mapSvg = $('map-svg');
   // the active city's names everywhere the page mentions it
-  const where = [CHART.region, CHART.country].filter(Boolean).join(', ');
   $('map-title').textContent = WORLD.name; $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · ${WORLD.city}'s real localities`;
   document.querySelector('#loc .loc-text b').textContent = WORLD.name; document.querySelector('#welcome b').textContent = WORLD.name;
   if ($('welcome-sub')) $('welcome-sub').textContent = `${WORLD.areaSqMi} square miles of ${WORLD.city}, turned into open ocean`;
@@ -139,7 +138,6 @@ export function initHud(api) {
   { const l = document.querySelector('.live-sub'); if (l) l.textContent = `Follows the real sky over ${WORLD.city}`; }
   document.title = `Sailo · ${WORLD.name}`;
   // change city: pick another and the page reloads into it (your spot in each city is remembered)
-  $('map-city').textContent = where ? `${WORLD.name} · ${where}` : WORLD.name;
   // the world map: every city chart; fly to one (coins) to sail it. Your spot in each city is remembered.
   let worldOpen = false;
   const openWorld = async () => { if (worldOpen) return; worldOpen = true; setMap(false); const { openWorldMap } = await import('./worldmap.js');
@@ -225,7 +223,7 @@ export function initHud(api) {
     const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])];
     const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + view.w).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
     const S = view.w * px; // map size in pixels; keep names clear of the boat, the zoom buttons, the scale bar and the north arrow
-    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16], [S - 210, S - 50, S, S], [0, S - 42, 110, S], [S - 50, 0, S, 70]];
+    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16], [S - 210, S - 50, S, S], [0, S - 42, 110, S], [S - 50, 0, S, 70], [0, 0, 56, 56]];
     let n = 0;
     for (const p of items) {
       if (n > 140) break;
@@ -294,7 +292,7 @@ export function initHud(api) {
     if (dest) { destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
       pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${(Math.hypot(dest.x - x, dest.z - z) / WORLD.mile).toFixed(1)} mi to go`; }
     pinRow.hidden = !dest; help.hidden = !!dest;
-    mapPos.textContent = pos;
+    const zn = zoneAt(x, z), here = zn ? `${zn.name} · ${pos}` : pos; if (mapPos.textContent !== here) mapPos.textContent = here;
   };
 
   // ---- quick actions (fleet, search, inbox) and the shared sheet ----
