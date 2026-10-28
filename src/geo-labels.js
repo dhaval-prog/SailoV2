@@ -103,7 +103,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       if (!m.on) { m.on = true; m.el.classList.add('on'); m.w = 0; }
       // names only where there is room (always for the course and the station), dots otherwise
       if (!m.w) m.w = m.el.querySelector('b').offsetWidth + 10;
-      const r = [x - m.w / 2, 0, x + m.w / 2, 1], named = (it.pri < 2 || Math.abs(dx) < STRIP.span - 10) && !overlaps(r, taken) && x - m.w / 2 > 2 && x + m.w / 2 < W - 2;
+      const r = [x - m.w / 2, 0, x + m.w / 2, 1], named = Math.abs(dx) < (it.pri < 2 ? 14 : 7) && !overlaps(r, taken) && x - m.w / 2 > 2 && x + m.w / 2 < W - 2;
       if (named) taken.push(r); m.el.classList.toggle('named', named);
       const d = Math.hypot(it.p.x - bx, it.p.z - bz); m.el.title = `${it.p.name} · ${d < 1000 ? Math.round(d) + ' m' : fmtKm(d)}`;
       m.el.style.transform = `translateX(${x.toFixed(1)}px)`;
