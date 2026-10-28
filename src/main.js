@@ -14,6 +14,8 @@ import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 import './boat-actions.css';
 import './garage-friends.css';
+import './fishing-naked.css';
+import { initBoatQuick } from './boat-quick.js';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -609,9 +611,8 @@ const paintStatus = () => {
   if (ACT.anchor === 'down') s += chip('Anchored', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'dropping') s += chip('Dropping anchor…', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'raising') s += chip('Raising anchor…', 'rgba(21,32,66,0.6)');
-  if (ACT.fish !== 'off' && ACT.fish !== 'reelin') s += chip(fishStatus || 'Fishing', ACT.fish === 'bite' || ACT.fish === 'fight' ? 'rgba(238,52,39,0.85)' : 'rgba(238,52,39,0.6)');
-  if (ACT.catch) s += chip('Catch: ' + ACT.catch, 'rgba(44,196,168,0.7)');
   statusEl.innerHTML = s;
+  document.body.classList.toggle('fishing', ACT.fish !== 'off');
   document.getElementById('act-fish-l').textContent = ACT.fish === 'off' ? 'Go fishing' : 'Stop fishing';
   document.getElementById('act-anchor-l').textContent = ACT.anchor === 'up' || ACT.anchor === 'raising' ? 'Drop anchor' : 'Raise anchor';
 };
@@ -831,6 +832,10 @@ const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
   // tap a name (on the sea or the compass strip) to sail there
   sailTo: (x, z, name) => { const ok = setCourse(new THREE.Vector3(x, WL, z), true); if (ok) floatText(boat.position.clone().setY(9), `Course set · ${name}`, '#7ff0c8'); return ok; },
   station: { x: STATION.x, z: STATION.z, name: 'Paradise Station' }, course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off', night: () => E.night > 0.5 });
+// beside the boat while fishing or anchored: stop fishing and raise / drop anchor
+const boatQuick = initBoatQuick({ THREE, boat, toScreen,
+  state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),
+  onFish: () => stopFishing(), onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
@@ -910,7 +915,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t);
+  seaLabels.update(t); boatQuick.update(t);
   requestAnimationFrame(tick);
 })();
 

@@ -1,0 +1,94 @@
+/* Fishing in the Naked HUD style: no panels or cards. White Nunito type and outline rings
+   straight on the scene, kept readable by the HUD's text / icon shadows and soft scrims.
+   Loaded after styles.css and naked-hud.css. */
+@keyframes fn-ping { 0% { transform: scale(1); opacity: 0.75; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes fn-in { from { opacity: 0; transform: translateY(14px); } }
+@keyframes fn-pop { 0% { opacity: 0; transform: scale(0.7); } 60% { opacity: 1; transform: scale(1.05); } 100% { transform: scale(1); } }
+@keyframes fn-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+@keyframes fn-shine { 0%, 100% { text-shadow: var(--nh-ts), 0 0 0 rgba(255, 197, 49, 0); } 50% { text-shadow: var(--nh-ts), 0 0 18px rgba(255, 197, 49, 0.9); } }
+
+body .fg { font-family: var(--nh-font, 'Nunito', system-ui, sans-serif); color: #fff; }
+
+/* Strike: an outline ring with rippling rings, the word in white */
+body .fg-strike { bottom: calc(150px + var(--safe-b, 0px)); }
+body .fg-strike button { position: relative; width: 104px; height: 104px; padding: 0; border: 2.5px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.08);
+  color: #fff; font: 900 20px/1 var(--nh-font, 'Nunito', sans-serif); letter-spacing: 0.04em; text-shadow: var(--nh-ts); cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 20, 50, 0.35), inset 0 0 14px rgba(0, 20, 50, 0.2); animation: fn-pop 0.35s ease-out, nh-breathe 0.7s ease-in-out 0.35s infinite; }
+body .fg-strike button::before, body .fg-strike button::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--nh-coral, #FF7A45); animation: fn-ping 1.1s ease-out infinite; pointer-events: none; }
+body .fg-strike button::after { animation-delay: 0.55s; }
+body .fg-strike button:active { transform: scale(0.92); }
+
+/* the fight: tension arc and progress straight on the scene */
+body .fg-fight { bottom: calc(26px + var(--safe-b, 0px)); width: min(360px, calc(100vw - 32px)); padding: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; text-shadow: var(--nh-ts); animation: fn-in 0.45s ease-out; }
+body .fg-fight.danger { box-shadow: none; animation: fg-shake 0.12s linear infinite; }
+body .fg-fight.danger #fg-fish-name { color: #FFB3A3; }
+body .fg-fish-row { padding: 0 6px; font: 900 18px/1 var(--nh-font, 'Nunito', sans-serif); }
+body .fg-dir { font: 800 12px/1 var(--nh-font, 'Nunito', sans-serif); color: #F1E59A; }
+body .fg-arc { width: 82%; filter: var(--nh-ds); }
+body .fg-track { stroke: rgba(255, 255, 255, 0.22); stroke-width: 14; }
+body .fg-track-col { opacity: 0; }
+body .fg-zone { stroke: rgba(212, 220, 110, 0.55); stroke-width: 14; }
+body .fg-zone.on { stroke: var(--nh-lime, #D4DC6E); }
+body #fg-needle line { stroke: #fff; stroke-width: 3.5; }
+body #fg-needle circle { fill: #fff; stroke: rgba(10, 30, 70, 0.45); stroke-width: 3; }
+body .fg-lab { fill: rgba(255, 255, 255, 0.85); font: 800 11px/1 var(--nh-font, 'Nunito', sans-serif); }
+body .fg-prog { height: 5px; margin: 6px 24px 0; background: rgba(255, 255, 255, 0.3); box-shadow: 0 1px 3px rgba(0, 20, 50, 0.35); }
+body .fg-prog i { background-color: #34D1B6; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.38) 0 6px, transparent 6px 12px); animation: nh-flow 0.9s linear infinite; }
+body .fg-help { margin-top: 10px; font: 700 12px/1.3 var(--nh-font, 'Nunito', sans-serif); color: rgba(255, 255, 255, 0.9); }
+body .fg-tap { padding: 0; width: 64px; height: 64px; display: grid; place-items: center; border: 2.5px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; font: 900 16px/1 var(--nh-font, 'Nunito', sans-serif); text-shadow: var(--nh-ts); box-shadow: 0 2px 10px rgba(0, 20, 50, 0.35); }
+
+/* the catch: no card. A soft dark scrim, the fish floating, white type, ring buttons */
+body .fg-card-wrap { background: radial-gradient(ellipse at 50% 50%, rgba(6, 24, 60, 0.62), rgba(6, 24, 60, 0.35) 60%, rgba(6, 24, 60, 0.15)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+body .fg-card { width: min(380px, 100%); padding: 0; border-radius: 0; background: none; box-shadow: none; text-shadow: var(--nh-ts); animation: fn-pop 0.45s ease-out; }
+body .fg-badge { position: static; display: inline-block; transform: none; margin-bottom: 4px; padding: 0; border-radius: 0; background: none; box-shadow: none; color: #FFC531; font: 900 13px/1 var(--nh-font, 'Nunito', sans-serif); letter-spacing: 0.22em; text-transform: uppercase; animation: fn-shine 1.6s ease-in-out infinite; }
+body .fg-card img { width: 210px; height: 130px; filter: drop-shadow(0 10px 14px rgba(0, 20, 50, 0.5)); animation: fn-float 2.4s ease-in-out infinite; }
+body .fg-card h3 { margin: 2px 0 6px; font: 900 32px/1.05 var(--nh-font, 'Nunito', sans-serif); }
+body .fg-stars { font-size: 20px; letter-spacing: 3px; color: #FFC531; filter: var(--nh-ds); }
+body .fg-stars span { color: rgba(255, 255, 255, 0.3); }
+body .fg-stats { display: flex; justify-content: center; gap: 0; margin: 18px 0 6px; }
+body .fg-stats div { position: relative; padding: 0 26px; border-radius: 0; background: none; }
+body .fg-stats div + div::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: linear-gradient(transparent, rgba(255, 255, 255, 0.55), transparent); }
+body .fg-stats b { font: 900 26px/1.1 var(--nh-font, 'Nunito', sans-serif); }
+body .fg-stats span { font: 700 12px/1 var(--nh-font, 'Nunito', sans-serif); color: rgba(255, 255, 255, 0.85); }
+body .fg-note { margin: 8px 0 18px; font: 700 12.5px/1.3 var(--nh-font, 'Nunito', sans-serif); color: rgba(255, 255, 255, 0.85); }
+body .fg-btns { display: flex; justify-content: center; gap: 14px; }
+body .fg-btns button { min-width: 132px; padding: 13px 20px; border-radius: 999px; font: 900 15px/1 var(--nh-font, 'Nunito', sans-serif); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.25s, color 0.25s; }
+body .fg-keep { border: 2px solid #fff; background: #fff; color: var(--nh-navy, #172443); text-shadow: none; box-shadow: 0 4px 14px rgba(0, 20, 50, 0.35); animation: ba-activeGlow 2.2s ease-out infinite; }
+body .fg-rel { border: 2px solid rgba(255, 255, 255, 0.85); background: none; color: #fff; text-shadow: var(--nh-ts); }
+body .fg-btns button:hover:not(:disabled) { transform: scale(1.06); }
+body .fg-btns button:active:not(:disabled) { transform: scale(0.94); }
+body .fg-keep:disabled { opacity: 0.45; animation: none; }
+
+/* while fishing the steering wheel and speed step aside */
+body #helm { transition: opacity 0.35s ease, transform 0.35s ease; }
+body.fishing #helm { opacity: 0; transform: translateY(16px); pointer-events: none; }
+
+/* stop fishing / anchor: two rings beside the boat, on a curve */
+#boat-quick { position: fixed; left: 0; top: 0; z-index: 25; width: 0; height: 0; pointer-events: none; font-family: var(--nh-font, 'Nunito', system-ui, sans-serif); }
+#boat-quick[hidden] { display: none; }
+#boat-quick button { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; display: grid; place-items: center; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06); box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3), inset 0 0 8px rgba(0, 20, 50, 0.15); cursor: pointer; pointer-events: auto; opacity: 0.5;
+  transition: opacity 0.25s ease, background 0.25s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); animation: nh-popIn 0.4s ease-out both; }
+#boat-quick button + button { animation-delay: 0.08s; }
+#boat-quick button[hidden] { display: none; }
+#boat-quick button img { width: 22px; height: 22px; filter: var(--nh-ds); pointer-events: none; }
+#boat-quick button:hover, #boat-quick button:focus-visible { opacity: 1; background: rgba(255, 255, 255, 0.16); transform: scale(1.08); outline: none; }
+#boat-quick button:active { transform: scale(0.92); }
+#boat-quick button span { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap; font: 800 12.5px/1 var(--nh-font, 'Nunito', sans-serif); color: #fff; text-shadow: var(--nh-ts); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+#boat-quick button:hover span, #boat-quick button:focus-visible span { opacity: 1; }
+@media (hover: none) { #boat-quick button { opacity: 0.75; } }
+
+/* ---------- top-left block a size smaller; the wheel a little up and right ---------- */
+@media (min-width: 721px) and (min-height: 521px) {
+  body #hud-tl { width: 296px; gap: 12px; }
+  body #loc .loc-ico { width: 26px; height: 26px; } body #loc .loc-ico .hi { width: 21px; height: 21px; }
+  body #loc .loc-text b { font-size: 18px; }
+  body #loc .loc-text span { font-size: 11px; }
+  body #clock { gap: 12px; font-size: 12px; }
+  body #clk-time { font-size: 13.5px; }
+  body #clk-wxt { font-size: 12px; } body #clk-ico { width: 17px; height: 12px; }
+  body #stn-wallet .pill { font-size: 13.5px; gap: 7px; }
+  body #coins .coin { width: 16px; height: 16px; }
+  body #fuelPill .fuelbar { height: 4px; }
+  body #helm { left: calc(52px + var(--safe-l, 0px)); bottom: calc(46px + var(--safe-b, 0px)); }
+}
