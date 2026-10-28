@@ -112,10 +112,6 @@ body #acct-btn .avatar { width: 100%; height: 100%; }
 body #acct-btn .gear { right: -4px; bottom: -4px; width: 24px; height: 24px; padding: 0; box-sizing: border-box; display: grid; place-items: center; border-radius: 50%; background: var(--nh-navy); border: 2px solid #fff; box-shadow: none; }
 body #acct-btn .gear .hi { width: 16px; height: 16px; filter: none; animation: nh-spin 8s linear infinite; }
 
-/* side tab (placeholder for the logo) */
-#side-tab { position: fixed; z-index: 29; top: calc(100px + var(--safe-t, 0px)); right: var(--safe-r, 0px); width: 44px; height: 58px; display: grid; place-items: center; border-radius: 14px 0 0 14px; pointer-events: none; animation: nh-blurIn 0.8s ease-out 0.35s backwards; }
-#side-tab .hi { width: 26.4px; height: 26.4px; animation: nh-spin 14s linear infinite; }
-
 /* phones only: the grid button and its menu */
 #hud-menu-btn, #hud-menu { display: none; }
 
@@ -188,7 +184,7 @@ body .geo-attr a { color: inherit; text-decoration: none; }
   :root { --nh-top: max(14px, calc(var(--safe-t, 0px) + 11px)); --nh-tl: max(18px, calc(var(--safe-t, 0px) + 15px)); }
   #hud-scrim .s-top { height: 300px; background: linear-gradient(180deg, rgba(6, 24, 60, 0.5), rgba(6, 24, 60, 0.18) 60%, transparent); }
   #hud-scrim .s-bl { left: 0; right: 0; width: auto; height: 340px; background: linear-gradient(0deg, rgba(6, 24, 60, 0.45), transparent); }
-  #hud-scrim .s-br, #side-tab, body .topbar { display: none; }
+  #hud-scrim .s-br, body .topbar { display: none; }
 
   body #hud-tl { top: var(--nh-tl); left: calc(22px + var(--safe-l, 0px)); width: auto; max-width: calc(100vw - 110px - var(--safe-l, 0px) - var(--safe-r, 0px)); flex-flow: row wrap; align-items: center; gap: 10px; }
   body #loc { margin-left: -8px; gap: 10px; min-width: 0; }
