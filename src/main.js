@@ -521,7 +521,7 @@ addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
 // back to the middle to stop) and the rim is the wheel (turn it round and round: two full
-// turns either way is full rudder). Like a real helm, both stay where you leave them.
+// turns either way is full rudder). The lever stays where you leave it; the wheel, let go, spins back to centre.
 const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
   const geo = e => { const r = base.getBoundingClientRect(), k = r.width / 170; return { k, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) }; };
@@ -862,6 +862,8 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   const k = drive.keys;
   const kThr = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0), kStr = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
   let thr = Math.max(-1, Math.min(1, HELM.lever + kThr));
+  // let go of the wheel and it spins back to centre on its own (fast at first, settling gently)
+  if (HELM.mode !== 'wheel' && HELM.deg) { HELM.deg *= Math.exp(-dt * 2.2); if (Math.abs(HELM.deg) < 2) HELM.deg = 0; }
   let str = Math.max(-1, Math.min(1, HELM.deg / HELM.TURNS + kStr));
   if (ACT.fish === 'fight') { thr = 0; str = 0; } // arrow keys are swipes while fighting a fish
   const manual = !!HELM.mode || kThr !== 0 || kStr !== 0; // hands on the helm (the lever and wheel stay set, so a set course isn't dropped by them)
