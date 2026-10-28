@@ -10,7 +10,9 @@ import * as geo from './geo.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
+import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
+import './boat-actions.css';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -718,12 +720,10 @@ function stepActions(t, dt) {
   // ripples + floaters
   ripples.forEach(r => { if (!r.visible) return; const u = r.userData; u.age += dt; const a = u.age / u.life; if (a >= 1) { r.visible = false; return; } r.scale.setScalar(u.s * (0.4 + a * 3)); r.position.y = WL + waveJS(u.x, u.z, t) + 0.03; r.material.opacity = (1 - a) * 0.8; });
   for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.age += dt; const a = f.age / f.life; if (a >= 1) { f.d.remove(); floaters.splice(i, 1); continue; } tmpV.copy(f.pos); tmpV.y += a * 2; const [x, y, z] = toScreen(tmpV); f.d.style.transform = `translate(${x}px, ${y}px) translate(-50%,-50%) scale(${1 + Math.min(a * 6, 1) * 0.2})`; f.d.style.opacity = z > 1 ? 0 : (1 - Math.max(0, a - 0.6) / 0.4); }
-  // menu follows the boat
-  // the menu sits just below the boat (anchored to the waterline under the hull)
-  if (menu.style.display !== 'none') { tmpV.set(0.1, -0.6, 0).applyMatrix4(boat.matrixWorld); const [x, y] = toScreen(tmpV);
-    // keep the menu on screen and clear of the helm and dock (matters on phones)
-    const hw = menu.offsetWidth / 2, maxY = innerHeight - menu.offsetHeight - (innerWidth <= 640 ? 230 : 24);
-    menu.style.left = Math.min(innerWidth - hw - 8, Math.max(hw + 8, x)) + 'px'; menu.style.top = Math.max(80, Math.min(maxY, y + 10)) + 'px'; }
+  // boat selected: ripples on the water round the hull (sized from its on-screen width); the caret points up at it
+  if (menu.style.display !== 'none') { tmpV.copy(boat.position).setY(WL + waveJS(boat.position.x, boat.position.z, t)); const [x, y] = toScreen(tmpV);
+    tmpV.setFromMatrixColumn(stage._camera.matrixWorld, 0).multiplyScalar(6.5).add(boat.position).setY(WL); const [x2] = toScreen(tmpV);
+    boatActions.update(x, y, Math.abs(x2 - x) * 2); }
 }
 // click the boat to open the action menu
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
@@ -781,39 +781,21 @@ stage.addEventListener('pointerup', e => {
   ray.setFromCamera(ndc, stage._camera);
   const hit = ray.intersectObject(boat, true).length > 0;
   const wasOpen = menu.style.display !== 'none';
-  menu.style.display = hit && !wasOpen ? 'flex' : 'none';
+  boatActions.setOpen(hit && !wasOpen);
   if (stationBusy()) return;
   if (ACT.fish !== 'off') return; // while fishing, the sea is for casting (see fishing.js)
   if (!hit && !wasOpen && ray.ray.intersectPlane(seaPlane, tapP)) setCourse(tapP); // both views: tap the water to set a course
 });
-document.getElementById('act-fish').addEventListener('click', () => { ACT.fish === 'off' ? startFishing() : stopFishing(); menu.style.display = 'none'; });
-document.getElementById('act-anchor').addEventListener('click', () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); menu.style.display = 'none'; });
-// boat menu carousel: garage, profile and friends, plus arrows to slide through the cards
-document.getElementById('act-garage').addEventListener('click', () => { menu.style.display = 'none'; hud.openGarage(); });
-document.getElementById('act-profile').addEventListener('click', () => { menu.style.display = 'none'; hud.openProfile(); });
-document.getElementById('act-friends').addEventListener('click', () => { menu.style.display = 'none'; hud.openFriends(); });
-{ const track = menu.querySelector('.actions'), prev = document.getElementById('car-prev'), next = document.getElementById('car-next');
-  const paintNav = () => { prev.hidden = track.scrollLeft < 4; next.hidden = track.scrollLeft + track.clientWidth > track.scrollWidth - 4; };
-  prev.addEventListener('click', () => track.scrollBy({ left: -158, behavior: 'smooth' })); next.addEventListener('click', () => track.scrollBy({ left: 158, behavior: 'smooth' }));
-  track.addEventListener('scroll', paintNav, { passive: true }); new ResizeObserver(paintNav).observe(track); }
-// drag or flick the cards: they follow the pointer (flick left -> slides on to the right-hand cards), with momentum
-{ const track = menu.querySelector('.actions'); let drag = null, moved = false;
-  track.addEventListener('pointerdown', e => { drag = { x: e.clientX, left: track.scrollLeft, t: performance.now(), v: 0, lx: e.clientX }; moved = false; track.style.scrollSnapType = 'none'; });
-  addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x; if (Math.abs(dx) > 6) moved = true; track.scrollLeft = drag.left - dx;
-    const now = performance.now(), dt = Math.max(1, now - drag.t); drag.v = (e.clientX - drag.lx) / dt; drag.lx = e.clientX; drag.t = now; });
-  const release = () => { if (!drag) return; const v = drag.v; drag = null; track.style.scrollSnapType = '';
-    if (moved && Math.abs(v) > 0.3) track.scrollBy({ left: -v * 260, behavior: 'smooth' }); };
-  addEventListener('pointerup', release); addEventListener('pointercancel', release);
-  track.addEventListener('click', e => { if (moved) { moved = false; e.stopPropagation(); e.preventDefault(); } }, true); // a drag isn't a tap
-}
-// long press on touch zooms a card (like hover on desktop); a long press doesn't fire the card's action
-{ let lp = null, held = false;
-  menu.querySelectorAll('.action').forEach(card => {
-    card.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; held = false; clearTimeout(lp); lp = setTimeout(() => { held = true; card.classList.add('zoom'); if (navigator.vibrate) navigator.vibrate(8); }, 380); });
-    const end = () => { clearTimeout(lp); setTimeout(() => card.classList.remove('zoom'), 120); };
-    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end); card.addEventListener('pointerleave', end);
-    card.addEventListener('click', e => { if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
-  }); }
+// boat tap: the action carousel along the bottom; the camera eases in on the boat and back out after
+let selCam = null;
+const boatActions = initBoatActions({ menu,
+  onOpen: () => { if (stationBusy() || camAnim) { selCam = null; return; } const off = stage._camera.position.clone().sub(stage._controls.target); selCam = { off, ty: stage._controls.target.y, view: state.view }; animCam(off.clone().multiplyScalar(0.72), stage._controls.target.y, 0.9); },
+  onClose: () => { const c = selCam; selCam = null; if (c && c.view === state.view && !stationBusy()) { const now = stage._camera.position.clone().sub(stage._controls.target); animCam(now.setLength(c.off.length()), c.ty, 0.8); } } });
+document.getElementById('act-fish').addEventListener('click', () => { boatActions.setOpen(false); ACT.fish === 'off' ? startFishing() : stopFishing(); });
+document.getElementById('act-anchor').addEventListener('click', () => { boatActions.setOpen(false); ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); });
+document.getElementById('act-garage').addEventListener('click', () => { boatActions.setOpen(false); hud.openGarage(); });
+document.getElementById('act-profile').addEventListener('click', () => { boatActions.setOpen(false); hud.openProfile(); });
+document.getElementById('act-friends').addEventListener('click', () => { boatActions.setOpen(false); hud.openFriends(); });
 paintStatus();
 
 const wheelUI = document.getElementById('wheel-rot'), youTag = document.getElementById('you-tag');
@@ -828,7 +810,7 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatP
   camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
   onDockEnd: () => setView(state.view),
   canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
-  onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); menu.style.display = 'none'; } });
+  onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); boatActions.setOpen(false); } });
 onBoatApplied = id => station.setActive(id); onBoatApplied(boatId);
 const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
@@ -841,7 +823,7 @@ const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, 
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
 const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
-  avoid: () => { const out = [menu.style.display !== 'none' ? rectOf(menu) : null, rectOf(document.getElementById('fg-fight')), rectOf(document.getElementById('fg-strike')), rectOf(document.getElementById('fg-tap'))];
+  avoid: () => { const out = [menu.style.display !== 'none' ? rectOf(boatActions.row) : null, rectOf(document.getElementById('fg-fight')), rectOf(document.getElementById('fg-strike')), rectOf(document.getElementById('fg-tap'))];
     if (bobber.visible) { const [x, y] = toScreen(bobber.position); out.push([x - 60, y - 70, x + 60, y + 30]); }
     return out.filter(Boolean); },
   onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; },
