@@ -4,6 +4,7 @@
 //   2. played before charts existed (a saved position, always Pune) -> Pune Paradise
 //   3. a position saved in Supabase for this device -> resume that chart
 //   4. a new player -> the city picker (use my location, or country -> state -> city)
+// Before all that, the captain signs in (or sails as a guest): signin.js, shown only when needed.
 import './styles.css';
 import { savedChart, setChart, validChart, PUNE } from './chart-store.js';
 import { rpc, deviceId } from './supabase.js';
@@ -18,6 +19,7 @@ async function chooseChart() {
   window.__sailoChart = setChart(await openPicker({ first: true })); // (also kept in memory in case storage is blocked)
 }
 
+await (await import('./signin.js')).ensureSignedIn();
 await chooseChart();
 // a new city's station goes to a real harbour: look it up once and keep it with the chart
 { const c = savedChart() || window.__sailoChart;

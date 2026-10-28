@@ -5,6 +5,7 @@
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
+import { currentSession, signOut } from './auth.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
@@ -42,6 +43,10 @@ export function initHud(api) {
   addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
   addEventListener('pointerdown', e => { if (panel.classList.contains('open') && !panel.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
 
+  // account: who's signed in, and signing out (back to the sign-in page); guests can sign in from here
+  currentSession().then(ses => { const who = $('acct-who'), out = $('acct-out');
+    if (ses) { who.textContent = ses.user?.email ? `Signed in as ${ses.user.email}` : 'Signed in'; out.textContent = 'Sign out'; }
+    out.addEventListener('click', async () => { await signOut(); location.reload(); }); });
   nameIn.value = prefs.name;
   nameIn.addEventListener('input', () => { prefs.name = nameIn.value.trim() || 'Captain'; save(prefs); });
   nameIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') nameIn.blur(); });
