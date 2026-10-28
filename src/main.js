@@ -631,6 +631,8 @@ const paintStatus = () => {
   statusEl.innerHTML = s;
   document.body.classList.toggle('fishing', ACT.fish !== 'off');
   document.getElementById('act-fish-l').textContent = ACT.fish === 'off' ? 'Go fishing' : 'Stop fishing';
+  { const h = document.getElementById('helm-anchor'), down = ACT.anchor === 'down' || ACT.anchor === 'dropping';
+    h.classList.toggle('on', down); h.disabled = ACT.anchor === 'dropping' || ACT.anchor === 'raising'; h.setAttribute('aria-label', down ? 'Raise anchor' : 'Drop anchor'); }
   document.getElementById('act-anchor-l').textContent = ACT.anchor === 'up' || ACT.anchor === 'raising' ? 'Drop anchor' : 'Raise anchor';
 };
 // state machines
@@ -813,6 +815,8 @@ const boatActions = initBoatActions({ menu,
   onOpen: () => { if (stationBusy() || camAnim) { selCam = null; return; } const off = stage._camera.position.clone().sub(stage._controls.target); selCam = { off, ty: stage._controls.target.y, view: state.view }; animCam(off.clone().multiplyScalar(0.72), stage._controls.target.y, 0.9); },
   onClose: () => { const c = selCam; selCam = null; if (c && c.view === state.view && !stationBusy()) { const now = stage._camera.position.clone().sub(stage._controls.target); animCam(now.setLength(c.off.length()), c.ty, 0.8); } } });
 document.getElementById('act-fish').addEventListener('click', () => { boatActions.setOpen(false); ACT.fish === 'off' ? startFishing() : stopFishing(); });
+// beside the wheel: drop / raise the anchor (inside the wheel's box, so it hides with it while fishing)
+{ const h = document.getElementById('helm-anchor'); h.addEventListener('pointerdown', e => e.stopPropagation()); h.addEventListener('click', e => { e.stopPropagation(); ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); }); }
 document.getElementById('act-anchor').addEventListener('click', () => { boatActions.setOpen(false); ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); });
 document.getElementById('act-garage').addEventListener('click', () => { boatActions.setOpen(false); hud.openGarage(); });
 document.getElementById('act-profile').addEventListener('click', () => { boatActions.setOpen(false); hud.openProfile(); });
@@ -854,7 +858,7 @@ const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
 // beside the boat while fishing or anchored: stop fishing and raise / drop anchor
 const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),
-  onFish: () => stopFishing(), onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
+  onFish: () => { ACT.fish === 'off' ? startFishing() : stopFishing(); }, onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
@@ -863,7 +867,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   const kThr = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0), kStr = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
   let thr = Math.max(-1, Math.min(1, HELM.lever + kThr));
   // let go of the wheel and it spins back to centre on its own (fast at first, settling gently)
-  if (HELM.mode !== 'wheel' && HELM.deg) { HELM.deg *= Math.exp(-dt * 2.2); if (Math.abs(HELM.deg) < 2) HELM.deg = 0; }
+  if (HELM.mode !== 'wheel' && HELM.deg) { HELM.deg *= Math.exp(-dt * 6); if (Math.abs(HELM.deg) < 3) HELM.deg = 0; }
   let str = Math.max(-1, Math.min(1, HELM.deg / HELM.TURNS + kStr));
   if (ACT.fish === 'fight') { thr = 0; str = 0; } // arrow keys are swipes while fighting a fish
   const manual = !!HELM.mode || kThr !== 0 || kStr !== 0; // hands on the helm (the lever and wheel stay set, so a set course isn't dropped by them)
