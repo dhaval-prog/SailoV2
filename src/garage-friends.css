@@ -206,3 +206,7 @@
 @media (prefers-reduced-motion: reduce) {
   #sheet.nk *, #sheet.nk *::before, #sheet.nk *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* the boat you're sailing can be customised too (its pencil is always shown, phones included) */
+#sheet.nk .gf-boat.on .gf-acts { gap: 12px; }
+@media (max-width: 720px) { #sheet.nk .gf-edit.gf-edit-on { display: grid; } }

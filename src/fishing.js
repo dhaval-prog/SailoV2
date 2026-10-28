@@ -127,8 +127,9 @@ export function createFishing(ctx) {
 
   // ---------- power meter (on the water, in the aiming direction) ----------
   const ARC = 0.55;
-  const powerArc = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
-  const sweet = new THREE.Mesh(new THREE.RingGeometry(1, 1.0001, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#ffd36b', transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
+  const powerArc = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff3a6', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
+  const arcEdge = new THREE.LineSegments(new THREE.EdgesGeometry(powerArc.geometry), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.95 })); powerArc.add(arcEdge);
+  const sweet = new THREE.Mesh(new THREE.RingGeometry(1, 1.0001, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff7c9', transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
   const powerG = new THREE.Group(); powerG.visible = false; [sweet, powerArc].forEach(m => { m.rotation.x = -Math.PI / 2; powerG.add(m); }); stage._scene.add(powerG);
   const SWEET = [0.76, 0.9];
   { const r0 = CAST.min + (CAST.max - CAST.min) * SWEET[0], r1 = CAST.min + (CAST.max - CAST.min) * SWEET[1]; sweet.geometry.dispose(); sweet.geometry = new THREE.RingGeometry(r0, r1, 40, 1, -ARC / 2, ARC); }
@@ -163,26 +164,35 @@ export function createFishing(ctx) {
     if (ACT.fish === 'fight' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) swipeAgainst(e.key === 'ArrowLeft' ? -1 : 1);
   });
   addEventListener('keyup', e => { if (e.code === 'Space') G.reel = false; });
-  // the stage: hold to charge a cast (aim), tap to strike (wait/bite), hold to reel and swipe (fight)
+  // the stage. The camera can still be rotated while fishing: a drag rotates it, while
+  //   aim:          press and hold still (a moment) to charge a cast, release to cast
+  //   wait / bite:  a quick tap strikes
+  //   fight:        hold to reel, swipe against the fish (the camera holds still)
+  const HOLD = 200, SLOP = 8;
+  let pend = null; // a press that may become a cast charge or a strike tap, unless it turns into a camera drag
+  const startCharge = () => { const c = pend; pend = null; if (!c || ACT.fish !== 'aim') return;
+    G.charging = { k: 0, p: c.p, x: c.x, y: c.y }; stage._controls.enabled = false; ctx.tiltCam(true); powerG.visible = true; };
   const stageDown = e => {
     if (e.target.closest && e.target.closest('button, .fg-card-wrap, #boatmenu, .sheet, .map-modal')) return false;
     audio();
-    if (ACT.fish === 'aim') { const p = ctx.seaPoint(e); if (!p || ctx.hitsBoat(e)) return false; G.charging = { k: 0, p, x: e.clientX, y: e.clientY }; stage._controls.enabled = false; ctx.tiltCam(true); powerG.visible = true; return true; }
-    if (ACT.fish === 'waiting' || ACT.fish === 'bite') { if (ctx.hitsBoat(e)) return false; onStrike(); return true; } // the boat still opens its menu
+    if (ACT.fish === 'aim') { const p = ctx.seaPoint(e); if (!p || ctx.hitsBoat(e)) return false; clearTimeout(pend?.timer); pend = { p, x: e.clientX, y: e.clientY, t: performance.now(), kind: 'cast' }; pend.timer = setTimeout(startCharge, HOLD); return false; }
+    if (ACT.fish === 'waiting' || ACT.fish === 'bite') { if (ctx.hitsBoat(e)) return false; pend = { x: e.clientX, y: e.clientY, t: performance.now(), kind: 'strike' }; return false; } // the boat still opens its menu
     if (ACT.fish === 'fight') { G.reel = true; G.swipe = { x: e.clientX, t: performance.now() }; return true; }
     if (G.jump && G.jump.window) { tapJump(); return true; }
     return false;
   };
   const stageMove = e => {
+    if (pend && Math.hypot(e.clientX - pend.x, e.clientY - pend.y) > SLOP) { clearTimeout(pend.timer); pend = null; } // it's a camera drag
     if (G.charging) { const p = ctx.seaPoint(e); if (p) G.charging.p = p; }
     if (ACT.fish === 'fight' && G.swipe) { const dx = e.clientX - G.swipe.x; if (Math.abs(dx) > 60) { swipeAgainst(Math.sign(dx)); G.swipe = { x: e.clientX, t: performance.now() }; } }
   };
   const stageUp = () => {
+    if (pend) { clearTimeout(pend.timer); if (pend.kind === 'strike' && performance.now() - pend.t < 350) onStrike(); pend = null; }
     if (G.charging) { const c = G.charging; G.charging = null; stage._controls.enabled = true; powerG.visible = false; releaseCast(c); }
     G.reel = false; G.swipe = null;
   };
   stage.addEventListener('pointerdown', e => { if (ACT.fish !== 'off' && stageDown(e)) e.stopPropagation(); }, true);
-  addEventListener('pointermove', stageMove); addEventListener('pointerup', stageUp); addEventListener('pointercancel', stageUp);
+  addEventListener('pointermove', stageMove); addEventListener('pointerup', stageUp); addEventListener('pointercancel', () => { if (pend) { clearTimeout(pend.timer); pend = null; } stageUp(); });
   $('fg-tap').addEventListener('pointerdown', e => { e.stopPropagation(); tapJump(); });
 
   const power = k => 0.5 - 0.5 * Math.cos(k * Math.PI * 2 / 1.5); // swings 0 -> 1 -> 0 every 1.5 s
@@ -274,7 +284,8 @@ export function createFishing(ctx) {
     if (G.charging) { G.charging.k += dt; const pw = power(G.charging.k), r = CAST.min + (CAST.max - CAST.min) * pw, dir = G.charging.p.clone().sub(boat.position).setY(0);
       powerG.position.set(boat.position.x, WL + 0.15, boat.position.z); powerG.rotation.y = Math.atan2(-dir.z, dir.x);
       powerArc.geometry.dispose(); powerArc.geometry = new THREE.RingGeometry(Math.max(0.5, r - 0.6), r + 0.6, 24, 1, -ARC / 2, ARC);
-      const inSweet = pw >= SWEET[0] && pw <= SWEET[1]; powerArc.material.color.set(inSweet ? '#ffd36b' : '#ffffff'); sweet.material.opacity = inSweet ? 0.8 : 0.4;
+      arcEdge.geometry.dispose(); arcEdge.geometry = new THREE.EdgesGeometry(powerArc.geometry);
+      const inSweet = pw >= SWEET[0] && pw <= SWEET[1]; powerArc.material.color.set(inSweet ? '#ffe066' : '#fff3a6'); powerArc.material.opacity = inSweet ? 0.8 : 0.55; sweet.material.opacity = inSweet ? 0.6 : 0.3;
       status(inSweet ? 'Release now — perfect!' : 'Release to cast'); }
     rodPivot.updateWorldMatrix(true, true); ctx.rodTip.getWorldPosition(tipW);
     const wy = WL + waveJS(bobber.position.x, bobber.position.z, t);

@@ -41,7 +41,7 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
         <div class="gf-specs"><span title="Fuel"><i class="gf-fuel"><i class="${pct < 20 ? 'low' : ''}" style="width:${pct}%"></i></i>${Math.round(st.fuel)}/${st.cap} L</span>
           <span title="Fish in hold">${icon('color', 'stat-fish', 'sm')}${st.fish}/${st.holdCap}</span><span title="Top speed">${icon('color', 'stat-speed', 'sm')}${st.kn} kn</span></div>
         ${empty ? `<small class="gf-warn">${on ? 'Out of fuel · running on the reserve' : 'No fuel · refuel it at Paradise Station'}</small>` : ''}</div>
-      ${on ? '<span class="gf-sailing"><i aria-hidden="true"></i>Sailing</span>' : `<div class="gf-acts">
+      ${on ? `<div class="gf-acts"><span class="gf-sailing"><i aria-hidden="true"></i>Sailing</span>${ed ? `<button class="gf-edit gf-edit-on${editing === ed ? ' on' : ''}" type="button" data-edit="${ed}" title="Customise" aria-label="Customise ${esc(b.name)}" aria-pressed="${editing === ed}">${icon('white', 'edit', 'w')}${icon('navy', 'edit', 'n')}</button>` : ''}</div>` : `<div class="gf-acts">
         <button class="gf-pill sh-pick" data-boat="${b.id}" type="button"><span class="l">Sail this boat</span><span class="s">Sail</span>${icon('teal', 'arrow', 'arw')}</button>
         ${ed ? `<span class="gf-hint" aria-hidden="true"><i></i><i></i><i></i></span><button class="gf-cancel" type="button" data-unswipe>Cancel</button>
         <button class="gf-edit${editing === ed ? ' on' : ''}" type="button" data-edit="${ed}" title="Customise" aria-label="Customise ${esc(b.name)}" aria-pressed="${editing === ed}">${icon('white', 'edit', 'w')}${icon('navy', 'edit', 'n')}</button>` : ''}
