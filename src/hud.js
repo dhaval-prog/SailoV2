@@ -66,6 +66,12 @@ export function initHud(api) {
   dock.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => ripple(b, e)));
   dock.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { api.setView(b.dataset.v); paint(); }));
   dock.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => api.zoomBy(b.dataset.z === 'in' ? 0.7 : 1.45)));
+  // "⋯": the less-used controls (photo, zoom) live in a small tray beside it
+  { const more = $('dk-more'), tray = $('dk-tray'); const setTray = open => { tray.hidden = !open; more.setAttribute('aria-expanded', open); more.classList.toggle('on', open); };
+    more.addEventListener('click', e => { e.stopPropagation(); setTray(tray.hidden); });
+    tray.querySelectorAll('.dk').forEach(b => b.addEventListener('click', () => setTray(false))); // view, map, photo close it; zoom keeps it open
+    addEventListener('pointerdown', e => { if (!tray.hidden && !e.target.closest('.dk-moreg')) setTray(false); }, true);
+    addEventListener('keydown', e => { if (e.key === 'Escape') setTray(false); }); }
   $('dk-compass').addEventListener('click', () => setMap(true));
   $('dk-shot').addEventListener('click', () => {
     const canvas = api.stage.shadowRoot.querySelector('canvas');
@@ -312,7 +318,7 @@ export function initHud(api) {
   const TUG = '<svg viewBox="0 0 32 32"><path d="M15 4v14M15 5.5c3.6 3 5.8 6.8 6.5 11.5H15M14 8c-2 2.4-3.4 5.4-3.7 9H14"/><path d="M4 20.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
   // garage / my fleet
   const SEEN = 'sailo:garage-seen'; let seen = false; try { seen = localStorage.getItem(SEEN) === '1'; } catch { /* storage blocked */ }
-  $('tb-fleet-dot').hidden = seen;
+  $('tb-fleet-dot').hidden = seen; $('dk-more').classList.toggle('has-new', !seen);
   const SAIL = '<svg viewBox="0 0 32 32"><path d="M15 3v17M15 4c4.2 3.5 7 8.5 7.6 14H15M14 7c-2.6 3-4.4 6.8-4.8 11H14"/><path d="M4 21.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
   const YACHT = '<svg viewBox="0 0 32 32"><path d="M9 13h9l3 4H7z"/><path d="M12 13V9h5l2 4M19 9V6"/><path d="M3 18h26l-3 5.2a2 2 0 0 1-1.7 1H7.6a2 2 0 0 1-1.7-1z"/></svg>';
   const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' }, dinghy: { ico: SAIL, sub: 'Daysailer with tall mast and genoa · heels under sail' } };
@@ -324,7 +330,7 @@ export function initHud(api) {
       return `<div class="sh-fish${r ? '' : ' locked'}${here ? '' : ' away'}" title="${r ? f.name : here ? 'Lives in these waters' : 'Found in ' + fishWhere(f)}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
         <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : here ? 'Not caught yet' : `Found in ${fishWhere(f)}`}</small></div>`; }).join('')}</div>`; };
   const openGarage = () => {
-    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true;
+    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true; $('dk-more').classList.remove('has-new');
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
     const card = b => { const st = api.boatStatus(b.id), empty = st.fuel <= 0.05, pct = Math.round(st.fuel / st.cap * 100), on = b.id === active;
       return `<div class="sh-card boat${on ? ' on' : ''}${empty && !on ? ' empty' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div class="sh-boat"><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small>
@@ -420,7 +426,7 @@ export function initHud(api) {
 
   // ---- per-frame readouts ----
   const needle = document.querySelector('#dk-compass .needle');
-  const spd = $('spd'), gear = $('gear'), arc = $('joy-speed');
+  const spd = $('spd'), gear = $('gear'), arc = $('joy-speed'), hdgEl = $('hdg');
   const stCatch = $('st-catch'), stDist = $('st-dist'), stTop = $('st-top'), rankEl = $('acct-rank'), lvl = $('you-lvl');
   const locPos = $('loc-pos'), warn = $('edge-warn');
   let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
@@ -438,6 +444,7 @@ export function initHud(api) {
       if (deg !== last.az) { needle.style.transform = `rotate(${deg}deg)`; last.az = deg; }
       const k = Math.round(Math.abs(kn) * 10) / 10;
       if (k !== last.kn) { spd.textContent = k.toFixed(1); arc.style.strokeDasharray = `${Math.min(100, Math.abs(kn) / 12 * 100)} 100`; last.kn = k; }
+      { const b = ((90 - heading * 180 / Math.PI) % 360 + 360) % 360, h = `${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / 45) % 8]} ${Math.round(b) % 360}°`; if (h !== last.hdg) { hdgEl.textContent = h; last.hdg = h; } }
       if (gearName !== last.gear) { gear.textContent = gearName; gear.className = { Ahead: 'fwd', Autopilot: 'fwd', Astern: 'rev', Anchored: 'hold' }[gearName] || ''; last.gear = gearName; }
       if (catchN !== last.c) {
         if (last.c >= 0) { const s = stCatch.parentElement; s.classList.remove('bump'); void s.offsetWidth; s.classList.add('bump'); }

@@ -152,7 +152,8 @@ export function initStation(ctx) {
     b.el.innerHTML = `<span class="mk"><span class="mk-name">${b.name}</span><span class="mk-sub">Moor here</span></span>`; b.el.onclick = () => startDocking(i); ui.appendChild(b.el); });
   let toastT; const toast = msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2800); };
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
-  const renderWallet = () => { $('coinN').textContent = S.coins; $('fuelN').textContent = Math.round(S.fuel) + ' L'; $('fuelFill').style.width = (S.fuel / S.cap * 100) + '%'; $('fuelFill').classList.toggle('low', S.fuel < S.cap * 0.2); };
+  const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} / ${S.cap} L`;
+    $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15); };
 
   // ---------- camera framing from the sea side, so the island never sits between camera and boat ----------
   const ICw = () => toW(IC.x, IC.z);
