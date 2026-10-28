@@ -10,6 +10,7 @@ import * as geo from './geo.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
+import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -821,6 +822,8 @@ const stats = { dist: 0, top: 0 };
 let dockVel = 0, fuelK = 1;
 const moveBoat = (x, z, newYaw, moving) => { const dx = x - boat.position.x, dz = z - boat.position.z; boat.position.x = x; boat.position.z = z;
   stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz; yaw = newYaw; dockVel = moving * 3; };
+// (the wallet sits under the place name and the clock in the top-left block)
+queueMicrotask(() => { const w = document.getElementById('stn-wallet'); if (w) document.getElementById('hud-tl').appendChild(w); });
 const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
   camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
   onDockEnd: () => setView(state.view),

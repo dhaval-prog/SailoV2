@@ -17,7 +17,7 @@ const MAX_NEAR = 12;     // floating names on screen at once
 const MAX_FAR = 5;       // horizon names at once (the compass strip shows the rest)
 const FADE = [2500, 3500]; // metres: horizon names fade out across this range and vanish beyond it
 const RANGE = { major: 12000, minor: 4500 };
-const STRIP = { major: 9000, minor: 3500, max: 16, span: 75 }; // compass strip: ranges, marker cap, half-width in degrees
+const STRIP = { major: 9000, minor: 3500, max: 16, ppd: 130 / 45 }; // compass strip: ranges, marker cap, pixels per degree (a cardinal every 130 px)
 const CAT = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
 const CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 export const levelFor = d => d < 35 ? 4 : d < 90 ? 3 : d < 170 ? 2 : 1;
@@ -76,15 +76,15 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   strip.innerHTML = '<div class="cs-tape"></div><div class="cs-marks"></div><div class="cs-notch"></div>';
   document.body.appendChild(strip);
   const tape = strip.querySelector('.cs-tape'), marks = strip.querySelector('.cs-marks');
-  tape.innerHTML = Array.from({ length: 72 }, (_, i) => { const a = i * 5; return `<i data-a="${a}" class="${a % 45 ? (a % 15 ? 't5' : 't15') : 'tc'}">${a % 45 ? '' : CARD[a / 45]}</i>`; }).join('');
+  tape.innerHTML = Array.from({ length: 40 }, (_, i) => { const a = i * 9; return `<i data-a="${a}" class="${a % 45 ? 't9' : 'tc'}">${a % 45 ? '' : CARD[a / 45]}</i>`; }).join(''); // a tick every 9°, cardinals every 45°
   const ticks = [...tape.children].map(el => ({ el, a: +el.dataset.a }));
   const mpool = new Map();
   const mark = (key, p, cls) => { let m = mpool.get(key); if (m) return m;
     const el = document.createElement('button'); el.type = 'button'; el.className = `cs-m ${cls}`; el.innerHTML = `<i></i><b></b><span class="gl-boat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v13M12 4.5c3.4 2.9 5.4 6.6 5.9 10.5H12M11 7c-2.2 2.4-3.4 5-3.8 8H11"/><path d="M3.5 17.5h17l-2 2.8a2 2 0 0 1-1.6.8H7.1a2 2 0 0 1-1.6-.8z"/></svg></span>`; el.querySelector('b').textContent = p.name;
     el.setAttribute('aria-label', p.name); el.addEventListener('click', e => { e.stopPropagation(); pick('m:' + key, p, el); }); marks.appendChild(el); m = { el, on: false, w: 0 }; mpool.set(key, m); return m; };
   function paintStrip(camHead) {
-    const W = strip.clientWidth, ppd = W / (STRIP.span * 2), bx = boat.position.x, bz = boat.position.z;
-    for (const t of ticks) { const dx = wrap(t.a - camHead); t.el.style.display = Math.abs(dx) > STRIP.span ? 'none' : ''; if (Math.abs(dx) <= STRIP.span) t.el.style.transform = `translateX(${(W / 2 + dx * ppd).toFixed(1)}px)`; }
+    const W = strip.clientWidth, ppd = STRIP.ppd, span = W / 2 / ppd + 4, bx = boat.position.x, bz = boat.position.z;
+    for (const t of ticks) { const dx = wrap(t.a - camHead); t.el.style.display = Math.abs(dx) > span ? 'none' : ''; if (Math.abs(dx) <= span) t.el.style.transform = `translateX(${(W / 2 + dx * ppd).toFixed(1)}px)`; }
     // markers: your course and the station first, then the nearest places
     const list = [];
     const c = course(); if (c) list.push({ key: 'course', p: { name: 'Your course', x: c.x, z: c.z }, cls: 'cs-course', pri: 0 });
@@ -93,7 +93,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       .forEach(p => list.push({ key: 'p:' + p.key, p, cls: `cs-${p.kind}`, pri: 2 }));
     const taken = [], show = new Set();
     for (const it of list) {
-      const dx = wrap(bearing(it.p.x - bx, it.p.z - bz) - camHead); if (Math.abs(dx) > STRIP.span - 2) continue;
+      const dx = wrap(bearing(it.p.x - bx, it.p.z - bz) - camHead); if (Math.abs(dx) > span - 6) continue;
       const m = mark(it.key, it.p, it.cls), x = W / 2 + dx * ppd; show.add(it.key);
       if (!m.on) { m.on = true; m.el.classList.add('on'); m.w = 0; }
       // names only where there is room (always for the course and the station), dots otherwise
