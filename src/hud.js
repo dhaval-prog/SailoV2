@@ -340,11 +340,11 @@ export function initHud(api) {
   // search: places in this chart; picking one pins a course there
   const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: `${STATION.at ? STATION.at + ' · ' : ''}Fish Market · Boathouse · fuel`, x: STATION.x, z: STATION.z }];
   const openSearch = () => {
-    openSheet('Search', 'Find a place and sail there', '<input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"><div id="sh-results" class="sheet-body"></div>');
+    openSheet('Search', 'Find a place and sail there', '<label class="ns-field"><img src="./hud/white/search.svg" alt="" draggable="false"><input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"></label><div id="sh-results" class="sheet-body"></div>', 'search');
     const q = $('sh-q'), res = $('sh-results');
     PLACES.length = 2; placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: groupLabel(p.group), x: p.x, z: p.z }));
     const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term)).slice(0, term ? 40 : 12);
-      res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go">${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))} · Sail</span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
+      res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" style="--n:${i}" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go"><em>${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))}</em><span class="ns-sail">Sail<img src="./gf/teal/arrow.svg" alt="" draggable="false"></span></span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
     q.addEventListener('input', paint);
     // typing must not steer the boat (Escape still closes)
     q.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeSheet(); }); q.addEventListener('keyup', e => e.stopPropagation()); paint(); q.focus();

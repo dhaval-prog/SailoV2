@@ -282,7 +282,8 @@ export function createFishing(ctx) {
       s.birds.forEach(b => { const a = t * 0.8 + b.ph; b.b.position.set(Math.cos(a) * b.r, b.h + Math.sin(t * 1.3 + b.ph) * 0.4, Math.sin(a) * b.r); b.b.rotation.set(0, -a, 0); b.b.scale.y = 0.6 + 0.5 * Math.abs(Math.sin(t * 7 + b.ph)); }); });
     // charging a cast: the power arc swings out and back along the aim
     if (G.charging) { G.charging.k += dt; const pw = power(G.charging.k), r = CAST.min + (CAST.max - CAST.min) * pw, dir = G.charging.p.clone().sub(boat.position).setY(0);
-      powerG.position.set(boat.position.x, WL + 0.4, boat.position.z); // drawn over the waves powerG.rotation.y = Math.atan2(-dir.z, dir.x);
+      powerG.position.set(boat.position.x, WL + 0.4, boat.position.z); // drawn over the waves
+      powerG.rotation.y = Math.atan2(-dir.z, dir.x); // points wherever the finger is, all the way round
       powerArc.geometry.dispose(); powerArc.geometry = new THREE.RingGeometry(Math.max(0.5, r - 0.6), r + 0.6, 24, 1, -ARC / 2, ARC);
       arcEdge.geometry.dispose(); arcEdge.geometry = new THREE.EdgesGeometry(powerArc.geometry);
       const inSweet = pw >= SWEET[0] && pw <= SWEET[1]; powerArc.material.color.set(inSweet ? '#ffe066' : '#fff3a6'); powerArc.material.opacity = inSweet ? 0.8 : 0.55; sweet.material.opacity = inSweet ? 0.6 : 0.3;

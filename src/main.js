@@ -14,6 +14,7 @@ import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 import './boat-actions.css';
 import './garage-friends.css';
+import './naked-panels.css';
 import './fishing-naked.css';
 import { initBoatQuick } from './boat-quick.js';
 
@@ -608,8 +609,7 @@ let fishStatus = '';
 const setFishStatus = txt => { if (txt === fishStatus) return; fishStatus = txt; paintStatus(); };
 const paintStatus = () => {
   let s = '';
-  if (ACT.anchor === 'down') s += chip('Anchored', 'rgba(21,32,66,0.6)');
-  else if (ACT.anchor === 'dropping') s += chip('Dropping anchor…', 'rgba(21,32,66,0.6)');
+  if (ACT.anchor === 'dropping') s += chip('Dropping anchor…', 'rgba(21,32,66,0.6)');
   else if (ACT.anchor === 'raising') s += chip('Raising anchor…', 'rgba(21,32,66,0.6)');
   statusEl.innerHTML = s;
   document.body.classList.toggle('fishing', ACT.fish !== 'off');
@@ -649,6 +649,7 @@ function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false);
   if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'down'; anchorG.visible = false; chain.visible = false; floatText(boat.position.clone().setY(boat.position.y + 9), 'Anchored · lowering sails', '#fff7ea'); paintStatus(); return; }
   ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
 function raiseAnchor() { if (ACT.anchor !== 'down') return;
+  stopFishing(); // raising the anchor means sailing on: the rod comes in and the wheel comes back
   if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'up'; anchorG.visible = true; anchorG.position.y = ANC.y0; floatText(boat.position.clone().setY(boat.position.y + 9), 'Hoisting sails', '#fff7ea'); paintStatus(); return; }
   ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
 function stepActions(t, dt) {
@@ -710,7 +711,7 @@ function stepActions(t, dt) {
     F.k += dt / 0.7; const e = Math.min(1, F.k);
     if (bobber.visible) { bobber.position.lerpVectors(F.from, tipW, e); bobber.position.y += Math.sin(e * Math.PI) * 1.2; }
     rodPivot.scale.setScalar(Math.max(0.01, 1 - Math.max(0, e - 0.5) * 2));
-    if (e >= 1) { ACT.fish = 'off'; bobber.visible = false; fishLine.visible = false; rodPivot.visible = false; rodRot.rotation.z = restTilt; paintStatus(); setView(state.view); }
+    if (e >= 1) { ACT.fish = 'off'; bobber.visible = false; fishLine.visible = false; rodPivot.visible = false; rodRot.rotation.z = restTilt; paintStatus(); if (anchorCamT < 0) setView(state.view); } // (the anchor camera brings the view back itself)
   } else if (ACT.fish === 'off') rodRot.rotation.z = restTilt;
   fishing.step(t, dt); // the playable part: power meter, shadows, bites, the fight, the catch card
   // line with sag
