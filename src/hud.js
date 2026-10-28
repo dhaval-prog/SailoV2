@@ -38,7 +38,7 @@ export function initHud(api) {
     if (open) panel.scrollTop = 0;
   };
   btn.addEventListener('click', () => setOpen(!panel.classList.contains('open')));
-  $('acct-close').addEventListener('click', () => setOpen(false));
+  // no close button: a tap anywhere outside the panel (or Escape) closes it
   addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
   addEventListener('pointerdown', e => { if (panel.classList.contains('open') && !panel.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
 

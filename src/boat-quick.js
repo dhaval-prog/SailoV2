@@ -1,5 +1,5 @@
 // While fishing (or at anchor): two rings beside the boat, on a slant above its top-right corner,
-// for "Stop fishing" and "Raise anchor" (or "Drop anchor"). They follow the boat in any view,
+// for fishing (go / stop) and the anchor (drop / raise); the active one fills white. They follow the boat in any view,
 // sit at 50% opacity and light up on hover.
 
 export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }) {
@@ -30,7 +30,7 @@ export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }
     const s = state(), show = s.fishing || s.anchored;
     if (el.hidden === show) el.hidden = !show;
     if (!show) return;
-    fishB.hidden = !s.fishing; label(fishB, 'Stop fishing');
+    fishB.hidden = !(s.fishing || s.anchored); label(fishB, s.fishing ? 'Stop fishing' : 'Go fishing'); // at anchor: an outline ring to start fishing
     anchorB.hidden = !(s.anchored || s.fishing); label(anchorB, s.anchored ? 'Raise anchor' : 'Drop anchor');
     anchorB.disabled = s.anchorBusy;
     fishB.classList.toggle('on', s.fishing); anchorB.classList.toggle('on', s.anchored); // fishing / at anchor: the ring fills white
