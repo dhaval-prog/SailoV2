@@ -69,6 +69,7 @@ export function initHud(api) {
   // "⋯": the less-used controls (photo, zoom) live in a small tray beside it
   { const more = $('dk-more'), tray = $('dk-tray'); const setTray = open => { tray.hidden = !open; more.setAttribute('aria-expanded', open); more.classList.toggle('on', open); };
     more.addEventListener('click', e => { e.stopPropagation(); setTray(tray.hidden); });
+    tray.querySelectorAll('.dk').forEach(b => b.addEventListener('click', () => setTray(false))); // view, map, photo close it; zoom keeps it open
     addEventListener('pointerdown', e => { if (!tray.hidden && !e.target.closest('.dk-moreg')) setTray(false); }, true);
     addEventListener('keydown', e => { if (e.key === 'Escape') setTray(false); }); }
   $('dk-compass').addEventListener('click', () => setMap(true));

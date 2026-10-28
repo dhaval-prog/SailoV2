@@ -15,6 +15,7 @@ import { regionList, placeList, poisNear, ensure, zoneAt, groupLabel } from './g
 const NEAR = 1000;       // metres: closer names float on the water at their real spot
 const MAX_NEAR = 12;     // floating names on screen at once
 const MAX_FAR = 5;       // horizon names at once (the compass strip shows the rest)
+const FADE = [2500, 3500]; // metres: horizon names fade out across this range and vanish beyond it
 const RANGE = { major: 12000, minor: 4500 };
 const STRIP = { major: 9000, minor: 3500, max: 16, span: 75 }; // compass strip: ranges, marker cap, half-width in degrees
 const CAT = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
@@ -135,6 +136,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
     cand.sort((a, b) => (a.far - b.far) || (a.far ? a.rank - b.rank : 0) || a.dist - b.dist);
     const taken = [bRect, ...avoid()], show = new Set(); let nNear = 0, nFar = 0;
     for (const c of cand) {
+      if (c.far && c.dist > FADE[1]) continue; // beyond 3.5 km: out of sight (the compass strip still shows it)
       if (c.far ? nFar >= MAX_FAR : nNear >= MAX_NEAR) continue;
       const n = node(c.key, c.p);
       const dtxt = c.far ? fmtKm(c.dist) : '';
@@ -148,9 +150,10 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       const over = Math.max(0, 8 - r[0], r[2] - (W - 8)); if (over > w * 0.45) continue;
       if (overlaps(r, taken)) continue;
       taken.push(r); show.add(c.key); c.far ? nFar++ : nNear++;
-      const op = (c.far ? 0.95 - k * 0.35 : 0.96) * (1 - over / (w * 0.45));
+      const fade = c.far ? Math.min(1, Math.max(0, (FADE[1] - c.dist) / (FADE[1] - FADE[0]))) : 1; // fades out as it gets farther, back in as you near it
+      const op = 0.96 * fade * (1 - over / (w * 0.45));
       n.el.style.setProperty('--o', op.toFixed(2));
-      n.el.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -100%) scale(${sc.toFixed(3)})`;
+      n.el.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -100%) scale(calc(${sc.toFixed(3)} * var(--hz)))`;
       if (!n.on) { n.on = true; n.el.classList.add('on'); n.el.tabIndex = 0; }
     }
     pool.forEach((n, k) => { if (!show.has(k) && n.on) { n.on = false; n.el.classList.remove('on'); n.el.tabIndex = -1; if (armed?.el === n.el) disarm(); } });
@@ -173,10 +176,9 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
         else if (t - pendT > (z && !z.poly ? 1.2 : 0.6)) { queue = [z ? { verb: 'Entering', z, from: cur } : { verb: 'Leaving', z: cur }]; cur = z; pend = null; onZone?.(z); }
       } else pend = null;
     }
-    if (ready && queue.length && t > toastT) { const { verb, z, from } = queue.shift(); toastT = t + 3.2;
+    if (ready && queue.length && t > toastT) { const { verb, z } = queue.shift(); toastT = t + 3.2;
       toast.className = verb === 'Leaving' ? 'leaving' : '';
-      toast.innerHTML = `<small>${verb}</small><b></b>${z.group && verb === 'Entering' ? `<span>${groupLabel(z.group)}</span>` : ''}${from ? '<em></em>' : ''}`;
-      toast.querySelector('b').textContent = z.name; if (from) toast.querySelector('em').textContent = `from ${from.name}`;
+      toast.innerHTML = `<small>${verb}</small><b></b>`; toast.querySelector('b').textContent = z.name;
       void toast.offsetWidth; toast.classList.add('show');
       if (verb === 'Entering') { arrive = 'p:' + keyOf(z.name); arriveT = t + 3.2; } }
     // the arriving place's name glows on the sea while the title shows
