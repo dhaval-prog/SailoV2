@@ -3,3 +3,8 @@ dist/
 release/
 .DS_Store
 *.log
+
+# local environment (Mapbox token etc.)
+.env
+.env.*.local
+.env.local
