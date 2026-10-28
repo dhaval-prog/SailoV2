@@ -840,7 +840,10 @@ const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
   avoid: () => { const out = [menu.style.display !== 'none' ? rectOf(menu) : null, rectOf(document.getElementById('fg-fight')), rectOf(document.getElementById('fg-strike')), rectOf(document.getElementById('fg-tap'))];
     if (bobber.visible) { const [x, y] = toScreen(bobber.position); out.push([x - 60, y - 70, x + 60, y + 30]); }
     return out.filter(Boolean); },
-  onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; } });
+  onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; },
+  // tap a name (on the sea or the compass strip) to sail there
+  sailTo: (x, z, name) => { const ok = setCourse(new THREE.Vector3(x, WL, z), true); if (ok) floatText(boat.position.clone().setY(9), `Course set · ${name}`, '#7ff0c8'); return ok; },
+  station: { x: STATION.x, z: STATION.z, name: 'Paradise Station' }, course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off' });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
