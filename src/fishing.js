@@ -4,7 +4,7 @@
 // perfect-cast combos, a fish log for the Garage collection, synthesized sounds and vibration.
 // The scene objects (rod, line, bobber) belong to main.js and are passed in through ctx.
 
-import { FISH } from './station.js';
+import { FISH, localOdds } from './station.js';
 
 const LOG_KEY = 'sailo:fishlog';
 const loadLog = () => { try { return JSON.parse(localStorage.getItem(LOG_KEY)) || {}; } catch { return {}; } };
@@ -30,6 +30,18 @@ const FIGHT = {
   sailfish: { pull: 0.8, zone: 0.2, speed: 0.75, turn: 2.2, fight: 12, jump: true },
   permit: { pull: 0.65, zone: 0.24, speed: 0.65, turn: 2, fight: 8.5, run: true },
   johndory: { pull: 0.45, zone: 0.28, speed: 0.45, turn: 1.8, fight: 6 },
+  pomfret: { pull: 0.35, zone: 0.32, speed: 0.6, turn: 1.4, fight: 5 },
+  kingfish: { pull: 0.65, zone: 0.22, speed: 0.85, turn: 1.5, fight: 8, sprint: true },
+  hilsa: { pull: 0.4, zone: 0.3, speed: 0.7, turn: 1.2, fight: 5.5 },
+  yellowtail: { pull: 0.7, zone: 0.24, speed: 0.6, turn: 2.6, fight: 9, run: true },
+  seabream: { pull: 0.45, zone: 0.28, speed: 0.6, turn: 1.7, fight: 6 },
+  salmon: { pull: 0.65, zone: 0.24, speed: 0.7, turn: 2, fight: 8.5, jump: true },
+  halibut: { pull: 0.8, zone: 0.22, speed: 0.35, turn: 3, fight: 11 },
+  seabass: { pull: 0.45, zone: 0.28, speed: 0.6, turn: 1.6, fight: 6 },
+  redmullet: { pull: 0.3, zone: 0.34, speed: 0.5, turn: 1.4, fight: 4.5 },
+  reddrum: { pull: 0.55, zone: 0.26, speed: 0.5, turn: 2.2, fight: 7, run: true },
+  stripedbass: { pull: 0.6, zone: 0.25, speed: 0.6, turn: 2, fight: 7.5 },
+  barramundi: { pull: 0.7, zone: 0.23, speed: 0.6, turn: 2.2, fight: 9, jump: true },
 };
 
 export function createFishing(ctx) {
@@ -129,7 +141,7 @@ export function createFishing(ctx) {
 
   const pickFish = () => {
     const night = ctx.night(), rare = f => f.odds <= 5;
-    const w = FISH.map(f => { let o = f.odds;
+    const w = FISH.map(f => { let o = localOdds(f); if (!o) return 0; // only fish that live in these waters
       if (G.spot) o *= f.price >= 30 ? 3 : f.price < 10 ? 0.5 : 1;        // fishing spot: bigger species
       if (G.perfect && rare(f)) o *= 1.6;                                    // perfect cast
       if (rare(f)) o *= 1 + 0.3 * Math.min(G.combo, 5) + (night > 0.5 ? 0.8 : 0); // combo streak, night
@@ -200,7 +212,7 @@ export function createFishing(ctx) {
 
   // ---------- the fight ----------
   function startFight() {
-    const f = fishOf(), P = FIGHT[f.id];
+    const f = fishOf(), P = FIGHT[f.id] || FIGHT.mackerel;
     ACT.fish = 'fight'; G.T = 0.45; G.prog = 0; G.zc = 0.5; G.zt = 0.5; G.dir = Math.random() < 0.5 ? -1 : 1; G.turnT = P.turn; G.stam = 1; G.snapT = 0; G.slackT = 0; G.t = 0; G.jumpT = 3 + Math.random() * 2; G.jump = null;
     G.hooked.copy(bobber.position);
     $('fg-fight').hidden = false; $('fg-fish-name').textContent = 'Fish on!'; sfx.splash(true); buzz([30, 40, 30]);
@@ -297,7 +309,7 @@ export function createFishing(ctx) {
       if (Math.random() < 0.4) ctx.emit(bobber.position.x, wy, bobber.position.z, (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), (Math.random() - 0.5) * 1.5);
       if (G.t > 1.1) { $('fg-strike').hidden = true; ACT.fish = 'waiting'; G.phase = 'gone'; G.t = 0; ctx.floatText(bobber.position.clone().setY(wy + 1.6), 'It got away…', '#ffb39f'); status('Waiting for a bite…'); ctx.paintStatus(); }
     } else if (ACT.fish === 'fight') {
-      const f = fishOf(), P = FIGHT[f.id], storm = ctx.weather() === 'storm' ? 1.5 : ctx.weather() === 'rain' ? 1.2 : 1, tired = G.stam < 0.35;
+      const f = fishOf(), P = FIGHT[f.id] || FIGHT.mackerel, storm = ctx.weather() === 'storm' ? 1.5 : ctx.weather() === 'rain' ? 1.2 : 1, tired = G.stam < 0.35;
       G.t += dt;
       // the fish changes direction; runs keep going, sprinters dart
       if ((G.turnT -= dt) <= 0) { G.dir = -G.dir; G.turnT = P.turn * (0.6 + Math.random() * 0.8); G.zt = 0.2 + Math.random() * 0.6; if (P.sprint) G.zt = G.zt < 0.5 ? 0.15 : 0.85; }

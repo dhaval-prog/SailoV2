@@ -15,6 +15,13 @@ Sail. Discover. Connect.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Quick actions** (left of the avatar; stacked under it on phones): **My fleet** (opens the Garage: pick your boat (Lighthouse Tug, Sail Boat, Motor Yacht or Dinghy Sailing Boat), style the sail boat's sails, fly a custom flag on the yacht, colour the dinghy's sails, and see fuel, hold, coins and stats), **Search** (find a place, e.g. Paradise Station, and sail there) and **Inbox** (messages from the harbour).
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
+- **Any city as an ocean (charts)**: every city can become its own 400 sq mi ocean ("Mumbai Waters", "Tokyo Waters"); Pune Paradise is the original.
+  - **First launch**: "Use my location" (finds your city), or choose country → state (optional) → city. Returning players resume where they left off, on this device or (through Supabase) any device that saved.
+  - **World map** (map footer, or zoom the map all the way out): every city chart on Earth. Charts you have sailed are unlocked; the rest are locked until you fly there by sea-plane (about 1 coin per 50 km, at least 2). Zoom from the world through countries and states to cities (land and borders: Natural Earth; state and city names: Mapbox), and search any city on Earth. Your spot in each city is remembered.
+  - **Stations at real harbours**: each new city's Paradise Station is placed at a real marina, harbour, ferry terminal or pier from OpenStreetMap (or a named lake inland), looked up once and saved with the chart. Pune keeps its original spot.
+  - **Regional fish**: 12 more species live only in their own waters: Silver Pomfret, Kingfish (Surmai) and Hilsa (Arabian Sea & Indian Ocean), Yellowtail and Red Sea Bream (West Pacific), Atlantic Salmon and Halibut (cold northern waters), European Sea Bass and Red Mullet (Atlantic & Mediterranean), Red Drum and Striped Bass (Americas), Barramundi (southern seas). Warm-water fish are scarce up north, where cod and flounder are commoner. The collection shows where to find each one.
+  - Each chart's scene is centred on its own city, so the 3D scene stays precise anywhere on Earth. Positions are saved as latitude/longitude plus the chart.
+  - The clock and live weather follow the chart's city (time zone from Open-Meteo). City search uses Open-Meteo's geocoder (GeoNames); Mapbox suggests states and names your city when you share your location.
 - **Pune as an ocean**: the sea is Pune's real geography turned into water: no land, just floating place names at their true positions.
   - The ocean square (400 sq mi, 20 mi a side) is sized from the real coordinates of the starter localities in `src/geo-seed.js` plus a 2.5 km margin, centred on Pune. Latitude/longitude map onto it with a local flat projection (`src/world.js`).
   - Names load live for the area in view and are cached for a week. Locality, landmark and road names come from the tilesets of the Sailo Mapbox style, using the public token set as the `VITE_MAPBOX_TOKEN` environment variable at build time (in Vercel, or `.env.local` for local development); OpenStreetMap (Overpass) is the fallback. The © Mapbox / © OpenStreetMap credit shows at the bottom of the screen and on the map. OpenStreetMap also supplies neighbourhood boundary polygons. The starter list shows until live data arrives, or when offline.
@@ -69,6 +76,12 @@ App id: `com.sailo.app`. The icons and splash screens come from `resources/` via
 index.html               UI overlay markup
 src/main.js              scene: boat model, sea, sky, weather, sailing, fishing, anchor
 src/world.js             Pune Paradise: world size, bounds and position helpers
+src/boot.js              start-up: picks the city (saved chart, saved position, or the city picker), then loads the game
+src/chart.js             the active chart (city ocean); chart-store.js keeps saved charts
+src/picker.js            the city picker; geocode.js finds countries, states and cities
+src/worldmap.js          the world map: chart pins, world -> country -> state -> city zoom, search, sea-plane travel
+src/regions.js           ocean regions (local fish) and the starter list of world city charts
+src/harbour.js           finds a real harbour for a city's station
 src/geo.js               Pune place data: Mapbox / OpenStreetMap loading, cache, zones
 src/geo-labels.js        floating place names over the sea, Entering/Leaving notices
 src/geo-seed.js          starter Pune localities with real coordinates

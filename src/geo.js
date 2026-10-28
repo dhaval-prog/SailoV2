@@ -9,6 +9,7 @@
 // to the ocean square.
 
 import { WORLD, project, unproject } from './world.js';
+import { CHART, isPune } from './chart.js';
 import { SEED, SEED_REGIONS } from './geo-seed.js';
 
 export const MAPBOX_STYLE = 'mapbox://styles/dhavaldamania04112025/cmvr7naej000j01s5du0s3ahk';
@@ -55,6 +56,7 @@ export const onChange = f => { listeners.add(f); return () => listeners.delete(f
 const addPlace = (name, lat, lng, kind, group, src) => {
   if (!latin(name)) return; const [x, z] = project(lat, lng); if (!inWorld(x, z)) return;
   const k = keyOf(name), cur = places.get(k);
+  if (kind === 'region') { if (!regions.some(r => keyOf(r.name) === k)) { regions.push({ name, x, z, kind }); notify(); } return; } // cities and big towns: zoom level 1
   if (cur) { // live data refines the starter position (same name within 4 km)
     if (cur.src === 'seed' && src !== 'seed' && Math.hypot(cur.x - x, cur.z - z) < 4000) { cur.x = x; cur.z = z; cur.lat = lat; cur.lng = lng; cur.src = src; notify(); }
     return;
@@ -75,12 +77,17 @@ const addZone = (name, ringLL) => {
   zones.push({ name, key: k, ring, area, box: [x0, z0, x1, z1] }); zones.sort((a, b) => a.area - b.area); notify();
 };
 
-// starter localities and the level-1 regions
+// starter localities and the level-1 regions (Pune Paradise has a hand-checked starter list;
+// any other city starts with just its own name and fills in from live data)
 const GROUPS = {};
-SEED.forEach(([name, lat, lng, group, major]) => { const [x, z] = project(lat, lng); places.set(keyOf(name), { name, key: keyOf(name), lat, lng, x, z, kind: major ? 'major' : 'minor', group, src: 'seed' }); (GROUPS[group] ||= []).push([x, z]); });
-const regions = SEED_REGIONS.map(r => { const [x, z] = project(r.lat, r.lng); return { name: r.name, x, z, kind: 'region' }; });
-['East', 'West', 'South', 'North'].forEach(g => { const pts = GROUPS[g]; regions.push({ name: `${g} Pune`, x: pts.reduce((a, p) => a + p[0], 0) / pts.length, z: pts.reduce((a, p) => a + p[1], 0) / pts.length, kind: 'region', group: g }); });
-function groupAt(x, z) { let best = null, bd = Infinity; for (const p of places.values()) { if (p.src !== 'seed') continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p.group; } } return best; }
+if (isPune) SEED.forEach(([name, lat, lng, group, major]) => { const [x, z] = project(lat, lng); places.set(keyOf(name), { name, key: keyOf(name), lat, lng, x, z, kind: major ? 'major' : 'minor', group, src: 'seed' }); (GROUPS[group] ||= []).push([x, z]); });
+const regions = (isPune ? SEED_REGIONS : [{ name: CHART.city, lat: CHART.lat, lng: CHART.lng }]).map(r => { const [x, z] = project(r.lat, r.lng); return { name: r.name, x, z, kind: 'region' }; });
+if (isPune) ['East', 'West', 'South', 'North'].forEach(g => { const pts = GROUPS[g]; regions.push({ name: `${g} Pune`, x: pts.reduce((a, p) => a + p[0], 0) / pts.length, z: pts.reduce((a, p) => a + p[1], 0) / pts.length, kind: 'region', group: g }); });
+/** "East Pune", "Central Mumbai": the part of the city a place is in. */
+export const groupLabel = g => g ? `${g} ${CHART.city}` : CHART.city;
+function groupAt(x, z) {
+  if (!isPune) { const [cx, cz] = project(CHART.lat, CHART.lng), dx = x - cx, dz = z - cz; return Math.hypot(dx, dz) < 2500 ? 'Central' : Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'East' : 'West') : (dz > 0 ? 'South' : 'North'); }
+  let best = null, bd = Infinity; for (const p of places.values()) { if (p.src !== 'seed') continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p.group; } } return best; }
 
 // ---------- OpenStreetMap (Overpass) ----------
 let opBusy = Promise.resolve();
@@ -111,7 +118,7 @@ const centroidLL = pts => [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.r
 async function osmPlaces(b) {
   const bb = `${b.s},${b.w},${b.n},${b.e}`;
   const j = await overpass(`[out:json][timeout:40];(
-    node["place"~"^(suburb|neighbourhood|quarter|locality|village|town|hamlet)$"]["name"](${bb});
+    node["place"~"^(city|suburb|neighbourhood|quarter|locality|village|town|hamlet)$"]["name"](${bb});
     way["place"~"^(suburb|neighbourhood|quarter|village)$"]["name"](${bb});
     relation["place"~"^(suburb|neighbourhood|quarter|village)$"]["name"](${bb});
     relation["boundary"="administrative"]["admin_level"~"^(9|10)$"]["name"](${bb}););out geom;`);
@@ -119,7 +126,7 @@ async function osmPlaces(b) {
   const d = { places: [], zones: [] };
   for (const e of j.elements || []) {
     const t = e.tags || {}, name = osmName(t); if (!name) continue;
-    const kind = OSM_MINOR.has(t.place) ? 'minor' : 'major';
+    const kind = t.place === 'city' ? 'region' : OSM_MINOR.has(t.place) ? 'minor' : 'major';
     if (e.type === 'node') { if (t.place) d.places.push([name, e.lat, e.lon, kind]); continue; }
     if (!t.place && t.boundary !== 'administrative') continue;
     const rs = e.type === 'way' ? [e.geometry.map(p => [p.lat, p.lon])] : rings(e.members || []);
@@ -164,8 +171,8 @@ async function mapbox(x, y, z) {
   const r = await fetch(`https://api.mapbox.com/v4/${ts}/${z}/${x}/${y}.vector.pbf?access_token=${TOKEN}`); if (!r.ok) return null;
   const tile = new mbLib.VectorTile(new mbLib.Pbf(new Uint8Array(await r.arrayBuffer()))), out = { places: [], pois: [] };
   const each = (layer, f) => { const L = tile.layers[layer]; if (!L) return; for (let i = 0; i < L.length; i++) { const ft = L.feature(i); f(ft.properties, ft.toGeoJSON(x, y, z).geometry, ft); } };
-  each('place_label', (p, g) => { if (g.type !== 'Point' || !/^(suburb|quarter|neighbourhood|town|village|hamlet|locality)$/.test(p.type)) return;
-    out.places.push([p.name_en || p.name, g.coordinates[1], g.coordinates[0], /^(suburb|town|village)$/.test(p.type) ? 'major' : 'minor']); });
+  each('place_label', (p, g) => { if (g.type !== 'Point' || !/^(city|suburb|quarter|neighbourhood|town|village|hamlet|locality)$/.test(p.type)) return;
+    out.places.push([p.name_en || p.name, g.coordinates[1], g.coordinates[0], p.type === 'city' ? 'region' : /^(suburb|town|village)$/.test(p.type) ? 'major' : 'minor']); });
   each('poi_label', (p, g, ft) => { if (g.type !== 'Point') return; const m = p.maki || '', c = p.class || '';
     const cat = m === 'fuel' ? 'fuel' : /^(restaurant|cafe|fast-food|bar|restaurant-pizza|restaurant-noodle|bakery)$/.test(m) || c === 'food_and_drink' ? 'food' : /^(hospital|doctor)$/.test(m) ? 'health'
       : /^(school|college)$/.test(m) || c === 'education' ? 'school' : m === 'lodging' || c === 'lodging' ? 'hotel' : /mall/i.test(p.type || '') || /mall/i.test(p.name || '') ? 'mall' : m === 'park' || c === 'park_like' ? 'park' : null;

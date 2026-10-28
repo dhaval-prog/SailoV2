@@ -7,10 +7,19 @@
 // - Economy (coins, fuel, fish hold) lives here and is saved in localStorage.
 
 import { buildIsland } from './station-island.js';
+import { CHART, WORLD, project, formatPosition } from './world.js';
+import { regionAt, regionName } from './regions.js';
 import './station.css';
 
 const MILE = 1609.344;
-export const STATION = { name: 'Paradise Station', x: -3.7 * MILE, z: 1.1 * MILE }; // 3.7 mi W, 1.1 mi S of the harbour
+// Where the station sits: Pune Paradise keeps its original spot (3.7 mi W, 1.1 mi S of the harbour);
+// other cities put it at a real harbour / marina found for the chart (harbour.js), kept clear of the
+// centre (where boats start) and of the ocean's edge.
+const spot = (() => { const st = CHART.station; if (!st) return { x: -3.7 * MILE, z: 1.1 * MILE };
+  let [x, z] = project(st.lat, st.lng); const d = Math.hypot(x, z), lim = WORLD.half - 1500;
+  if (d < 900) { if (d < 1) { x = -900; z = 0; } else { x *= 900 / d; z *= 900 / d; } }
+  return { x: Math.max(-lim, Math.min(lim, x)), z: Math.max(-lim, Math.min(lim, z)) }; })();
+export const STATION = { name: 'Paradise Station', at: CHART.station?.name || '', ...spot, where: formatPosition(spot.x, spot.z) };
 const K = 1 / 0.6;           // island scale (source tug was 0.6x)
 const NEAR = 260;            // metres: "Sail into port" offered inside this range
 const SHOW = 2200;           // metres: island drawn inside this range
@@ -30,7 +39,31 @@ export const FISH = [
   { id: 'sailfish', name: 'Sailfish', price: 120, kg: 45, len: 1.65, h: 0.3, w: 0.2, back: '#142d6e', side: '#7f97c4', belly: '#e9eef6', fin: '#22418f', pat: 'sail', bill: 0.5, sail: true, odds: 0.5 },
   { id: 'permit', name: 'Permit', price: 55, kg: 8, len: 0.95, h: 0.62, w: 0.15, back: '#5f6e7a', side: '#d6dde2', belly: '#f3f2ea', fin: '#3c4652', pat: 'none', hump: 0.12, odds: 2.5 },
   { id: 'johndory', name: 'John Dory', price: 32, kg: 2.5, len: 0.8, h: 0.62, w: 0.12, back: '#8a7a4e', side: '#cbbf93', belly: '#ece4c8', fin: '#7d6c40', pat: 'dory', odds: 4 },
+  // regional species: only caught in their own waters (where), so travelling fills the collection
+  { id: 'pomfret', name: 'Silver Pomfret', price: 28, kg: 0.6, len: 0.6, h: 0.55, w: 0.09, back: '#8d9aa6', side: '#d9dee3', belly: '#f6f7f8', fin: '#aab4bd', pat: 'none', hump: 0.1, odds: 8, where: 'arabian' },
+  { id: 'kingfish', name: 'Kingfish (Surmai)', price: 38, kg: 6, len: 1.35, h: 0.2, w: 0.14, back: '#2d4d6a', side: '#b9c7d2', belly: '#f1f4f6', fin: '#3e5a72', pat: 'spots', odds: 5, where: 'arabian' },
+  { id: 'hilsa', name: 'Hilsa', price: 22, kg: 1.1, len: 0.75, h: 0.28, w: 0.12, back: '#5b6f8a', side: '#c9d2dc', belly: '#f4f5f7', fin: '#8193a8', pat: 'none', hump: 0.08, odds: 6, where: 'arabian' },
+  { id: 'yellowtail', name: 'Yellowtail', price: 40, kg: 5, len: 1.1, h: 0.26, w: 0.17, back: '#3a5a7a', side: '#c4d0da', belly: '#f2f4f5', fin: '#f2c43a', pat: 'tuna', odds: 6, where: 'westpac' },
+  { id: 'seabream', name: 'Red Sea Bream', price: 30, kg: 1.5, len: 0.72, h: 0.4, w: 0.13, back: '#d86a78', side: '#f2a9ad', belly: '#fde6e3', fin: '#e07f87', pat: 'mahi', hump: 0.2, odds: 8, where: 'westpac' },
+  { id: 'salmon', name: 'Atlantic Salmon', price: 45, kg: 4.5, len: 1.0, h: 0.26, w: 0.17, back: '#465a6e', side: '#d8c4c2', belly: '#fbeee9', fin: '#5b6c7e', pat: 'speckle', odds: 8, where: 'north' },
+  { id: 'halibut', name: 'Halibut', price: 60, kg: 20, len: 1.3, h: 0.62, w: 0.09, back: '#5b5040', side: '#7a6c56', belly: '#f2efe8', fin: '#6a5d48', pat: 'speckle', flat: true, odds: 3, where: 'north' },
+  { id: 'seabass', name: 'European Sea Bass', price: 26, kg: 2, len: 0.85, h: 0.26, w: 0.15, back: '#55687a', side: '#c7d0d8', belly: '#f3f5f6', fin: '#6d7f90', pat: 'none', odds: 9, where: 'atlantic' },
+  { id: 'redmullet', name: 'Red Mullet', price: 18, kg: 0.4, len: 0.55, h: 0.2, w: 0.12, back: '#c2563f', side: '#ec9a7d', belly: '#fbe2d4', fin: '#e38a6d', pat: 'none', barbel: true, odds: 10, where: 'atlantic' },
+  { id: 'reddrum', name: 'Red Drum', price: 30, kg: 4, len: 1.0, h: 0.28, w: 0.17, back: '#9c6a3c', side: '#d6a873', belly: '#f6eadb', fin: '#a87a4b', pat: 'none', odds: 8, where: 'americas' },
+  { id: 'stripedbass', name: 'Striped Bass', price: 34, kg: 5, len: 1.05, h: 0.28, w: 0.17, back: '#4e5e6c', side: '#cfd6dc', belly: '#f4f5f6', fin: '#62707c', pat: 'stripes', odds: 7, where: 'americas' },
+  { id: 'barramundi', name: 'Barramundi', price: 50, kg: 6, len: 1.1, h: 0.32, w: 0.18, back: '#6d7a6a', side: '#d3d8cc', belly: '#f3f3ec', fin: '#7c7f6a', pat: 'none', hump: 0.12, odds: 7, where: 'southern' },
 ];
+/** This chart's ocean region (decides the local fish). */
+export const REGION = regionAt(CHART.lat, CHART.lng);
+const WARM = new Set(['puffer', 'tuna', 'barracuda', 'mahi', 'swordfish', 'sailfish', 'permit', 'snapper']), COLD = new Set(['cod', 'flounder']);
+/** How likely a species is here: regional fish only in their own waters; warm-water fish are scarce
+ *  in cold northern seas, where cod and flounder are commoner (and rarer in the tropics). */
+export const localOdds = f => { const r = REGION.id; if (f.where) return f.where === r ? f.odds : 0;
+  if (WARM.has(f.id)) return f.odds * (r === 'north' ? 0.15 : 1);
+  if (COLD.has(f.id)) return f.odds * (r === 'north' ? 3 : r === 'arabian' || r === 'westpac' ? 0.5 : 1);
+  return f.odds; };
+/** Where a species can be caught, for the collection. */
+export const fishWhere = f => f.where ? regionName(f.where) : 'All seas';
 const SAVE = 'sailo:economy', FUEL_PRICE = 2;
 // each boat has its own tank, hold and top speed; burn = engine use per metre relative to the tug
 export const BOAT_SPECS = {
@@ -181,6 +214,7 @@ export function initStation(ctx) {
       if (f.pat === 'bars' && y > 0.2 && Math.sin(x * 26 + Math.sin(y * 5 + z * 3) * 2.2) > 0.25) c.lerp(dk, 0.7);
       if (f.pat === 'spots' && y > 0.05 && y < 0.35 && x > -0.1 && Math.sin(x * 38) > 0.82) c.lerp(dk, 0.55);
       if (f.pat === 'tuna' && y > 0.1 && y < 0.28) c.lerp(gold, 0.55);
+      if (f.pat === 'stripes' && y > -0.45 && Math.sin(y * 34) > 0.55) c.lerp(dk, 0.55); // striped bass: lines along the body
       if (f.pat === 'dots' && y > -0.15 && Math.sin(x * 22) * Math.sin(z * 22 + x * 5) > 0.55) c.lerp(brown, 0.7);
       if (f.pat === 'speckle' && y > -0.1 && Math.sin(x * 47 + z * 13) * Math.sin(y * 39 - z * 21) > 0.62) c.lerp(brown, 0.45); // cod, flounder
       if (f.pat === 'barra' && y > 0.05 && y < 0.6 && Math.sin(x * 19) > 0.55) c.lerp(dk, 0.55); // barracuda bars
@@ -434,7 +468,7 @@ export function initStation(ctx) {
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
     burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - metres * (0.35 + 0.65 * thr) / 150 * BOAT_SPECS[S.active].burn);
-      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast('Fuel is low. Refuel at Paradise Station (3.7 mi W, 1.1 mi S).'); }
+      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast(`Fuel is low. Refuel at Paradise Station (${STATION.where}).`); }
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },
     /** A fish was landed: pick a species by its odds and put it in the hold. Returns the fish, or null if the hold is full. */
@@ -444,10 +478,13 @@ export function initStation(ctx) {
     /** Put a fish in the hold: a given species (from the fishing game) or one picked by the odds. Returns the fish, or null if the hold is full. */
     addCatch(id) { if (holdCount() >= S.holdCap) { toast(`Hold full (${S.holdCap} fish). Sell your catch at Paradise Station, or switch boats.`); return null; }
       let f = FISH.find(x => x.id === id);
-      if (!f) { let r = Math.random() * FISH.reduce((a, x) => a + x.odds, 0); f = FISH[0]; for (const x of FISH) { r -= x.odds; if (r <= 0) { f = x; break; } } }
+      if (!f) { let r = Math.random() * FISH.reduce((a, x) => a + localOdds(x), 0); f = FISH[0]; for (const x of FISH) { r -= localOdds(x); if (r <= 0) { f = x; break; } } }
       S.hold[f.id] = (S.hold[f.id] || 0) + 1; save(); return f; },
     /** Coins for releasing a fish. */
     addCoins(n) { S.coins += n; save(); renderWallet(); },
+    /** Pay for something (a sea-plane fare): false when there aren't enough coins. */
+    spend(n) { if (S.coins < n) return false; S.coins -= n; save(); renderWallet(); return true; },
+    coins: () => S.coins,
     /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
     fishModel: id => kit().fishModels[id].clone(),
     fishImage: id => { kit(); return FISH.find(f => f.id === id)?.img; },
