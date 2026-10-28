@@ -118,7 +118,8 @@ async function osmPlaces(b) {
   for (const e of j.elements || []) {
     const t = e.tags || {}, name = osmName(t); if (!name) continue;
     const kind = OSM_MINOR.has(t.place) ? 'minor' : 'major';
-    if (e.type === 'node') { d.places.push([name, e.lat, e.lon, kind]); continue; }
+    if (e.type === 'node') { if (t.place) d.places.push([name, e.lat, e.lon, kind]); continue; }
+    if (!t.place && t.boundary !== 'administrative') continue;
     const rs = e.type === 'way' ? [e.geometry.map(p => [p.lat, p.lon])] : rings(e.members || []);
     rs.forEach(r => d.zones.push([name, r, t.boundary === 'administrative' ? 1 : 0])); // admin areas only count when they match a locality
     if (t.place && rs[0]) { const [lat, lng] = centroidLL(rs[0]); d.places.push([name, lat, lng, kind]); }
@@ -151,13 +152,14 @@ async function osmPois(b, societiesOnly) {
 let mbTilesets = null, mbLib = null;
 async function mapbox(x, y, z) {
   if (!mbLib) { const [vt, pbf] = await Promise.all([import('@mapbox/vector-tile'), import('pbf')]); mbLib = { VectorTile: vt.VectorTile, Pbf: pbf.default }; }
-  if (!mbTilesets) { // the style's own vector sources (falls back to Mapbox Streets)
-    mbTilesets = 'mapbox.mapbox-streets-v8';
+  mbTilesets ||= (async () => { // the style's own vector sources (falls back to Mapbox Streets)
     try { const [, user, id] = MAPBOX_STYLE.match(/styles\/([^/]+)\/([^/?]+)/); const r = await fetch(`https://api.mapbox.com/styles/v1/${user}/${id}?access_token=${TOKEN}`);
-      if (r.ok) { const s = await r.json(), src = Object.values(s.sources || {}).find(v => v.type === 'vector' && /^mapbox:\/\//.test(v.url || '')); if (src) mbTilesets = src.url.replace('mapbox://', ''); } }
+      if (r.ok) { const s = await r.json(), src = Object.values(s.sources || {}).find(v => v.type === 'vector' && /^mapbox:\/\//.test(v.url || '')); if (src) return src.url.replace('mapbox://', ''); } }
     catch { /* keep the default */ }
-  }
-  const r = await fetch(`https://api.mapbox.com/v4/${mbTilesets}/${z}/${x}/${y}.vector.pbf?access_token=${TOKEN}`); if (!r.ok) return null;
+    return 'mapbox.mapbox-streets-v8';
+  })();
+  const ts = await mbTilesets;
+  const r = await fetch(`https://api.mapbox.com/v4/${ts}/${z}/${x}/${y}.vector.pbf?access_token=${TOKEN}`); if (!r.ok) return null;
   const tile = new mbLib.VectorTile(new mbLib.Pbf(new Uint8Array(await r.arrayBuffer()))), out = { places: [], pois: [] };
   const each = (layer, f) => { const L = tile.layers[layer]; if (!L) return; for (let i = 0; i < L.length; i++) { const ft = L.feature(i); f(ft.properties, ft.toGeoJSON(x, y, z).geometry, ft); } };
   each('place_label', (p, g) => { if (g.type !== 'Point' || !/^(suburb|quarter|neighbourhood|town|village|hamlet|locality)$/.test(p.type)) return;
@@ -175,24 +177,20 @@ async function mapbox(x, y, z) {
 
 // ---------- loading by visible bounds ----------
 const requested = new Set();
-function loadTile(layer, x, y, z) {
-  const id = `${provider}:${layer}:${z}/${x}/${y}`; if (requested.has(id)) return; requested.add(id);
+// each source loads on its own (Mapbox tiles come back fast; Overpass requests are queued)
+function loadTile(src, layer, x, y, z) {
+  const id = `${src}:${layer}:${z}/${x}/${y}`; if (requested.has(id)) return; requested.add(id);
   (async () => {
     let d = await cacheGet(id);
     if (!d) {
       const b = tileBox(x, y, z);
-      if (layer === 'places') {
-        const [mb, osm] = await Promise.all([provider === 'mapbox' ? mapbox(x, y, z).catch(() => null) : null, osmPlaces(b)]);
-        d = { places: [...(mb?.places || []), ...(osm?.places || [])], zones: osm?.zones || [] };
-        if (!mb && !osm) { requested.delete(id); return; } // offline: try again later
-      } else {
-        const [mb, osm] = await Promise.all([provider === 'mapbox' ? mapbox(x, y, z).catch(() => null) : null, osmPois(b, provider === 'mapbox')]);
-        d = { pois: [...(mb?.pois || []), ...(osm || [])] };
-        if (!mb && !osm) { requested.delete(id); return; }
-      }
+      if (src === 'mapbox') { d = await mapbox(x, y, z); if (d && layer === 'places') d.pois = []; else if (d) d.places = []; }
+      else if (layer === 'places') d = await osmPlaces(b);
+      else { const p = await osmPois(b, provider === 'mapbox'); d = p && { pois: p }; }
+      if (!d) { requested.delete(id); return; } // offline or failed: ask again later
       cachePut(id, d);
     }
-    d.places?.forEach(([n, lat, lng, k]) => addPlace(n, lat, lng, k, null, provider));
+    d.places?.forEach(([n, lat, lng, k]) => addPlace(n, lat, lng, k, null, src));
     d.zones?.forEach(([n, r, admin]) => { if (!admin || places.has(keyOf(n))) addZone(n, r); });
     d.pois?.forEach(([i, n, lat, lng, k, c]) => addPoi(i, n, lat, lng, k, c));
   })().catch(() => requested.delete(id));
@@ -202,8 +200,9 @@ export function ensure(x0, z0, x1, z1, detail = false) {
   const h = WORLD.half; x0 = Math.max(-h, x0); z0 = Math.max(-h, z0); x1 = Math.min(h, x1); z1 = Math.min(h, z1); if (x0 >= x1 || z0 >= z1) return;
   const [n, w] = unproject(x0, z0), [s, e] = unproject(x1, z1);
   const tiles = (z, max) => { const out = []; for (let x = lng2t(w, z); x <= lng2t(e, z); x++) for (let y = lat2t(n, z); y <= lat2t(s, z); y++) out.push([x, y]); return out.length <= max ? out : []; };
-  tiles(Z_PLACES, 30).forEach(([x, y]) => loadTile('places', x, y, Z_PLACES));
-  if (detail) tiles(Z_POIS, 12).forEach(([x, y]) => loadTile('pois', x, y, Z_POIS));
+  if (provider === 'mapbox') tiles(Z_PLACES, 30).forEach(([x, y]) => loadTile('mapbox', 'places', x, y, Z_PLACES));
+  tiles(Z_PLACES - 1, 9).forEach(([x, y]) => loadTile('osm', 'places', x, y, Z_PLACES - 1)); // fewer, larger Overpass queries
+  if (detail) tiles(Z_POIS, 12).forEach(([x, y]) => { if (provider === 'mapbox') loadTile('mapbox', 'pois', x, y, Z_POIS); loadTile('osm', 'pois', x, y, Z_POIS); });
 }
 
 // ---------- queries ----------

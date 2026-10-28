@@ -6,6 +6,7 @@ import { loadPosition, localPosition, savePosition } from './persist.js';
 import { initStation, STATION, BOAT_SPECS, boatStatus } from './station.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
+import * as geo from './geo.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
@@ -960,4 +961,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

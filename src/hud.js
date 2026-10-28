@@ -190,7 +190,7 @@ export function initHud(api) {
     scaleG.setAttribute('transform', `translate(${x0 + u * 5 * k} ${y0 + view.w - u * 5 * k})`);
     scaleP.setAttribute('d', `M0 ${-u * k}V0H${len}V${-u * k}`); scaleP.setAttribute('stroke-width', u * 0.4 * k);
     scaleT.setAttribute('x', len / 2); scaleT.setAttribute('y', -u * 2 * k); scaleT.setAttribute('font-size', u * 2.8 * k);
-    scaleT.textContent = len < 1000 ? `${len} m` : `${+(len / WORLD.mile).toFixed(1)} mi`;
+    scaleT.textContent = len < 500 ? `${len} m` : len === WORLD.mile / 2 ? '½ mi' : len === 500 ? '500 m' : `${+(len / WORLD.mile).toFixed(1)} mi`;
     $('map-zoom-l').textContent = ['', 'Pune', 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
     placeMarks(); geoDirty = true;
     ensure(x0, y0, x0 + view.w, y0 + view.w, mapLevel() === 4);
@@ -206,7 +206,8 @@ export function initHud(api) {
     const L = mapLevel(), px = mapSvg.getBoundingClientRect().width / view.w || 0.02, x0 = view.cx - view.w / 2, y0 = view.cz - view.w / 2;
     const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])];
     const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + view.w).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
-    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16]];
+    const S = view.w * px; // map size in pixels; keep names clear of the boat, the zoom buttons, the scale bar and the north arrow
+    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16], [S - 210, S - 50, S, S], [0, S - 42, 110, S], [S - 50, 0, S, 70]];
     let n = 0;
     for (const p of items) {
       if (n > 140) break;
