@@ -40,8 +40,8 @@ body .fg-tap { padding: 0; width: 64px; height: 64px; display: grid; place-items
 /* the catch: no card. A soft dark scrim, the fish floating, white type, ring buttons */
 body .fg-card-wrap { background: radial-gradient(ellipse at 50% 50%, rgba(6, 24, 60, 0.62), rgba(6, 24, 60, 0.35) 60%, rgba(6, 24, 60, 0.15)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 body .fg-card { width: min(380px, 100%); padding: 0; border-radius: 0; background: none; box-shadow: none; text-shadow: var(--nh-ts); animation: fn-pop 0.45s ease-out; }
-body .fg-badge { position: static; display: inline-block; transform: none; margin-bottom: 4px; padding: 0; border-radius: 0; background: none; box-shadow: none; color: #FFC531; font: 900 13px/1 var(--nh-font, 'Nunito', sans-serif); letter-spacing: 0.22em; text-transform: uppercase; animation: fn-shine 1.6s ease-in-out infinite; }
-body .fg-card img { width: 210px; height: 130px; filter: drop-shadow(0 10px 14px rgba(0, 20, 50, 0.5)); animation: fn-float 2.4s ease-in-out infinite; }
+body .fg-badge { position: static; display: block; transform: none; margin-bottom: 4px; padding: 0; border-radius: 0; background: none; box-shadow: none; color: #FFC531; font: 900 13px/1 var(--nh-font, 'Nunito', sans-serif); letter-spacing: 0.22em; text-transform: uppercase; animation: fn-shine 1.6s ease-in-out infinite; }
+body .fg-card img { display: block; margin: 10px auto 6px; width: 210px; height: 130px; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(0, 20, 50, 0.5)); animation: fn-float 2.4s ease-in-out infinite; }
 body .fg-card h3 { margin: 2px 0 6px; font: 900 32px/1.05 var(--nh-font, 'Nunito', sans-serif); }
 body .fg-stars { font-size: 20px; letter-spacing: 3px; color: #FFC531; filter: var(--nh-ds); }
 body .fg-stars span { color: rgba(255, 255, 255, 0.3); }

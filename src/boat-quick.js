@@ -1,4 +1,4 @@
-// While fishing (or at anchor): two rings beside the boat, on a curve at its top-right corner,
+// While fishing (or at anchor): two rings beside the boat, on a slant above its top-right corner,
 // for "Stop fishing" and "Raise anchor" (or "Drop anchor"). They follow the boat in any view,
 // sit at 50% opacity and light up on hover.
 
@@ -34,11 +34,12 @@ export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }
     anchorB.disabled = s.anchorBusy;
     if (t - lastT > 0.05 || !rect) { lastT = t; rect = measure() || rect; }
     if (!rect) return;
-    // two rings on a quarter-curve hugging the boat's top-right corner
-    const cx = rect[2], cy = rect[1] + Math.min(60, (rect[3] - rect[1]) * 0.25), R = 50;
-    const vis = [fishB, anchorB].filter(b => !b.hidden);
-    vis.forEach((b, i) => { const a = (vis.length === 1 ? -15 : -38 + i * 52) * Math.PI / 180;
-      const x = Math.min(innerWidth - 30, cx + 8 + Math.cos(a) * R * 0.6), y = Math.max(30, cy + Math.sin(a) * R);
+    // two rings stacked on a slant above the boat's top-right corner, with a gap between them
+    const cx = rect[2], cy = rect[1] + Math.min(40, (rect[3] - rect[1]) * 0.15);
+    const vis = [fishB, anchorB].filter(b => !b.hidden), at = vis.length === 1 ? [[26, -30]] : [[10, -78], [52, -22]];
+    // near a screen edge the pair moves as one, so the slant and the gap hold
+    const ox = Math.min(0, innerWidth - 30 - (cx + Math.max(...at.map(a => a[0])))), oy = Math.max(0, 30 - (cy + Math.min(...at.map(a => a[1]))));
+    vis.forEach((b, i) => { const x = cx + at[i][0] + ox, y = cy + at[i][1] + oy;
       b.style.left = x.toFixed(1) + 'px'; b.style.top = y.toFixed(1) + 'px'; });
   }
   return { update };
