@@ -22,6 +22,8 @@
     "@capacitor/android": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
+    "@mapbox/vector-tile": "^2.0.5",
+    "pbf": "^4.0.2",
     "three": "0.184.0"
   },
   "devDependencies": {
@@ -33,10 +35,24 @@
   "build": {
     "appId": "com.sailo.app",
     "productName": "Sailo",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
-    "mac": { "category": "public.app-category.games", "target": "dmg" },
-    "win": { "target": "nsis" },
-    "linux": { "target": "AppImage", "category": "Game" }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.games",
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game"
+    }
   }
 }

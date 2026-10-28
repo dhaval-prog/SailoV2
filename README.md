@@ -15,6 +15,12 @@ Sail. Discover. Connect.
 - A painted, animated sea that the boat rides on, with bow spray, wake foam and ripples.
 - **Quick actions** (left of the avatar; stacked under it on phones): **My fleet** (opens the Garage: pick your boat (Lighthouse Tug, Sail Boat, Motor Yacht or Dinghy Sailing Boat), style the sail boat's sails, fly a custom flag on the yacht, colour the dinghy's sails, and see fuel, hold, coins and stats), **Search** (find a place, e.g. Paradise Station, and sail there) and **Inbox** (messages from the harbour).
 - **Account & settings** (avatar, top right): editable captain name, rank, stats (fish caught, distance, top speed), Day/Night toggle, six weather presets (Clear, Cloudy, Rain, Storm, Fog, Snow) and model export. Choices are remembered between visits.
+- **Pune as an ocean**: the sea is Pune's real geography turned into water: no land, just floating place names at their true positions.
+  - The ocean square (400 sq mi, 20 mi a side) is sized from the real coordinates of the starter localities in `src/geo-seed.js` plus a 2.5 km margin, centred on Pune. Latitude/longitude map onto it with a local flat projection (`src/world.js`).
+  - Names load live for the area in view and are cached for a week. With a public Mapbox token (`VITE_MAPBOX_TOKEN`), locality, landmark and road names come from the tilesets of the Sailo Mapbox style; otherwise from OpenStreetMap (Overpass). OpenStreetMap also supplies neighbourhood boundary polygons. The starter list shows until live data arrives, or when offline.
+  - **On the sea**, zoom picks the detail: far out shows Pune, Pimpri-Chinchwad and East/West/South/North Pune; then major neighbourhoods; then smaller localities (the default view); close in adds restaurants, hotels, malls, petrol pumps, hospitals, schools, parks, roads and residential societies near the boat. Names out of sight float on the horizon in their true direction with the distance. Names never overlap each other, the boat or the fishing game.
+  - **Entering / leaving**: crossing into a locality shows "Leaving Magarpatta City" then "Entering Keshav Nagar" (boundary polygons when known, nearest locality otherwise), and the location chip shows where you are.
+  - **Map**: scroll, pinch or use + / − to zoom through the same four levels, drag to pan, and tap to pin a course (the tooltip names the locality). Search lists every locality, so you can sail to one.
 - **Paradise Station** (3.7 mi W, 1.1 mi S of the harbour, marked on the map): a harbour island built exactly as in the station file: painted sand, swaying palms, scuttling crabs, starfish and shells, a market stall, a boathouse, an L-shaped pier with waving flags and pennants, a blinking beacon, lanterns and fireflies at night, foam along the shore and calm turquoise shallows. Sail close and press **Sail into port**, pick one of four berths and the tug moors itself; then:
   - **Fish Market**: put fish from your hold into the selling crate (it weighs them) and sell them for coins. Thirteen species, each with its own look, price, weight and catch chance: Sardine 4c (24%), Mackerel 9c (20%), Red Snapper 16c (14%), Pufferfish 24c (9%), Yellowfin Tuna 42c (5%), Cod 14c (6%), Flounder 12c (7%), Barracuda 35c (4%), Mahi-Mahi 48c (3%), Swordfish 95c (1%), Sailfish 120c (0.5%), Permit 55c (2.5%) and John Dory 32c (4%). Your catch goes into a 30-fish hold.
   - **Boathouse**: pump fuel at 2c a litre (hold to pump, +10 L or fill up) and see what's on board.
@@ -63,6 +69,9 @@ App id: `com.sailo.app`. The icons and splash screens come from `resources/` via
 index.html               UI overlay markup
 src/main.js              scene: boat model, sea, sky, weather, sailing, fishing, anchor
 src/world.js             Pune Paradise: world size, bounds and position helpers
+src/geo.js               Pune place data: Mapbox / OpenStreetMap loading, cache, zones
+src/geo-labels.js        floating place names over the sea, Entering/Leaving notices
+src/geo-seed.js          starter Pune localities with real coordinates
 src/fishing.js           playable fishing: cast meter, shadows and bites, the fight, catch card, fish log
 src/station.js           Paradise Station: island model, docking, Fish Market, Boathouse, coins and fuel
 src/boats/sailboat.js    the Sail Boat, built in code from Sail_Boat.html (rig, sails that furl at anchor, sail styles)

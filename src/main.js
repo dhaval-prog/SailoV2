@@ -5,6 +5,8 @@ import { WORLD, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
 import { initStation, STATION, BOAT_SPECS, boatStatus } from './station.js';
 import { createFishing, fishLog, stars } from './fishing.js';
+import { createSeaLabels } from './geo-labels.js';
+import * as geo from './geo.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
@@ -831,6 +833,13 @@ const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, 
   shake: () => stage.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-5px,3px)' }, { transform: 'translate(4px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260 }),
   landPoint: () => new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld),
   night: () => E.night, weather: () => state.w, yaw: () => yaw });
+// Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
+const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
+const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
+  avoid: () => { const out = [menu.style.display !== 'none' ? rectOf(menu) : null, rectOf(document.getElementById('fg-fight')), rectOf(document.getElementById('fg-strike')), rectOf(document.getElementById('fg-tap'))];
+    if (bobber.visible) { const [x, y] = toScreen(bobber.position); out.push([x - 60, y - 70, x + 60, y + 30]); }
+    return out.filter(Boolean); },
+  onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 (function tick() {
   const t = clock.getElapsedTime();
@@ -910,6 +919,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
+  seaLabels.update(t);
   requestAnimationFrame(tick);
 })();
 
@@ -951,4 +961,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
