@@ -71,7 +71,14 @@ body.fishing #helm { opacity: 0; transform: translateY(16px); pointer-events: no
   transition: opacity 0.25s ease, background 0.25s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); animation: nh-popIn 0.4s ease-out both; }
 #boat-quick button + button { animation-delay: 0.08s; }
 #boat-quick button[hidden] { display: none; }
-#boat-quick button img { width: 22px; height: 22px; filter: var(--nh-ds); pointer-events: none; }
+#boat-quick button img { grid-area: 1 / 1; width: 22px; height: 22px; filter: var(--nh-ds); pointer-events: none; }
+#boat-quick button img.n { opacity: 0; filter: none; }
+/* active (fishing / anchored): a filled white ring with the navy icon; the anchor glows */
+#boat-quick button.on { opacity: 1; background: #fff; border-color: rgba(255, 255, 255, 0.6); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3), 0 4px 14px rgba(0, 20, 50, 0.35); }
+#boat-quick button.on img.w { opacity: 0; }
+#boat-quick button.on img.n { opacity: 1; }
+#boat-quick #bq-anchor.on { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.25), 0 4px 14px rgba(0, 20, 50, 0.35); }
+#boat-quick button.on:hover, #boat-quick button.on:focus-visible { background: #fff; }
 #boat-quick button:hover, #boat-quick button:focus-visible { opacity: 1; background: rgba(255, 255, 255, 0.16); transform: scale(1.08); outline: none; }
 #boat-quick button:active { transform: scale(0.92); }
 #boat-quick button span { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap; font: 800 12.5px/1 var(--nh-font, 'Nunito', sans-serif); color: #fff; text-shadow: var(--nh-ts); opacity: 0; transition: opacity 0.2s; pointer-events: none; }

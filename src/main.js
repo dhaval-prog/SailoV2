@@ -519,12 +519,29 @@ hug.rotation.order = 'YXZ'; rings.forEach(r => r.rotation.order = 'YXZ'); boat.r
 const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
-{ const base = document.getElementById('joy'), knob = document.getElementById('knob'), dir = document.getElementById('joy-dir'); let id = null;
-  const move = e => { const r = base.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const R = r.width / 2 - 26, l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; } knob.style.transform = `translate(${dx}px, ${dy}px)`; drive.jx = dx / R; drive.jy = dy / R;
-    dir.style.height = Math.min(l, R) + 'px'; dir.style.transform = `translateX(-50%) rotate(${Math.atan2(dy, dx) - Math.PI / 2}rad)`; };
-  base.addEventListener('pointerdown', e => { id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); move(e); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8); });
-  base.addEventListener('pointermove', e => e.pointerId === id && move(e));
-  const end = e => { if (e.pointerId !== id) return; id = null; base.classList.remove('active'); drive.jx = drive.jy = 0; knob.style.transform = 'translate(0px, 0px)'; };
+// the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
+// back to the middle to stop) and the rim is the wheel (turn it round and round: two full
+// turns either way is full rudder). Like a real helm, both stay where you leave them.
+const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
+{ const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
+  const geo = e => { const r = base.getBoundingClientRect(), k = r.width / 170; return { k, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) }; };
+  const paintLever = () => { const R = 40; knob.style.transform = `translate(0px, ${(-HELM.lever * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
+    base.classList.toggle('fwd', HELM.lever > 0); base.classList.toggle('rev', HELM.lever < 0); };
+  HELM.paint = paintLever;
+  HELM.reset = () => { if (!HELM.lever && !HELM.deg) return; HELM.lever = 0; HELM.deg = 0; paintLever(); };
+  const lever = g => { let v = -g.dy / (40 * g.k); v = Math.max(-1, Math.min(1, v)); HELM.lever = Math.abs(v) < 0.12 ? 0 : v; paintLever(); };
+  base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
+    id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8);
+    // on the hub (or the slot it slides in): the lever; anywhere else: the wheel
+    HELM.mode = Math.abs(g.dx) < 24 * g.k && (Math.hypot(g.dx, g.dy - hubY) < 24 * g.k || Math.abs(g.dy) < 46 * g.k) ? 'lever' : 'wheel';
+    base.classList.toggle('lever', HELM.mode === 'lever');
+    if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
+  base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
+    if (HELM.mode === 'lever') { lever(g); return; }
+    if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
+    const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
+    HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; base.classList.remove('active', 'lever'); };
   base.addEventListener('pointerup', end); base.addEventListener('pointercancel', end); }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
@@ -748,6 +765,7 @@ function setCourse(p, far = false) {
   if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; }
   const off = p.clone().sub(boat.position).setY(0); if (!far && off.length() > 150) off.setLength(150);
   if (off.length() < 5) return false;
+  HELM.reset(); // the autopilot takes the helm
   course.p.copy(boat.position).add(off).setY(WL); [course.p.x, course.p.z] = clampToWorld(course.p.x, course.p.z, 30); course.on = true; course.k = 0; course.out = false;
   markG.visible = true; markG.position.copy(course.p);
   splash(course.p.x, course.p.z, 14, 0.7); document.body.classList.add('has-course');
@@ -842,10 +860,11 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
   const k = drive.keys;
-  let thr = Math.max(-1, Math.min(1, -drive.jy + (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)));
-  let str = Math.max(-1, Math.min(1, drive.jx + (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)));
+  const kThr = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0), kStr = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
+  let thr = Math.max(-1, Math.min(1, HELM.lever + kThr));
+  let str = Math.max(-1, Math.min(1, HELM.deg / HELM.TURNS + kStr));
   if (ACT.fish === 'fight') { thr = 0; str = 0; } // arrow keys are swipes while fighting a fish
-  const manual = Math.abs(thr) > 0.05 || Math.abs(str) > 0.05;
+  const manual = !!HELM.mode || kThr !== 0 || kStr !== 0; // hands on the helm (the lever and wheel stay set, so a set course isn't dropped by them)
   if (manual) { stage._controls.autoRotate = false; clearCourse(false); }
   if (course.on && ACT.anchor === 'up') {
     // autopilot: turn toward the buoy, ease off the throttle in tight turns and on approach
@@ -857,9 +876,9 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     stage._controls.autoRotate = false;
   }
   if (ACT.anchor !== 'up') thr = 0;
-  const busy = stationBusy(); if (busy) { thr = 0; str = 0; } // the station steers while mooring / moored
+  const busy = stationBusy(); if (busy) { thr = 0; str = 0; HELM.reset(); } // the station steers while mooring / moored
   steerS += (str - steerS) * Math.min(1, dt * 4);
-  wheelUI.style.transform = `rotate(${steerS * 120}deg)`; // on-screen wheel turns with the helm
+  wheelUI.style.transform = `rotate(${HELM.mode === 'wheel' ? HELM.deg : steerS * HELM.TURNS}deg)`; // on-screen wheel: follows the hand, or the autopilot
   if (!stage._exporting) {
     vel += (thr * MAXV * fuelK - vel) * Math.min(1, dt * 0.7);
     const sv = vel / MAXV;
@@ -932,7 +951,7 @@ stage._exportObj = clean(stage._exportObj.bind(stage));
 stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
-if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Steer with the wheel, or tap the water to set a course';
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Push the lever up to go, down to reverse · turn the wheel to steer';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 // the helm hint is a one-time guide: it fades after the first steer (or a few seconds) and stays hidden on later visits
 { const hint = document.getElementById('hint'), KEY = 'sailo-hint-seen'; let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }

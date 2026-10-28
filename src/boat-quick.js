@@ -4,8 +4,9 @@
 
 export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }) {
   const el = document.createElement('div'); el.id = 'boat-quick'; el.hidden = true;
-  el.innerHTML = `<button type="button" id="bq-fish"><img src="/boat/white/go-fishing.svg" alt=""><span></span></button>
-    <button type="button" id="bq-anchor"><img src="/boat/white/drop-anchor.svg" alt=""><span></span></button>`;
+  // each ring has a white icon and a navy one: the navy one shows on the filled (active) ring
+  el.innerHTML = `<button type="button" id="bq-fish"><img class="w" src="/boat/white/go-fishing.svg" alt=""><img class="n" src="/boat/navy/go-fishing.svg" alt=""><span></span></button>
+    <button type="button" id="bq-anchor"><img class="w" src="/boat/white/drop-anchor.svg" alt=""><img class="n" src="/boat/navy/drop-anchor.svg" alt=""><span></span></button>`;
   document.body.appendChild(el);
   const fishB = el.querySelector('#bq-fish'), anchorB = el.querySelector('#bq-anchor');
   const label = (b, t) => { if (b.dataset.t !== t) { b.dataset.t = t; b.querySelector('span').textContent = t; b.setAttribute('aria-label', t); } };
@@ -32,13 +33,14 @@ export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }
     fishB.hidden = !s.fishing; label(fishB, 'Stop fishing');
     anchorB.hidden = !(s.anchored || s.fishing); label(anchorB, s.anchored ? 'Raise anchor' : 'Drop anchor');
     anchorB.disabled = s.anchorBusy;
+    fishB.classList.toggle('on', s.fishing); anchorB.classList.toggle('on', s.anchored); // fishing / at anchor: the ring fills white
     if (t - lastT > 0.05 || !rect) { lastT = t; rect = measure() || rect; }
     if (!rect) return;
     // two rings stacked on a slant above the boat's top-right corner, with a gap between them
     const cx = rect[2], cy = rect[1] + Math.min(40, (rect[3] - rect[1]) * 0.15);
     const vis = [fishB, anchorB].filter(b => !b.hidden), at = vis.length === 1 ? [[26, -30]] : [[10, -78], [52, -22]];
     // near a screen edge the pair moves as one, so the slant and the gap hold
-    const ox = Math.min(0, innerWidth - 30 - (cx + Math.max(...at.map(a => a[0])))), oy = Math.max(0, 30 - (cy + Math.min(...at.map(a => a[1]))));
+    const ox = Math.min(0, innerWidth - 110 - (cx + Math.max(...at.map(a => a[0])))), oy = Math.max(0, 120 - (cy + Math.min(...at.map(a => a[1])))); // clear of the top bar and the dock
     vis.forEach((b, i) => { const x = cx + at[i][0] + ox, y = cy + at[i][1] + oy;
       b.style.left = x.toFixed(1) + 'px'; b.style.top = y.toFixed(1) + 'px'; });
   }

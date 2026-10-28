@@ -155,7 +155,18 @@ body #joy .rim-dots { fill: none; stroke: rgba(10, 30, 70, 0.45); stroke-width: 
 body #joy .mark { stroke: var(--nh-lime); stroke-width: 3; stroke-linecap: round; }
 body #joy #wheel-rot, body #joy .w-rock { transform-origin: 85px 85px; }
 body #joy:not(.active) .w-rock { animation: nh-rock 5s ease-in-out infinite; }
-body #joy #joy-dir { background: linear-gradient(to top, rgba(212, 220, 110, 0), rgba(212, 220, 110, 0.9)); }
+/* the throttle lever's slot: the hub slides up (ahead) and down (astern) in it */
+body #joy #joy-dir { left: 50%; top: 50%; width: 10px; height: 92px; margin: -46px 0 0 -5px; border-radius: 5px; transform: none; opacity: 1; box-sizing: border-box; border: 1.5px solid rgba(255, 255, 255, 0.45); background: rgba(10, 30, 70, 0.35); box-shadow: 0 1px 4px rgba(0, 20, 50, 0.4); transition: background 0.25s, border-color 0.25s; }
+body #joy #joy-dir::before, body #joy #joy-dir::after { content: ''; position: absolute; left: 50%; width: 0; height: 0; margin-left: -4px; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: 0.7; }
+body #joy #joy-dir::before { top: -9px; border-bottom: 5px solid #fff; }
+body #joy #joy-dir::after { bottom: -9px; border-top: 5px solid #fff; }
+body #joy.fwd #joy-dir { background: linear-gradient(to top, rgba(10, 30, 70, 0.35) 50%, rgba(52, 209, 182, 0.75) 50%); border-color: rgba(110, 231, 197, 0.85); }
+body #joy.rev #joy-dir { background: linear-gradient(to bottom, rgba(10, 30, 70, 0.35) 50%, rgba(255, 122, 69, 0.75) 50%); border-color: rgba(255, 160, 120, 0.85); }
+body #joy.fwd #joy-dir::before { border-bottom-color: #6EE7C5; opacity: 1; }
+body #joy.rev #joy-dir::after { border-top-color: #FF9A6B; opacity: 1; }
+body #joy.active { transform: none; }
+body #joy.active:not(.lever) { cursor: grabbing; }
+body #joy.lever #knob .hub { animation: none; transform: scale(1.12); }
 body #joy #knob { width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
 body #joy #knob .hub { display: block; width: 100%; height: 100%; box-sizing: border-box; border-radius: 50%; border: 3px solid rgba(10, 30, 70, 0.4); background: radial-gradient(circle at 35% 30%, #fff 0, #C9D3E2 45%, #7F8DA6 100%); box-shadow: 0 2px 10px rgba(0, 20, 50, 0.45); animation: nh-breathe 2.6s ease-in-out infinite; }
 body #helm #speedo { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; opacity: 1; white-space: nowrap; animation: nh-blurIn 0.8s ease-out 0.45s backwards; }
@@ -255,6 +266,7 @@ body .geo-attr a { color: inherit; text-decoration: none; }
   body #joy .rim-dots { stroke-width: 2.3; }
   body #joy .mark { display: none; }
   body #joy #knob { width: 23.2px; height: 23.2px; margin: -11.6px 0 0 -11.6px; }
+  body #joy #joy-dir { width: 7px; height: 63px; margin: -31.5px 0 0 -3.5px; }
   body #helm #speedo { gap: 8px; }
   body #speedo #spd { font-size: 18px; margin-right: -4px; }
   body #speedo > span { font-size: 12px; padding-top: 4px; }
