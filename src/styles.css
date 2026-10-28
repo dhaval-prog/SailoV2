@@ -1076,3 +1076,9 @@ body.view-top #you-tag { opacity: 1; }
   .dk-tray { right: calc(100% + 10px); top: auto; bottom: 0; transform: none; flex-direction: column-reverse; align-items: flex-end; animation: dk-tray-up 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
   @keyframes dk-tray-up { from { opacity: 0; transform: translateY(10px) scale(0.94); } }
 }
+
+/* fleet button inside the ⋯ tray: boat icon with the boat count */
+.dk-fleet .dk-n { position: absolute; right: 4px; bottom: 4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #7ff0c8; color: #152042; font: 900 11px/18px system-ui, sans-serif; text-align: center; }
+.dk-fleet .tb-dot { position: absolute; top: 4px; right: 4px; }
+#dk-more.has-new::after { content: ''; position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: #ff6b55; box-shadow: 0 0 0 2px #fff; }
+@media (max-width: 640px) { .dk-zoom.dk-zoom-h { flex-direction: column-reverse; width: 46px; height: auto; } .dk-zoom-h button { width: 46px; height: 46px; } .dk-zoom-h .dk-sep { width: auto; height: 1px; margin: 0 10px; } }
