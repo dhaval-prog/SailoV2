@@ -7,7 +7,7 @@
 // - Economy (coins, fuel, fish hold) lives here and is saved in localStorage.
 
 import { buildIsland } from './station-island.js';
-import { CHART, WORLD, project, formatPosition } from './world.js';
+import { CHART, WORLD, project, formatOffset } from './world.js';
 import { regionAt, regionName } from './regions.js';
 import './station.css';
 
@@ -19,7 +19,7 @@ const spot = (() => { const st = CHART.station; if (!st) return { x: -3.7 * MILE
   let [x, z] = project(st.lat, st.lng); const d = Math.hypot(x, z), lim = WORLD.half - 1500;
   if (d < 900) { if (d < 1) { x = -900; z = 0; } else { x *= 900 / d; z *= 900 / d; } }
   return { x: Math.max(-lim, Math.min(lim, x)), z: Math.max(-lim, Math.min(lim, z)) }; })();
-export const STATION = { name: 'Paradise Station', at: CHART.station?.name || '', ...spot, where: formatPosition(spot.x, spot.z) };
+export const STATION = { name: 'Paradise Station', at: CHART.station?.name || '', ...spot, where: formatOffset(spot.x, spot.z) };
 const K = 1 / 0.6;           // island scale (source tug was 0.6x)
 const NEAR = 260;            // metres: "Sail into port" offered inside this range
 const SHOW = 2200;           // metres: island drawn inside this range

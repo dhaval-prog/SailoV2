@@ -1,7 +1,7 @@
 // Saved charts (city oceans) on this device. No active chart here: boot.js uses this before the
 // scene loads; chart.js fixes the active chart for the session.
 
-const KEY = 'sailo:chart', SEEN = 'sailo:charts';
+const KEY = 'sailo:chart', SEEN = 'sailo:charts', HOME = 'sailo:home';
 
 // Pune Paradise: the original chart; its centre and size come from the Pune localities (world.js)
 export const PUNE = { id: 'pune', name: 'Pune Paradise', city: 'Pune', region: 'Maharashtra', country: 'India', cc: 'IN', lat: 18.5204, lng: 73.8567, tz: 'Asia/Kolkata', station: null }; // (Pune keeps its original station spot)
@@ -28,8 +28,12 @@ export function chartFor(city) {
 /** Save a chart as the active one (and remember it as visited). Reload to sail it. */
 export function setChart(c) {
   const rec = record(c);
-  try { localStorage.setItem(KEY, JSON.stringify(rec)); const seen = read(SEEN) || {}; seen[rec.id] = { ...rec, t: Date.now() }; localStorage.setItem(SEEN, JSON.stringify(seen)); } catch { /* storage blocked */ }
+  try { if (!read(HOME)) localStorage.setItem(HOME, JSON.stringify(rec)); localStorage.setItem(KEY, JSON.stringify(rec)); const seen = read(SEEN) || {}; seen[rec.id] = { ...rec, t: Date.now() }; localStorage.setItem(SEEN, JSON.stringify(seen)); } catch { /* storage blocked */ }
   return rec;
 }
 export const visitedCharts = () => Object.values(read(SEEN) || {});
 
+
+/** Your home city: the first one you sailed (Pune Paradise for players from before cities). */
+export const homeChart = () => { const h = read(HOME); if (validChart(h)) return h; const seen = read(SEEN) || {};
+  return seen.pune ? { ...PUNE, ...seen.pune } : Object.values(seen).sort((a, b) => a.t - b.t)[0] || null; };
