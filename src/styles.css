@@ -1009,9 +1009,9 @@ body.view-top #you-tag { opacity: 1; }
 .wm-home-col small { text-align: right; line-height: 1.35; } .wm-home-col small b { color: #fff; font-size: 13px; }
 
 /* horizon names: plain text, light grey by day and white at night */
-.gl.far { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; color: #e4e9ee; text-shadow: 0 1px 1px rgba(14, 32, 60, 0.85), 0 0 6px rgba(14, 32, 60, 0.6), 0 0 14px rgba(14, 32, 60, 0.35); }
-.gl.far small { color: #d5dce3; }
-#geo-labels.night .gl, #geo-labels.night .gl small { color: #fff; }
+.gl.far { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; color: #5e5e5e; text-shadow: none; }
+.gl.far small { color: #5e5e5e; }
+#geo-labels.night .gl, #geo-labels.night .gl small { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
 /* tapped name -> boat icon (tap it to sail) */
 .gl-boat { display: none; }
 .gl.armed { padding: 0; }
