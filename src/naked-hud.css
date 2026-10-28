@@ -45,9 +45,9 @@ body #hud-tl { position: fixed; z-index: 30; top: var(--nh-top); left: calc(20px
 body #hud-tl #loc, body #hud-tl #clock, body #hud-tl #stn-wallet { position: static; inset: auto; transform: none; opacity: 1; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: #fff; pointer-events: none; }
 body #loc { display: flex; align-items: center; gap: 10px; }
 body #loc .loc-ico { flex: none; position: relative; width: 32px; height: 32px; display: grid; place-items: center; background: none; box-shadow: none; border-radius: 0; }
-body #loc .loc-ico i { position: absolute; width: 12px; height: 12px; border-radius: 50%; }
-body #loc .loc-ico .ping { background: #7FD3FF; animation: nh-ping 2s ease-out infinite; }
-body #loc .loc-ico .dot { background: #fff; box-shadow: 0 0 0 3px #3BA9FF; }
+/* your boat (the pack's fleet icon), rocking gently on the swell */
+body #loc .loc-ico .hi { width: 26px; height: 26px; transform-origin: 50% 85%; animation: nh-sail 3.2s ease-in-out infinite; }
+@keyframes nh-sail { 0%, 100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(5deg) translateY(-1.5px); } }
 body #loc .loc-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 body #loc .loc-text b { font: 900 22px/1 var(--nh-font); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body #loc .loc-text span { font: 600 12.5px/1 var(--nh-mono); color: rgba(255, 255, 255, 0.92); white-space: nowrap; font-variant-numeric: normal; }
@@ -189,7 +189,7 @@ body .geo-attr a { color: inherit; text-decoration: none; }
   body #hud-tl { top: var(--nh-tl); left: calc(22px + var(--safe-l, 0px)); width: auto; max-width: calc(100vw - 110px - var(--safe-l, 0px) - var(--safe-r, 0px)); flex-flow: row wrap; align-items: center; gap: 10px; }
   body #loc { margin-left: -8px; gap: 10px; min-width: 0; }
   body #loc .loc-ico { width: 26px; height: 26px; }
-  body #loc .loc-ico i { width: 10px; height: 10px; }
+  body #loc .loc-ico .hi { width: 21px; height: 21px; }
   body #loc .loc-text b { font-size: 19px; }
   body #loc .loc-text span, body #clock .clock-gap, body #clk-date, body #clk-wxt .wx-l { display: none; }
   body #clock { gap: 10px; padding: 0; }
