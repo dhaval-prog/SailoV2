@@ -60,7 +60,6 @@ export function initHud(api) {
   tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; setLive(false); api.setNight(prefs.night); save(prefs); paint(); }));
   document.querySelectorAll('.wx').forEach(b => b.addEventListener('click', () => { prefs.w = b.dataset.w; setLive(false); api.setWeather(prefs.w); save(prefs); paint(); }));
   document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => api.exportModel(b.dataset.export)));
-  if (matchMedia('(pointer: coarse)').matches) document.querySelector('.acct-panel .export').hidden = true;
 
   // ---- camera dock ----
   const dock = $('dock');
