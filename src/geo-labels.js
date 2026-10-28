@@ -136,7 +136,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
     cand.sort((a, b) => (a.far - b.far) || (a.far ? a.rank - b.rank : 0) || a.dist - b.dist);
     const taken = [bRect, ...avoid()], show = new Set(); let nNear = 0, nFar = 0;
     for (const c of cand) {
-      if (c.far && c.dist > FADE[1]) continue; // beyond 3.5 km: out of sight (the compass strip still shows it)
+      if (c.dist > FADE[1]) continue; // beyond 3.5 km: out of sight (the compass strip still shows it)
       if (c.far ? nFar >= MAX_FAR : nNear >= MAX_NEAR) continue;
       const n = node(c.key, c.p);
       const dtxt = c.far ? fmtKm(c.dist) : '';
@@ -150,7 +150,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       const over = Math.max(0, 8 - r[0], r[2] - (W - 8)); if (over > w * 0.45) continue;
       if (overlaps(r, taken)) continue;
       taken.push(r); show.add(c.key); c.far ? nFar++ : nNear++;
-      const fade = c.far ? Math.min(1, Math.max(0, (FADE[1] - c.dist) / (FADE[1] - FADE[0]))) : 1; // fades out as it gets farther, back in as you near it
+      const fade = Math.min(1, Math.max(0, (FADE[1] - c.dist) / (FADE[1] - FADE[0]))); // fades out as it gets farther, back in as you near it
       const op = 0.96 * fade * (1 - over / (w * 0.45));
       n.el.style.setProperty('--o', op.toFixed(2));
       n.el.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -100%) scale(calc(${sc.toFixed(3)} * var(--hz)))`;
