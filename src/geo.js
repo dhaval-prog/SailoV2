@@ -12,6 +12,8 @@ import { WORLD, project, unproject } from './world.js';
 import { SEED, SEED_REGIONS } from './geo-seed.js';
 
 export const MAPBOX_STYLE = 'mapbox://styles/dhavaldamania04112025/cmvr7naej000j01s5du0s3ahk';
+// public Mapbox token (pk.), set as VITE_MAPBOX_TOKEN at build time (Vercel environment variable / .env.local);
+// without it, place names come from OpenStreetMap
 const TOKEN = (import.meta.env && import.meta.env.VITE_MAPBOX_TOKEN) || '';
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const TTL = 7 * 24 * 3600 * 1000; // cached data is reused for a week
