@@ -1,0 +1,208 @@
+/* Garage + Add friends, Naked HUD style ("Garage + Add friends" design). The shared
+   sheet in its full-screen form (#sheet.nk): the scene blurs and darkens, content
+   sits straight on it in a 620 px column, split by hairlines. Desktop follows the
+   1280×720 frames and phones the 390×844 ones. Icons: public/gf. Teal #6EE7C5, gold
+   #FFC531, hairline rgba(255,255,255,.14). Loaded after naked-hud.css. */
+@keyframes gf-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gf-riseIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes gf-charIn { 0% { opacity: 0; transform: translateY(10px) scale(0.8); } 100% { opacity: 1; transform: none; } }
+@keyframes gf-railIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes gf-underlineIn { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes gf-tealGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(110, 231, 197, 0.45); } 50% { box-shadow: 0 0 0 8px rgba(110, 231, 197, 0); } }
+@keyframes gf-ping { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(2.6); opacity: 0; } }
+
+#sheet.nk {
+  --gf-teal: #6EE7C5; --gf-gold: #FFC531; --gf-line: rgba(255, 255, 255, 0.14); --gf-dim: rgba(255, 255, 255, 0.72);
+  --gf-rise: cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: block; padding: 0;
+  background: linear-gradient(180deg, rgba(5, 12, 34, 0.82), rgba(8, 22, 60, 0.72) 50%, rgba(5, 12, 34, 0.85));
+  -webkit-backdrop-filter: blur(18px) saturate(120%); backdrop-filter: blur(18px) saturate(120%);
+  transition: opacity 0.5s ease-out;
+}
+#sheet.nk[hidden] { display: none; } /* closed: must not keep covering (and blocking) the screen */
+#sheet.nk .map-card {
+  position: absolute; inset: 0; width: auto; min-width: 0; max-height: none; box-sizing: border-box;
+  padding: calc(44px + var(--safe-t, 0px)) max(20px, calc((100% - 620px) / 2)) calc(56px + var(--safe-b, 0px));
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  border-radius: 0; background: none; box-shadow: none; transform: none;
+  color: #fff; text-shadow: 0 1px 2px rgba(0, 10, 30, 0.5); font-family: 'Nunito', system-ui, sans-serif;
+}
+/* the title and subtitle rise in (not the header itself: a transformed header would pull the fixed close button out of its corner) */
+#sheet.nk .map-head { display: block; margin: 0; }
+#sheet.nk .map-head > div { animation: gf-riseIn 0.6s var(--gf-rise) 0.05s both; }
+#sheet.nk .map-head h2 { margin: 0; font: 900 34px/1 'Nunito', sans-serif; }
+#sheet.nk .map-head p { margin: 6px 0 0; font: 700 14px/1 'Nunito', sans-serif; color: var(--gf-dim); }
+#sheet.nk #sheet-close { position: fixed; z-index: 3; top: calc(28px + var(--safe-t, 0px)); right: calc(32px + var(--safe-r, 0px)); width: 46px; height: 46px; box-sizing: border-box; border: 1.5px solid rgba(255, 255, 255, 0.55); border-radius: 50%; background: url(/gf/white/close.svg) center / 20px no-repeat; transform: none; transition: border-color 0.2s; animation: gf-fadeIn 0.4s ease-out 0.2s both; }
+#sheet.nk #sheet-close svg { display: none; }
+#sheet.nk #sheet-close:hover { border-color: var(--gf-teal); }
+#sheet.nk #sheet-body { display: block; margin-top: 20px; font: 700 14px/1.35 'Nunito', sans-serif; color: #fff; }
+#sheet.nk h4 { margin: 0; font: 900 12px/1 'Nunito', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gf-dim); }
+#sheet.nk .gf-i { display: block; flex: none; width: 24px; height: 24px; pointer-events: none; -webkit-user-drag: none; }
+#sheet.nk .gf-i.sm { width: 14px; height: 14px; }
+/* re-renders (changing a colour, opening an editor) don't replay the entrance */
+#sheet.nk .map-card:has(.gf-calm) .map-head > div, #sheet.nk .gf-calm .gf-boat, #sheet.nk .gf-calm .gf-stats, #sheet.nk .gf-calm .gf-tabs button.on::after { animation: none; }
+
+/* ---------- garage: boats ---------- */
+#sheet.nk .gf-boats { display: flex; flex-direction: column; }
+#sheet.nk .gf-boat { display: flex; align-items: center; gap: 18px; padding: 18px 0; border-top: 1px solid var(--gf-line); touch-action: pan-y; animation: gf-riseIn 0.6s var(--gf-rise) var(--d, 0s) both; }
+#sheet.nk .gf-boat:first-child { border-top-color: transparent; }
+#sheet.nk .gf-ring { flex: none; width: 48px; height: 48px; box-sizing: border-box; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.55); }
+#sheet.nk .gf-boat.on .gf-ring { border-color: var(--gf-teal); }
+#sheet.nk .gf-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+#sheet.nk .gf-info > b { font: 900 19px/1.1 'Nunito', sans-serif; }
+#sheet.nk .gf-boat.on .gf-info > b { color: var(--gf-teal); }
+#sheet.nk .gf-info > small { font: 700 13.5px/1.35 'Nunito', sans-serif; color: var(--gf-dim); text-wrap: pretty; }
+#sheet.nk .gf-specs { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font: 800 13px/1 'Nunito', sans-serif; }
+#sheet.nk .gf-specs > span { display: flex; align-items: center; gap: 4px; }
+#sheet.nk .gf-specs > span:first-child { gap: 6px; }
+#sheet.nk .gf-fuel { display: block; width: 38px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+#sheet.nk .gf-fuel i { display: block; height: 100%; border-radius: 2px; background: var(--gf-teal); }
+#sheet.nk .gf-fuel i.low { background: #FF6B5B; }
+#sheet.nk .gf-warn { font: 800 12px/1.3 'Nunito', sans-serif; color: #FFB39F; }
+#sheet.nk .gf-boat.empty .gf-ring { opacity: 0.6; }
+#sheet.nk .gf-sailing { flex: none; display: flex; align-items: center; gap: 8px; font: 900 12px/1 'Nunito', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gf-teal); }
+#sheet.nk .gf-sailing i { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--gf-teal); }
+#sheet.nk .gf-sailing i::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--gf-teal); animation: gf-ping 2s ease-out infinite; }
+#sheet.nk .gf-acts { flex: none; display: flex; align-items: center; gap: 8px; }
+#sheet.nk .gf-pill { display: flex; align-items: center; gap: 6px; margin: 0; padding: 9px 16px; border-radius: 999px; border: 1.5px solid rgba(110, 231, 197, 0.7); background: none; color: var(--gf-teal); font: 900 14px/1 'Nunito', sans-serif; white-space: nowrap; cursor: pointer; text-shadow: none; transition: background 0.2s; }
+#sheet.nk .gf-pill:hover { background: rgba(110, 231, 197, 0.12); }
+#sheet.nk .gf-pill .s { display: none; }
+#sheet.nk .gf-pill .arw { width: 16px; height: 16px; transition: transform 0.2s; }
+#sheet.nk .gf-pill:hover .arw { transform: translateX(3px); }
+#sheet.nk .gf-edit { flex: none; position: relative; width: 40px; height: 40px; box-sizing: border-box; display: grid; place-items: center; margin: 0; padding: 0; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.55); background: none; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+#sheet.nk .gf-edit .gf-i { grid-area: 1 / 1; width: 18px; height: 18px; }
+#sheet.nk .gf-edit .n { opacity: 0; }
+#sheet.nk .gf-edit:hover { border-color: var(--gf-teal); }
+#sheet.nk .gf-edit.on { background: #fff; border-color: #fff; }
+#sheet.nk .gf-edit.on .w { opacity: 0; }
+#sheet.nk .gf-edit.on .n { opacity: 1; }
+#sheet.nk .gf-hint, #sheet.nk .gf-cancel { display: none; }
+#sheet.nk .gf-msg { margin: 6px 0 12px; padding: 12px 14px; border-left: 3px solid var(--gf-gold); border-radius: 4px; background: rgba(255, 197, 49, 0.1); font: 700 13.5px/1.4 'Nunito', sans-serif; }
+#sheet.nk .gf-msg[hidden] { display: none; }
+
+/* ---------- garage: stats ---------- */
+#sheet.nk .gf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 4px; border-top: 1px solid var(--gf-line); border-bottom: 1px solid var(--gf-line); animation: gf-riseIn 0.6s var(--gf-rise) 0.45s both; }
+#sheet.nk .gf-stats > div { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0; }
+#sheet.nk .gf-stats > div + div { border-left: 1px solid var(--gf-line); }
+#sheet.nk .gf-stats b { font: 900 28px/1 'Nunito', sans-serif; }
+#sheet.nk .gf-stats span { font: 700 13px/1 'Nunito', sans-serif; color: var(--gf-dim); }
+
+/* ---------- garage: fish collection ---------- */
+#sheet.nk .gf-coll { margin-top: 36px; animation: gf-fadeIn 0.4s ease-out both; }
+#sheet.nk .gf-coll > p { margin: 8px 0 0; font: 700 14px/1.45 'Nunito', sans-serif; color: var(--gf-dim); text-wrap: pretty; }
+#sheet.nk .gf-coll > p b { font-weight: 900; color: var(--gf-teal); }
+#sheet.nk .gf-fishes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); column-gap: 4px; row-gap: 6px; margin-top: 14px; }
+#sheet.nk .gf-fish { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; text-align: center; animation: gf-fadeIn 0.5s ease-out var(--d, 0s) both; }
+#sheet.nk .gf-fish.away { opacity: 0.5; }
+#sheet.nk .gf-sil { height: 26px; display: flex; align-items: center; justify-content: center; }
+/* not caught yet: the species' own outline, tinted like the design's placeholder silhouettes */
+#sheet.nk .gf-sil img { display: block; max-width: 56px; max-height: 26px; object-fit: contain; filter: brightness(0) invert(0.72) sepia(0.35) saturate(2.4) hue-rotate(185deg); opacity: 0.6; }
+#sheet.nk .gf-fish.got .gf-sil { height: 30px; }
+#sheet.nk .gf-fish.got .gf-sil img { max-height: 30px; filter: drop-shadow(0 2px 4px rgba(0, 10, 30, 0.4)); opacity: 1; }
+#sheet.nk .gf-fish > b { font: 900 13px/1 'Nunito', sans-serif; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.8); }
+#sheet.nk .gf-fish.got > b { letter-spacing: 0; color: #fff; }
+#sheet.nk .gf-stars { display: flex; gap: 1px; font: 900 12px/1 'Nunito', sans-serif; }
+#sheet.nk .gf-stars i { font-style: normal; color: rgba(255, 255, 255, 0.22); }
+#sheet.nk .gf-stars i.on { color: var(--gf-gold); }
+#sheet.nk .gf-fish > small { font: 700 11px/1.25 'Nunito', sans-serif; color: var(--gf-dim); text-wrap: balance; }
+
+/* ---------- garage: customising a boat ---------- */
+#sheet.nk .gf-editsec { display: flex; flex-direction: column; gap: 14px; margin-top: 40px; animation: gf-riseIn 0.45s var(--gf-rise) both; }
+#sheet.nk .gf-h { display: flex; align-items: center; justify-content: space-between; }
+#sheet.nk .gf-done { display: flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; color: var(--gf-teal); font: 900 13px/1 'Nunito', sans-serif; cursor: pointer; text-shadow: none; }
+#sheet.nk .gf-tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--gf-line); }
+#sheet.nk .gf-tabs button { position: relative; padding: 10px 0 12px; border: 0; background: none; color: var(--gf-dim); font: 900 15px/1 'Nunito', sans-serif; cursor: pointer; transition: color 0.2s; }
+#sheet.nk .gf-tabs button:hover, #sheet.nk .gf-tabs button.on { color: #fff; }
+#sheet.nk .gf-tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 2px; background: var(--gf-teal); transform-origin: left; animation: gf-underlineIn 0.5s ease-out 0.15s both; }
+#sheet.nk .gf-swrow { display: flex; align-items: center; gap: 12px; }
+#sheet.nk .gf-swrow > span { width: 58px; font: 800 13px/1 'Nunito', sans-serif; color: var(--gf-dim); }
+#sheet.nk .gf-sws { display: flex; flex-wrap: wrap; gap: 12px; }
+#sheet.nk .gf-sw { width: 30px; height: 30px; margin: 0; padding: 0; border: 0; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+#sheet.nk .gf-sw:hover { transform: scale(1.08); }
+#sheet.nk .gf-sw.on { box-shadow: 0 0 0 3px #0B1838, 0 0 0 5px #fff; }
+#sheet.nk .gf-imgrow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+#sheet.nk .gf-dash { display: flex; align-items: center; gap: 7px; margin: 0; padding: 8px 14px; border-radius: 999px; border: 1.5px dashed rgba(255, 255, 255, 0.5); background: none; color: #fff; font: 900 13px/1 'Nunito', sans-serif; cursor: pointer; text-shadow: none; transition: border-color 0.2s; }
+#sheet.nk .gf-dash:hover { border-color: var(--gf-teal); }
+#sheet.nk .gf-dash .gf-i { width: 16px; height: 16px; }
+#sheet.nk .gf-imgrow small { font: 700 13px/1.3 'Nunito', sans-serif; color: var(--gf-dim); }
+#sheet.nk .gf-end { height: 8px; }
+
+/* ---------- add friends ---------- */
+#sheet.nk[data-kind="friends"] .map-card { display: flex; flex-direction: column; justify-content: safe center; }
+#sheet.nk[data-kind="friends"] #sheet-body { margin-top: 0; }
+#sheet.nk .gf-lead { margin: 22px 0 0; font: 700 16px/1.5 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.9); text-wrap: pretty; animation: gf-riseIn 0.6s var(--gf-rise) 0.12s both; }
+#sheet.nk .gf-codebox { display: flex; flex-direction: column; gap: 16px; margin-top: 32px; }
+#sheet.nk .gf-codebox h4 { animation: gf-riseIn 0.6s var(--gf-rise) 0.2s both; }
+#sheet.nk .gf-code { display: flex; justify-content: center; gap: 14px; }
+#sheet.nk .gf-code span { flex: 1; max-width: 56px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: gf-charIn 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) var(--d, 0s) both; }
+#sheet.nk .gf-code b { font: 600 42px/1 'JetBrains Mono', ui-monospace, monospace; }
+#sheet.nk .gf-code i { display: block; width: 100%; height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.5); }
+#sheet.nk .gf-sharecol { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 34px; animation: gf-riseIn 0.6s var(--gf-rise) 0.6s both; }
+#sheet.nk .gf-share { display: flex; align-items: center; justify-content: center; gap: 10px; height: 54px; margin: 0; border-radius: 999px; border: 2px solid var(--gf-teal); background: none; color: var(--gf-teal); font: 900 17px/1 'Nunito', sans-serif; cursor: pointer; text-shadow: none; animation: gf-tealGlow 2.4s ease-out 1.2s infinite; transition: background 0.2s; }
+#sheet.nk .gf-share:hover { background: rgba(110, 231, 197, 0.12); }
+#sheet.nk .gf-share .gf-i { width: 20px; height: 20px; }
+#sheet.nk .gf-copy { display: flex; align-items: center; justify-content: center; gap: 9px; height: 50px; margin: 0; border: 0; background: none; color: #fff; font: 900 16px/1 'Nunito', sans-serif; cursor: pointer; transition: color 0.2s; }
+#sheet.nk .gf-copy:hover, #sheet.nk .gf-copy.done { color: var(--gf-teal); }
+#sheet.nk .gf-copy .gf-i { width: 18px; height: 18px; }
+#sheet.nk .gf-copy .k, #sheet.nk .gf-copy.done .c { display: none; }
+#sheet.nk .gf-copy.done .k { display: block; }
+#sheet.nk .gf-copy span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sheet.nk .gf-flist { display: flex; flex-direction: column; gap: 14px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--gf-line); animation: gf-riseIn 0.6s var(--gf-rise) 0.7s both; }
+#sheet.nk .gf-empty { display: flex; align-items: center; gap: 14px; }
+#sheet.nk .gf-ph { flex: none; display: flex; }
+#sheet.nk .gf-ph i { width: 34px; height: 34px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed rgba(255, 255, 255, 0.4); background: rgba(11, 24, 56, 0.6); }
+#sheet.nk .gf-ph i + i { margin-left: -10px; }
+#sheet.nk .gf-empty p { margin: 0; font: 700 14.5px/1.45 'Nunito', sans-serif; color: var(--gf-dim); text-wrap: pretty; }
+
+/* ---------- phones: the 390×844 frames ---------- */
+@media (max-width: 720px) {
+  #sheet.nk::after { content: ''; position: fixed; top: 0; left: 0; right: 0; height: calc(var(--safe-t, 0px) + 71px); background: linear-gradient(180deg, rgba(5, 12, 34, 0.97) 55%, transparent); pointer-events: none; z-index: 2; }
+  #sheet.nk .map-card { padding: max(76px, calc(var(--safe-t, 0px) + 65px)) 20px calc(40px + var(--safe-b, 0px)); }
+  #sheet.nk #sheet-close { top: max(14px, calc(var(--safe-t, 0px) + 15px)); right: calc(18px + var(--safe-r, 0px)); width: 40px; height: 40px; background-size: 18px; }
+  #sheet.nk .map-head h2 { font-size: 28px; }
+  #sheet.nk .map-head p { font-size: 13px; }
+  #sheet.nk #sheet-body { margin-top: 14px; }
+  #sheet.nk .gf-boat { gap: 12px; padding: 14px 0; }
+  #sheet.nk .gf-ring { width: 40px; height: 40px; }
+  #sheet.nk .gf-ring .gf-i { width: 20px; height: 20px; }
+  #sheet.nk .gf-info { gap: 5px; }
+  #sheet.nk .gf-info > b { font-size: 16px; }
+  #sheet.nk .gf-info > small { font-size: 12px; }
+  #sheet.nk .gf-specs { gap: 6px; font-size: 12px; }
+  #sheet.nk .gf-specs > span:first-child { gap: 5px; }
+  #sheet.nk .gf-fuel { width: 22px; }
+  #sheet.nk .gf-acts { gap: 6px; }
+  #sheet.nk .gf-pill { padding: 7px 11px; font-size: 13px; }
+  #sheet.nk .gf-pill .l, #sheet.nk .gf-pill .arw { display: none; }
+  #sheet.nk .gf-pill .s { display: inline; }
+  /* the pencil hides behind a flick: three dots hint at it */
+  #sheet.nk .gf-hint { display: flex; gap: 2px; opacity: 0.5; padding: 0 2px; }
+  #sheet.nk .gf-hint i { width: 3px; height: 3px; border-radius: 50%; background: #fff; }
+  #sheet.nk .gf-edit { display: none; width: 34px; height: 34px; }
+  #sheet.nk .gf-edit .gf-i { width: 16px; height: 16px; }
+  #sheet.nk .gf-boat.swiped .gf-pill, #sheet.nk .gf-boat.swiped .gf-hint { display: none; }
+  #sheet.nk .gf-boat.swiped .gf-cancel { display: block; padding: 6px 2px; border: 0; background: none; color: var(--gf-dim); font: 900 12px/1 'Nunito', sans-serif; cursor: pointer; animation: gf-railIn 0.3s var(--gf-rise) both; }
+  #sheet.nk .gf-boat.swiped .gf-edit, #sheet.nk .gf-edit.on { display: grid; animation: gf-railIn 0.3s var(--gf-rise) both; }
+  #sheet.nk .gf-stats > div { padding: 16px 0; }
+  #sheet.nk .gf-stats b { font-size: 24px; }
+  #sheet.nk .gf-stats span { font-size: 12px; }
+  #sheet.nk .gf-coll { margin-top: 28px; }
+  #sheet.nk .gf-coll > p { font-size: 13.5px; }
+  #sheet.nk .gf-fishes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #sheet.nk .gf-editsec { margin-top: 30px; }
+  #sheet.nk .gf-sws { gap: 10px; }
+  #sheet.nk[data-kind="friends"] .map-card { justify-content: flex-start; }
+  #sheet.nk .gf-lead { margin-top: 18px; font-size: 15px; }
+  #sheet.nk .gf-codebox { margin-top: 28px; }
+  #sheet.nk .gf-code { gap: 10px; }
+  #sheet.nk .gf-code span { max-width: 44px; }
+  #sheet.nk .gf-code b { font-size: 34px; }
+  #sheet.nk .gf-sharecol { margin-top: 30px; }
+  #sheet.nk .gf-share { height: 52px; font-size: 16px; }
+  #sheet.nk .gf-copy { height: 48px; font-size: 15px; }
+  #sheet.nk .gf-flist { margin-top: 22px; padding-top: 22px; }
+  #sheet.nk .gf-empty p { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #sheet.nk *, #sheet.nk *::before, #sheet.nk *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
