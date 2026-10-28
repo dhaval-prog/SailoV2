@@ -158,20 +158,30 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   }
 
   // ---- entering / leaving localities (boundary polygons when known, else nearest locality) ----
-  let cur = null, pend = null, pendT = 0, lastZ = -9, queue = [], toastT = 0;
-  const say = (verb, z) => queue.push({ verb, z });
+  // A big title in the style of "Welcome to …" (waits until that welcome title has finished),
+  // and the place's own name on the sea glows for a moment.
+  let cur = null, pend = null, pendT = 0, lastZ = -9, queue = [], toastT = 0, arrive = null, arriveT = 0;
+  let ready = false; { const w = document.getElementById('welcome'); const go = () => { ready = true; };
+    if (w && getComputedStyle(w).animationName !== 'none') { w.addEventListener('animationend', go, { once: true }); setTimeout(go, 6000); } else go(); }
+  const keyOf = n => n.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
   function zones(t) {
     if (t - lastZ > 0.4) { lastZ = t;
       const z = zoneAt(boat.position.x, boat.position.z), name = z?.name || null;
       if (name !== (cur?.name || null)) {
         // a little hysteresis at the edges so a boat on a border doesn't flicker
         if (pend?.name !== name) { pend = z || { name: null }; pendT = t; }
-        else if (t - pendT > (z && !z.poly ? 1.2 : 0.6)) { if (cur) say('Leaving', cur); if (z) say('Entering', z); cur = z; pend = null; onZone?.(z); }
+        else if (t - pendT > (z && !z.poly ? 1.2 : 0.6)) { queue = [z ? { verb: 'Entering', z, from: cur } : { verb: 'Leaving', z: cur }]; cur = z; pend = null; onZone?.(z); }
       } else pend = null;
     }
-    if (queue.length && t > toastT) { const { verb, z } = queue.shift(); toastT = t + 1.6;
-      toast.innerHTML = `<small>${verb}</small><b></b>${z.group ? `<span>${groupLabel(z.group)}</span>` : ''}`; toast.querySelector('b').textContent = z.name;
-      toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show'); }
+    if (ready && queue.length && t > toastT) { const { verb, z, from } = queue.shift(); toastT = t + 3.2;
+      toast.className = verb === 'Leaving' ? 'leaving' : '';
+      toast.innerHTML = `<small>${verb}</small><b></b>${z.group && verb === 'Entering' ? `<span>${groupLabel(z.group)}</span>` : ''}${from ? '<em></em>' : ''}`;
+      toast.querySelector('b').textContent = z.name; if (from) toast.querySelector('em').textContent = `from ${from.name}`;
+      void toast.offsetWidth; toast.classList.add('show');
+      if (verb === 'Entering') { arrive = 'p:' + keyOf(z.name); arriveT = t + 3.2; } }
+    // the arriving place's name glows on the sea while the title shows
+    pool.forEach((n, k) => n.el.classList.toggle('arrive', k === arrive && t < arriveT));
+    layer.classList.toggle('quiet', t < arriveT || (t < toastT && toast.classList.contains('leaving'))); // other horizon names dim behind the title
   }
 
   return { update, get cancelled() { return performance.now() - cancelAt < 800; }, get level() { return level; }, get zone() { return cur; } };

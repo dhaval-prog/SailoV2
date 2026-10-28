@@ -66,6 +66,11 @@ export function initHud(api) {
   dock.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => ripple(b, e)));
   dock.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { api.setView(b.dataset.v); paint(); }));
   dock.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => api.zoomBy(b.dataset.z === 'in' ? 0.7 : 1.45)));
+  // "⋯": the less-used controls (photo, zoom) live in a small tray beside it
+  { const more = $('dk-more'), tray = $('dk-tray'); const setTray = open => { tray.hidden = !open; more.setAttribute('aria-expanded', open); more.classList.toggle('on', open); };
+    more.addEventListener('click', e => { e.stopPropagation(); setTray(tray.hidden); });
+    addEventListener('pointerdown', e => { if (!tray.hidden && !e.target.closest('.dk-moreg')) setTray(false); }, true);
+    addEventListener('keydown', e => { if (e.key === 'Escape') setTray(false); }); }
   $('dk-compass').addEventListener('click', () => setMap(true));
   $('dk-shot').addEventListener('click', () => {
     const canvas = api.stage.shadowRoot.querySelector('canvas');
@@ -420,7 +425,7 @@ export function initHud(api) {
 
   // ---- per-frame readouts ----
   const needle = document.querySelector('#dk-compass .needle');
-  const spd = $('spd'), gear = $('gear'), arc = $('joy-speed');
+  const spd = $('spd'), gear = $('gear'), arc = $('joy-speed'), hdgEl = $('hdg');
   const stCatch = $('st-catch'), stDist = $('st-dist'), stTop = $('st-top'), rankEl = $('acct-rank'), lvl = $('you-lvl');
   const locPos = $('loc-pos'), warn = $('edge-warn');
   let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
@@ -438,6 +443,7 @@ export function initHud(api) {
       if (deg !== last.az) { needle.style.transform = `rotate(${deg}deg)`; last.az = deg; }
       const k = Math.round(Math.abs(kn) * 10) / 10;
       if (k !== last.kn) { spd.textContent = k.toFixed(1); arc.style.strokeDasharray = `${Math.min(100, Math.abs(kn) / 12 * 100)} 100`; last.kn = k; }
+      { const b = ((90 - heading * 180 / Math.PI) % 360 + 360) % 360, h = `${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / 45) % 8]} ${Math.round(b) % 360}°`; if (h !== last.hdg) { hdgEl.textContent = h; last.hdg = h; } }
       if (gearName !== last.gear) { gear.textContent = gearName; gear.className = { Ahead: 'fwd', Autopilot: 'fwd', Astern: 'rev', Anchored: 'hold' }[gearName] || ''; last.gear = gearName; }
       if (catchN !== last.c) {
         if (last.c >= 0) { const s = stCatch.parentElement; s.classList.remove('bump'); void s.offsetWidth; s.classList.add('bump'); }
