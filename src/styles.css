@@ -844,3 +844,44 @@ body.view-top #you-tag { opacity: 1; }
 .sh-fstars { color: #ffd36b; font-size: 10px; letter-spacing: 1px; } .sh-fstars i { font-style: normal; color: rgba(255, 255, 255, 0.2); }
 .sh-fish.locked img { filter: brightness(0) opacity(0.35); }
 .sh-fish.locked b { color: rgba(255, 255, 255, 0.45); }
+
+/* ---------- Pune place names over the sea (geo-labels.js) ---------- */
+#geo-labels { position: fixed; inset: 0; pointer-events: none; z-index: 12; overflow: hidden; }
+.gl { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; white-space: nowrap; color: #fff;
+  font: 700 12.5px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: 0.16em; text-shadow: 0 1px 2px rgba(8, 24, 56, 0.55), 0 0 10px rgba(8, 24, 56, 0.35);
+  opacity: 0; transition: opacity 0.35s ease; will-change: transform, opacity; transform-origin: 50% 100%; }
+.gl.on { opacity: 0.94; }
+.gl b { font-weight: inherit; }
+.gl small { font: 700 10px/1 system-ui, sans-serif; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.75); }
+.gl small:empty { display: none; }
+.gl i { flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.gl-region { font-size: 17px; font-weight: 800; letter-spacing: 0.3em; }
+.gl-major { font-size: 14px; font-weight: 800; letter-spacing: 0.2em; }
+.gl-minor { font-size: 12.5px; letter-spacing: 0.16em; }
+.gl-poi, .gl-road, .gl-society { font-size: 11.5px; font-weight: 650; letter-spacing: 0.02em; background: rgba(10, 34, 74, 0.38); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.gl-road { font-style: italic; color: #e9f1ff; }
+.gl.far { background: rgba(10, 34, 74, 0.3); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.gl.far.on { opacity: 0.85; }
+#geo-toast { position: fixed; left: 50%; top: calc(var(--gut, 16px) + var(--safe-t, 0px) + 58px); z-index: 27; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 18px 10px;
+  border-radius: 18px; background: rgba(8, 18, 40, 0.5); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  color: #fff; text-align: center; pointer-events: none; opacity: 0; transform: translate(-50%, -8px); }
+#geo-toast.show { animation: geo-toast 1.55s ease both; }
+@keyframes geo-toast { 0% { opacity: 0; transform: translate(-50%, -10px) scale(0.96); } 15%, 80% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -6px) scale(0.98); } }
+#geo-toast small { font: 700 10px/1 system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+#geo-toast b { font: 800 17px/1.1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+#geo-toast span { font: 600 11px/1 system-ui, sans-serif; color: #7ff0c8; }
+/* map: zoom controls and Pune place names */
+.map-zoom { position: absolute; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.map-zoom-l { padding: 6px 10px; border-radius: 999px; background: rgba(8, 18, 40, 0.65); color: rgba(255, 255, 255, 0.85); font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.04em; pointer-events: none; }
+.map-zoom button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(8, 18, 40, 0.75); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.map-zoom button:hover { background: rgba(20, 44, 90, 0.9); }
+.map-zoom svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+.map-svg.panning { cursor: grabbing; }
+.map-svg { touch-action: none; }
+.map-geo { pointer-events: none; }
+.map-geo-t { fill: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 40, 90, 0.55); stroke-width: 3px; stroke-linejoin: round; }
+.map-geo-region .map-geo-t { font-weight: 800; letter-spacing: 0.28em; fill: rgba(255, 255, 255, 0.95); }
+.map-geo-major .map-geo-t { font-weight: 800; letter-spacing: 0.14em; }
+.map-geo-minor .map-geo-t { letter-spacing: 0.1em; fill: rgba(255, 255, 255, 0.88); }
+.map-geo-poi .map-geo-t, .map-geo-society .map-geo-t { font-weight: 600; fill: rgba(255, 255, 255, 0.9); }
+.map-geo-road .map-geo-t { font-weight: 600; font-style: italic; fill: #e9f1ff; }

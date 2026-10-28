@@ -5,6 +5,7 @@
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH } from './station.js';
+import { regionList, placeList, poiList, ensure, zoneAt, onChange } from './geo.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -128,6 +129,7 @@ export function initHud(api) {
 
   // ---- map (compass button): the whole ocean, the boat, and click-to-pin a course ----
   const mapEl = $('map'), mapSvg = $('map-svg');
+  $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · Pune's real localities`; if ($('welcome-sub')) $('welcome-sub').textContent = `${WORLD.areaSqMi} square miles of Pune, turned into open ocean`;
   const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map, for sizing marks
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = mapSvg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
@@ -136,28 +138,29 @@ export function initHud(api) {
     el('stop', { offset: '0', 'stop-color': '#4cc6f2' }, g); el('stop', { offset: '1', 'stop-color': '#1a78c9' }, g); }
   el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, fill: 'url(#map-sea)' });
   { let d = ''; for (let m = WORLD.mile; m < H; m += WORLD.mile) d += `M${m} ${-H}V${H}M${-m} ${-H}V${H}M${-H} ${m}H${H}M${-H} ${-m}H${H}`;
-    el('path', { d, class: 'map-grid', 'stroke-width': u * 0.18 });
-    el('path', { d: `M0 ${-H}V${H}M${-H} 0H${H}`, class: 'map-axis', 'stroke-width': u * 0.3 }); }
-  el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, class: 'map-edge', 'stroke-width': u * 0.6 });
+    el('path', { d, class: 'map-grid', 'stroke-width': u * 0.18, 'data-sw': u * 0.18 });
+    el('path', { d: `M0 ${-H}V${H}M${-H} 0H${H}`, class: 'map-axis', 'stroke-width': u * 0.3, 'data-sw': u * 0.3 }); }
+  el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, class: 'map-edge', 'stroke-width': u * 0.6, 'data-sw': u * 0.6 });
+  // Pune place names (redrawn for the zoom level, see paintGeo)
+  const geoG = el('g', { class: 'map-geo' });
   // harbour at the centre
-  el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 });
-  el('text', { x: 0, y: u * 5.2, class: 'map-label', 'font-size': u * 3.2 }).textContent = 'Harbour';
+  { const g = el('g', { class: 'map-mark', 'data-x': 0, 'data-y': 0 });
+    el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 }, g);
+    el('text', { x: 0, y: u * 5.2, class: 'map-label', 'font-size': u * 3.2 }, g).textContent = 'Harbour'; }
   // Paradise Station island
-  { const g = el('g', { transform: `translate(${STATION.x} ${STATION.z})`, class: 'map-station' });
+  { const g = el('g', { transform: `translate(${STATION.x} ${STATION.z})`, class: 'map-station map-mark', 'data-x': STATION.x, 'data-y': STATION.z });
     el('ellipse', { rx: u * 2.4, ry: u * 1.8, class: 'map-island', 'stroke-width': u * 0.4 }, g);
     el('path', { d: `M${-u * 0.3} ${u * 0.6}Q${-u * 0.2} ${-u * 0.6} ${u * 0.4} ${-u * 1.4}M${u * 0.4} ${-u * 1.4}q${-u * 1.4} ${-u * 0.1} ${-u * 1.8} ${u * 0.6}M${u * 0.4} ${-u * 1.4}q${u * 1.4} ${-u * 0.1} ${u * 1.8} ${u * 0.6}`, class: 'map-palm', 'stroke-width': u * 0.45 }, g);
     el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station'; }
   // compass rose and scale bar
-  { const g = el('g', { transform: `translate(${H - u * 8} ${-H + u * 9})` });
-    el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, g);
-    el('text', { x: 0, y: u * 3.6, class: 'map-label', 'font-size': u * 3.2 }, g).textContent = 'N'; }
-  { const g = el('g', { transform: `translate(${-H + u * 5} ${H - u * 5})` });
-    el('path', { d: `M0 ${-u}V0H${WORLD.mile * 2}V${-u}`, class: 'map-scale', 'stroke-width': u * 0.4 }, g);
-    el('text', { x: WORLD.mile, y: -u * 2, class: 'map-label', 'font-size': u * 2.8 }, g).textContent = '2 mi'; }
+  const northG = el('g', {});
+  el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, northG);
+  el('text', { x: 0, y: u * 3.6, class: 'map-label', 'font-size': u * 3.2 }, northG).textContent = 'N';
+  const scaleG = el('g', {}), scaleP = el('path', { class: 'map-scale', 'stroke-width': u * 0.4 }, scaleG), scaleT = el('text', { y: -u * 2, class: 'map-label', 'font-size': u * 2.8 }, scaleG);
   // hover preview, pinned course (marching, blinking dots) and pin marker
   const ghost = el('circle', { r: u * 1.4, class: 'map-ghost', 'stroke-width': u * 0.35, visibility: 'hidden' });
-  const destLine = el('line', { class: 'map-route', 'stroke-width': u * 0.55, 'stroke-dasharray': `${u * 0.2} ${u * 1.1}`, 'stroke-linecap': 'round', visibility: 'hidden' });
-  el('animate', { attributeName: 'stroke-dashoffset', from: 0, to: -u * 1.3 * 2, dur: '0.9s', repeatCount: 'indefinite' }, destLine);
+  const destLine = el('line', { class: 'map-route', 'stroke-width': u * 0.55, 'data-sw': u * 0.55, 'stroke-dasharray': `${u * 0.2} ${u * 1.1}`, 'stroke-linecap': 'round', visibility: 'hidden' });
+  const destAnim = el('animate', { attributeName: 'stroke-dashoffset', from: 0, to: -u * 1.3 * 2, dur: '0.9s', repeatCount: 'indefinite' }, destLine);
   el('animate', { attributeName: 'opacity', values: '1;0.3;1', dur: '1.1s', repeatCount: 'indefinite' }, destLine);
   const destM = el('g', { class: 'map-dest', visibility: 'hidden' });
   el('circle', { r: u * 2.6, class: 'map-dest-ring', 'stroke-width': u * 0.3 }, destM);
@@ -167,10 +170,76 @@ export function initHud(api) {
   el('circle', { r: u * 4, class: 'map-pulse' }, boatM);
   const boatArrow = el('path', { d: `M${u * 3} 0L${-u * 2} ${u * 2.2}L${-u * 1} 0L${-u * 2} ${-u * 2.2}Z`, 'stroke-width': u * 0.4 }, boatM);
   const mapPos = $('map-pos');
+  // ---- zoom and pan (wheel, pinch, drag, +/-). Zoom levels: 1 Pune region, 2 major neighbourhoods,
+  //      3 smaller localities, 4 streets and landmarks ----
+  const V0 = WORLD.side + u * 8, VMIN = 1400, view = { cx: 0, cz: 0, w: V0 };
+  const mapLevel = () => view.w > 20000 ? 1 : view.w > 9000 ? 2 : view.w > 3600 ? 3 : 4;
+  let geoDirty = true, boatXY = [0, 0], destXY = null;
+  const applyView = () => {
+    view.w = Math.min(V0, Math.max(VMIN, view.w)); const lim = Math.max(0, H + u * 4 - view.w / 2);
+    view.cx = Math.max(-lim, Math.min(lim, view.cx)); view.cz = Math.max(-lim, Math.min(lim, view.cz));
+    const k = view.w / V0, x0 = view.cx - view.w / 2, y0 = view.cz - view.w / 2;
+    mapSvg.setAttribute('viewBox', `${x0} ${y0} ${view.w} ${view.w}`);
+    mapSvg.querySelectorAll('[data-sw]').forEach(n => n.setAttribute('stroke-width', n.dataset.sw * k));
+    destLine.setAttribute('stroke-dasharray', `${u * 0.2 * k} ${u * 1.1 * k}`); destAnim.setAttribute('to', -u * 1.3 * 2 * k);
+    mapSvg.querySelectorAll('.map-mark').forEach(n => n.setAttribute('transform', `translate(${n.dataset.x} ${n.dataset.y}) scale(${k})`));
+    ghost.setAttribute('r', u * 1.4 * k); ghost.setAttribute('stroke-width', u * 0.35 * k);
+    northG.setAttribute('transform', `translate(${x0 + view.w - u * 8 * k} ${y0 + u * 9 * k}) scale(${k})`);
+    // scale bar: a round distance about a fifth of the view
+    const steps = [100, 200, 500, WORLD.mile / 2, WORLD.mile, WORLD.mile * 2, WORLD.mile * 5], len = steps.reduce((a, b) => Math.abs(b - view.w * 0.2) < Math.abs(a - view.w * 0.2) ? b : a);
+    scaleG.setAttribute('transform', `translate(${x0 + u * 5 * k} ${y0 + view.w - u * 5 * k})`);
+    scaleP.setAttribute('d', `M0 ${-u * k}V0H${len}V${-u * k}`); scaleP.setAttribute('stroke-width', u * 0.4 * k);
+    scaleT.setAttribute('x', len / 2); scaleT.setAttribute('y', -u * 2 * k); scaleT.setAttribute('font-size', u * 2.8 * k);
+    scaleT.textContent = len < 1000 ? `${len} m` : `${+(len / WORLD.mile).toFixed(1)} mi`;
+    $('map-zoom-l').textContent = ['', 'Pune', 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
+    placeMarks(); geoDirty = true;
+    ensure(x0, y0, x0 + view.w, y0 + view.w, mapLevel() === 4);
+  };
+  const zoomAt = (f, wx = view.cx, wz = view.cz) => { const w0 = view.w; view.w = Math.min(V0, Math.max(VMIN, view.w * f)); const r = view.w / w0; view.cx = wx + (view.cx - wx) * r; view.cz = wz + (view.cz - wz) * r; applyView(); };
+  // the boat and the pin keep their on-screen size at any zoom
+  const placeMarks = () => { const k = view.w / V0; boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${k})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${k})`); };
+  // place names, sized in screen pixels, drawn most important first and never overlapping
+  const PRI = { region: 0, major: 1, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = [15, 12.5, 10.5, 10, 9.5];
+  const CATC = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
+  const paintGeo = () => {
+    geoDirty = false; geoG.replaceChildren(); if (!mapOpen) return;
+    const L = mapLevel(), px = mapSvg.getBoundingClientRect().width / view.w || 0.02, x0 = view.cx - view.w / 2, y0 = view.cz - view.w / 2;
+    const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])];
+    const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + view.w).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
+    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16]];
+    let n = 0;
+    for (const p of items) {
+      if (n > 140) break;
+      const r = PRI[p.kind], fs = SIZE[r], up = r <= 2, text = up ? p.name.toUpperCase() : p.name;
+      const w = text.length * fs * (up ? 0.72 + (r === 0 ? 0.18 : 0.08) : 0.56) + (r >= 3 ? 10 : 0), sx = (p.x - x0) * px, sy = (p.z - y0) * px;
+      const rc = [sx - w / 2, sy - fs * 1.2, sx + w / 2, sy + fs * 0.5];
+      if (taken.some(b => rc[0] < b[2] && rc[2] > b[0] && rc[1] < b[3] && rc[3] > b[1])) continue;
+      taken.push(rc); n++;
+      const g = el('g', { class: `map-geo-${p.kind}`, transform: `translate(${p.x} ${p.z}) scale(${1 / px})` }, geoG);
+      if (r >= 1) el('circle', { cy: fs * 0.25, r: r >= 3 ? 2.4 : 1.8, fill: r >= 3 ? CATC[p.cat] || '#fff' : 'rgba(255,255,255,0.7)' }, g);
+      el('text', { y: r >= 1 ? -3 : 0, 'font-size': fs, class: 'map-geo-t' }, g).textContent = text;
+    }
+  };
+  onChange(() => { geoDirty = true; });
+  setInterval(() => { if (geoDirty && mapOpen) paintGeo(); }, 250);
+  let pinch = null, drag = null, dragged = false; const ptrs = new Map();
+  const worldAt = (cx, cy) => { const pt = mapSvg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(mapSvg.getScreenCTM().inverse()); };
+  mapSvg.addEventListener('wheel', e => { e.preventDefault(); const w = worldAt(e.clientX, e.clientY); zoomAt(Math.pow(1.0018, e.deltaY), w.x, w.y); }, { passive: false });
+  mapSvg.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); dragged = false;
+    if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, cx: view.cx, cz: view.cz };
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), w: view.w }; drag = null; } });
+  addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()], m = worldAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), d = Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])); zoomAt(pinch.w * pinch.d / d / view.w, m.x, m.y); dragged = true; return; }
+    if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!dragged && Math.hypot(dx, dy) < 6) return; dragged = true;
+      const k = view.w / mapSvg.getBoundingClientRect().width; view.cx = drag.cx - dx * k; view.cz = drag.cz - dy * k; applyView(); mapSvg.classList.add('panning'); } });
+  const ptrUp = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) { drag = null; mapSvg.classList.remove('panning'); } };
+  addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
+  $('map-zin').addEventListener('click', () => zoomAt(0.5)); $('map-zout').addEventListener('click', () => zoomAt(2));
+  $('map-zboat').addEventListener('click', () => { view.cx = boatXY[0]; view.cz = boatXY[1]; zoomAt(Math.min(1, 6000 / view.w)); });
   let mapOpen = false, lastFocus = null;
   const setMap = open => {
     if (open === mapOpen) return; mapOpen = open;
-    if (open) { lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => mapEl.classList.add('open')); $('map-close').focus(); }
+    if (open) { lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
     else { mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
     document.body.classList.toggle('map-open', open);
   };
@@ -186,11 +255,13 @@ export function initHud(api) {
     ghost.setAttribute('visibility', 'visible'); ghost.setAttribute('cx', w.x); ghost.setAttribute('cy', w.y);
   };
   const hideTip = () => { tip.hidden = true; ghost.setAttribute('visibility', 'hidden'); };
-  mapSvg.addEventListener('pointermove', e => { const w = toWorld(e); if (w) showTip(e, w, formatPosition(w.x, w.y)); else hideTip(); });
+  const tipText = w => { const z = zoneAt(w.x, w.y); return (z ? z.name + ' · ' : '') + formatPosition(w.x, w.y); };
+  mapSvg.addEventListener('pointermove', e => { if (drag && dragged) { hideTip(); return; } const w = toWorld(e); if (w) showTip(e, w, tipText(w)); else hideTip(); });
   mapSvg.addEventListener('pointerleave', hideTip);
   mapSvg.addEventListener('click', e => {
+    if (dragged) { dragged = false; return; } // a pan is not a pin
     const w = toWorld(e); if (!w) return;
-    if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${formatPosition(w.x, w.y)}`); if (navigator.vibrate) navigator.vibrate(10); }
+    if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${tipText(w)}`); if (navigator.vibrate) navigator.vibrate(10); }
     else showTip(e, w, 'Raise the anchor first');
   });
   $('map-unpin').addEventListener('click', () => api.clearCourse());
@@ -198,10 +269,10 @@ export function initHud(api) {
   mapEl.addEventListener('click', e => { if (e.target === mapEl) setMap(false); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) setMap(false); });
   const drawMap = (x, z, heading, dest, pos) => {
-    boatM.setAttribute('transform', `translate(${x} ${z})`);
+    boatXY = [x, z]; destXY = dest ? [dest.x, dest.z] : null; placeMarks();
     boatArrow.setAttribute('transform', `rotate(${-heading * 180 / Math.PI})`);
     const vis = dest ? 'visible' : 'hidden'; destM.setAttribute('visibility', vis); destLine.setAttribute('visibility', vis);
-    if (dest) { destM.setAttribute('transform', `translate(${dest.x} ${dest.z})`); destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
+    if (dest) { destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
       pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${(Math.hypot(dest.x - x, dest.z - z) / WORLD.mile).toFixed(1)} mi to go`; }
     pinRow.hidden = !dest; help.hidden = !!dest;
     mapPos.textContent = pos;
@@ -295,7 +366,8 @@ export function initHud(api) {
   const openSearch = () => {
     openSheet('Search', 'Find a place and sail there', '<input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"><div id="sh-results" class="sheet-body"></div>');
     const q = $('sh-q'), res = $('sh-results');
-    const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term));
+    PLACES.length = 2; placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: p.group ? `${p.group} Pune` : 'Pune', x: p.x, z: p.z }));
+    const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term)).slice(0, term ? 40 : 12);
       res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go">${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))} · Sail</span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
     q.addEventListener('input', paint);
     // typing must not steer the boat (Escape still closes)
