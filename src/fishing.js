@@ -150,6 +150,7 @@ export function createFishing(ctx) {
     let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < FISH.length; i++) { r -= w[i]; if (r <= 0) return FISH[i]; } return FISH[0];
   };
   const fishOf = () => FISH.find(f => f.id === G.fishId);
+  const fitScale = f => f.kind ? Math.min(1, 1.4 / Math.max(f.len, f.kind === 'ray' ? f.w * 0.7 : 0)) : 1; // the big sharks and rays leap at a size the boat can take
   const status = text => { ctx.setStatus(text); };
 
   // ---------- input ----------
@@ -222,7 +223,7 @@ export function createFishing(ctx) {
 
   // ---------- the fight ----------
   function startFight() {
-    const f = fishOf(), P = FIGHT[f.id] || FIGHT.mackerel;
+    const f = fishOf(), P = FIGHT[f.id] || f.fight || FIGHT.mackerel;
     ACT.fish = 'fight'; G.T = 0.45; G.prog = 0; G.zc = 0.5; G.zt = 0.5; G.dir = Math.random() < 0.5 ? -1 : 1; G.turnT = P.turn; G.stam = 1; G.snapT = 0; G.slackT = 0; G.t = 0; G.jumpT = 3 + Math.random() * 2; G.jump = null;
     G.hooked.copy(bobber.position);
     $('fg-fight').hidden = false; $('fg-fish-name').textContent = 'Fish on!'; sfx.splash(true); buzz([30, 40, 30]);
@@ -321,7 +322,7 @@ export function createFishing(ctx) {
       if (Math.random() < 0.4) ctx.emit(bobber.position.x, wy, bobber.position.z, (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), (Math.random() - 0.5) * 1.5);
       if (G.t > 1.1) { $('fg-strike').hidden = true; ACT.fish = 'waiting'; G.phase = 'gone'; G.t = 0; ctx.floatText(bobber.position.clone().setY(wy + 1.6), 'It got away…', '#ffb39f'); status('Waiting for a bite…'); ctx.paintStatus(); }
     } else if (ACT.fish === 'fight') {
-      const f = fishOf(), P = FIGHT[f.id] || FIGHT.mackerel, storm = ctx.weather() === 'storm' ? 1.5 : ctx.weather() === 'rain' ? 1.2 : 1, tired = G.stam < 0.35;
+      const f = fishOf(), P = FIGHT[f.id] || f.fight || FIGHT.mackerel, storm = ctx.weather() === 'storm' ? 1.5 : ctx.weather() === 'rain' ? 1.2 : 1, tired = G.stam < 0.35;
       G.t += dt;
       // the fish changes direction; runs keep going, sprinters dart
       if ((G.turnT -= dt) <= 0) { G.dir = -G.dir; G.turnT = P.turn * (0.6 + Math.random() * 0.8); G.zt = 0.2 + Math.random() * 0.6; if (P.sprint) G.zt = G.zt < 0.5 ? 0.15 : 0.85; }
@@ -345,7 +346,7 @@ export function createFishing(ctx) {
       rodRot.rotation.z = restTilt + 0.1 + G.T * 0.55 + Math.sin(t * 28) * 0.03 * pull;
       // jumpers (swordfish, sailfish) leap out: tap at the top of the jump
       if (P.jump) { G.jumpT -= dt;
-        if (!G.jump && G.jumpT <= 0) { G.jump = { k: 0, tapped: false, window: false }; jumpModel = station.fishModel(f.id); jumpModel.scale.setScalar(2.4); ctx.scene.add(jumpModel); ctx.splash(G.hooked.x, G.hooked.z, 26, 1.2); sfx.splash(true); }
+        if (!G.jump && G.jumpT <= 0) { G.jump = { k: 0, tapped: false, window: false }; jumpModel = station.fishModel(f.id); jumpModel.scale.setScalar(2.4 * fitScale(f)); ctx.scene.add(jumpModel); ctx.splash(G.hooked.x, G.hooked.z, 26, 1.2); sfx.splash(true); }
         if (G.jump) { const j = G.jump; j.k += dt / 1.3; const e = Math.min(1, j.k);
           jumpModel.position.set(G.hooked.x, WL + Math.sin(e * Math.PI) * 6 - 0.5, G.hooked.z); jumpModel.rotation.set(0, Math.atan2(-side.z * G.dir, side.x * G.dir), (0.5 - e) * 2.2);
           j.window = e > 0.38 && e < 0.68; const [sx, sy] = ctx.toScreen(jumpModel.position);
@@ -365,7 +366,7 @@ export function createFishing(ctx) {
     } else if (ACT.fish === 'landing') {
       // slow-motion leap onto the deck with a flash
       F.k += dt / 2.0; const e = Math.min(1, F.k), land = ctx.landPoint();
-      if (!jumpModel) { jumpModel = station.fishModel(G.fishId); jumpModel.scale.setScalar(2.2); ctx.scene.add(jumpModel); shadow.material.opacity = 0; $('fg-flash').classList.remove('go'); void $('fg-flash').offsetWidth; $('fg-flash').classList.add('go'); }
+      if (!jumpModel) { jumpModel = station.fishModel(G.fishId); jumpModel.scale.setScalar(2.2 * fitScale(fishOf())); ctx.scene.add(jumpModel); shadow.material.opacity = 0; $('fg-flash').classList.remove('go'); void $('fg-flash').offsetWidth; $('fg-flash').classList.add('go'); }
       const ee = 1 - Math.pow(1 - e, 2);
       jumpModel.position.lerpVectors(F.from, land, ee); jumpModel.position.y = THREE.MathUtils.lerp(F.from.y, land.y, ee) + Math.sin(e * Math.PI) * 6;
       jumpModel.rotation.set(Math.sin(t * 12) * 0.3, -ctx.yaw() + Math.PI, -e * Math.PI * 2);

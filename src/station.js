@@ -9,6 +9,7 @@
 import { buildIsland } from './station-island.js';
 import { CHART, WORLD, project, formatOffset } from './world.js';
 import { regionAt, regionName } from './regions.js';
+import { MORE_FISH, buildSpecies } from './fish-species.js';
 import './station.css';
 
 const MILE = 1609.344;
@@ -52,6 +53,8 @@ export const FISH = [
   { id: 'reddrum', name: 'Red Drum', price: 30, kg: 4, len: 1.0, h: 0.28, w: 0.17, back: '#9c6a3c', side: '#d6a873', belly: '#f6eadb', fin: '#a87a4b', pat: 'none', odds: 8, where: 'americas' },
   { id: 'stripedbass', name: 'Striped Bass', price: 34, kg: 5, len: 1.05, h: 0.28, w: 0.17, back: '#4e5e6c', side: '#cfd6dc', belly: '#f4f5f6', fin: '#62707c', pat: 'stripes', odds: 7, where: 'americas' },
   { id: 'barramundi', name: 'Barramundi', price: 50, kg: 6, len: 1.1, h: 0.32, w: 0.18, back: '#6d7a6a', side: '#d3d8cc', belly: '#f3f3ec', fin: '#7c7f6a', pat: 'none', hump: 0.12, odds: 7, where: 'southern' },
+  // sharks, rays, oddballs and freshwater fish (fish-species.js)
+  ...MORE_FISH,
 ];
 /** This chart's ocean region (decides the local fish). */
 export const REGION = regionAt(CHART.lat, CHART.lng);
@@ -204,6 +207,7 @@ export function initStation(ctx) {
   const UP = new V3(0, 1, 0);
   const fishShape = pts => { const s = new THREE.Shape(); pts.forEach(([x, y, cx, cy], i) => i ? (cx !== undefined ? s.quadraticCurveTo(cx, cy, x, y) : s.lineTo(x, y)) : s.moveTo(x, y)); s.closePath(); return new THREE.ShapeGeometry(s, 10); };
   function makeFish(f) {
+    if (f.kind) return buildSpecies(THREE, f, { fishShape, ss, rnd2 }); // the newer species have their own body plans
     const g = new THREE.Group(), L = f.len, H = f.h, Wd = f.w;
     const geo = new THREE.SphereGeometry(1, 56, 28), p = geo.attributes.position, col = [], c = new THREE.Color();
     const cB = new THREE.Color(f.back), cS = new THREE.Color(f.side), cL = new THREE.Color(f.belly), dk = new THREE.Color('#0c2224'), gold = new THREE.Color('#e9c34a'), brown = new THREE.Color('#3a2c16');
@@ -276,7 +280,13 @@ export function initStation(ctx) {
     const mini = new THREE.WebGLRenderer({ antialias: true, alpha: true }); mini.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
     const studio = sc => { sc.add(new THREE.HemisphereLight('#ffffff', '#6b7b90', 1.25)); const d = new THREE.DirectionalLight('#fff2dc', 2.8); d.position.set(2, 5, 3); sc.add(d); const f2 = new THREE.DirectionalLight('#9fd8ff', 1.1); f2.position.set(-3, 2, -2); sc.add(f2); return sc; };
     { const sc = studio(new THREE.Scene()), cam = new THREE.PerspectiveCamera(28, 240 / 140, 0.1, 50); cam.position.set(0, 0.3, 4.2); cam.lookAt(0, 0, 0); mini.setPixelRatio(1); mini.setSize(240, 140, false);
-      FISH.forEach(f => { const m = fishModels[f.id].clone(); m.scale.setScalar((f.puffer ? 1.35 : 1.85) / (f.len * (1 + 0.55 * (f.bill || 0)))); if (f.bill) m.position.x = -f.bill * 0.3; /* keep the bill in frame */ m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
+      const box = new THREE.Box3(), size = new V3(), mid = new V3();
+      FISH.forEach(f => { const m = fishModels[f.id].clone();
+        if (f.kind) { // the newer species: fit whatever shape they are (sharks, rays, seahorses) into the frame
+          const holder = new THREE.Group(); if (f.kind === 'ray') m.rotation.set(1.05, Math.PI / 2 + 0.35, 0); /* seen from above, wings across */ else m.rotation.set(0.1, -0.2, -0.05); holder.add(m); const tl = f.kind === 'ray' && m.getObjectByName('tail'); if (tl) m.remove(tl); /* rays: frame the disc, not the long tail */
+          holder.updateMatrixWorld(true); box.setFromObject(holder).getSize(size); box.getCenter(mid); if (tl) m.add(tl);
+          const k = Math.min(3.1 / size.x, 1.7 / size.y); m.position.sub(mid); holder.scale.setScalar(k); sc.add(holder); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(holder); return; }
+        m.scale.setScalar((f.puffer ? 1.35 : 1.85) / (f.len * (1 + 0.55 * (f.bill || 0)))); if (f.bill) m.position.x = -f.bill * 0.3; /* keep the bill in frame */ m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
       mini.setPixelRatio(Math.min(2, devicePixelRatio)); }
     // crate on ice
     const crateSc = studio(new THREE.Scene()), crateCam = new THREE.PerspectiveCamera(34, 1.6, 0.1, 50); crateCam.position.set(0, 3.0, 2.5); crateCam.lookAt(0, 0.05, 0.1);
@@ -300,7 +310,7 @@ export function initStation(ctx) {
   const attachMini = (host, sc, cam) => { const k = kit(); miniHost = host; miniScene = sc; miniCam = cam; host.prepend(k.mini.domElement); resizeMini(); };
   const resizeMini = () => { if (!miniHost) return; const w = miniHost.clientWidth, h = miniHost.clientHeight; if (!w || !h) return; shopKit.mini.setSize(w, h, false); miniCam.aspect = w / h; miniCam.updateProjectionMatrix(); };
   addEventListener('resize', resizeMini);
-  function crateAdd(id, delay = 0) { const k = kit(), f = FISH.find(q => q.id === id), m = k.fishModels[id].clone(), sc = 1.4; m.scale.setScalar(sc); m.rotation.order = 'YXZ';
+  function crateAdd(id, delay = 0) { const k = kit(), f = FISH.find(q => q.id === id), m = k.fishModels[id].clone(), sc = 1.4 * (f.kind ? Math.min(1, 1.0 / Math.max(f.len, f.kind === 'ray' ? f.w * 0.8 : 0)) : 1); // big newcomers shrink to fit the crate m.scale.setScalar(sc); m.rotation.order = 'YXZ';
     const half = Math.max(0.05, 1.1 - f.len * sc / 2), x = (rnd2() * 2 - 1) * half, z = (rnd2() - 0.5) * 0.8, yaw = (rnd2() - 0.5) * 0.6 + (rnd2() < 0.5 ? Math.PI : 0);
     const rest = 0.15 + f.w * sc * 0.5 + Math.min(crateFish.length, 14) * 0.03; k.crateSc.add(m);
     crateFish.push({ m, id, x, z, yaw, rest, t0: miniT + delay, ph: rnd2() * 6.28, tail: m.getObjectByName('tail') }); }
@@ -369,7 +379,9 @@ export function initStation(ctx) {
   }
   function updateBoathouse() {
     const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${S.holdCap}`; $('holdFill').style.width = (n / S.holdCap * 100) + '%';
-    $('slots').innerHTML = FISH.map(f => `<div class="slot ${S.hold[f.id] ? '' : 'zero'}"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${f.img}" alt=""><span>${f.name}</span></div>`).join('');
+    // only what's on board (there are too many species to list them all)
+    const held = FISH.filter(f => S.hold[f.id]);
+    $('slots').innerHTML = held.length ? held.map(f => `<div class="slot"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${f.img}" alt=""><span>${f.name}</span></div>`).join('') : '<div class="slot zero"><span>The hold is empty</span></div>';
     updatePumpUI();
   }
   function pumpTick(dt) {
