@@ -7,6 +7,7 @@ import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
+import { createGarageFriends } from './garage-friends.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -312,7 +313,9 @@ export function initHud(api) {
   // ---- quick actions (fleet, search, inbox) and the shared sheet ----
   const sheet = $('sheet'), sheetBody = $('sheet-body');
   let sheetOpen = false, sheetFocus = null;
-  const openSheet = (title, sub, html) => {
+  // kind 'garage' / 'friends': the full-screen Naked HUD form (garage-friends.js); other sheets keep the card
+  const openSheet = (title, sub, html, kind = '') => {
+    sheet.classList.toggle('nk', !!kind); sheet.dataset.kind = kind;
     $('sheet-title').textContent = title; $('sheet-sub').textContent = sub; sheetBody.innerHTML = html;
     if (!sheetOpen) { sheetFocus = document.activeElement; sheet.hidden = false; requestAnimationFrame(() => sheet.classList.add('open')); sheetOpen = true; }
     $('sheet-close').focus();
@@ -323,74 +326,14 @@ export function initHud(api) {
   addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) closeSheet(); });
   const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const fmtMi = m => `${(m / WORLD.mile).toFixed(1)} mi`;
-  const TUG = '<svg viewBox="0 0 32 32"><path d="M15 4v14M15 5.5c3.6 3 5.8 6.8 6.5 11.5H15M14 8c-2 2.4-3.4 5.4-3.7 9H14"/><path d="M4 20.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
-  // garage / my fleet
+  // garage / my fleet (the "new" dot clears once it's been opened)
   const SEEN = 'sailo:garage-seen'; let seen = false; try { seen = localStorage.getItem(SEEN) === '1'; } catch { /* storage blocked */ }
   $('tb-fleet-dot').hidden = seen; $('dk-more').classList.toggle('has-new', !seen);
-  const SAIL = '<svg viewBox="0 0 32 32"><path d="M15 3v17M15 4c4.2 3.5 7 8.5 7.6 14H15M14 7c-2.6 3-4.4 6.8-4.8 11H14"/><path d="M4 21.5h24l-2.4 3.4a2 2 0 0 1-1.6.8H8a2 2 0 0 1-1.6-.8z"/></svg>';
-  const YACHT = '<svg viewBox="0 0 32 32"><path d="M9 13h9l3 4H7z"/><path d="M12 13V9h5l2 4M19 9V6"/><path d="M3 18h26l-3 5.2a2 2 0 0 1-1.7 1H7.6a2 2 0 0 1-1.7-1z"/></svg>';
-  const BOAT_INFO = { tug: { ico: TUG, sub: 'Sturdy harbour tug with a lighthouse' }, sail: { ico: SAIL, sub: 'Sloop with mainsail and jib · sails furl at anchor' }, yacht: { ico: YACHT, sub: 'Flybridge cruiser with radar arch · custom flag' }, dinghy: { ico: SAIL, sub: 'Daysailer with tall mast and genoa · heels under sail' } };
-  // fish collection: every species you've caught, with your count and heaviest fish; the rest are silhouettes
-  const collectionUI = () => { const fc = api.fishCollection(), got = FISH.filter(f => fc.log[f.id]).length;
-    // species that live in these waters first; the rest say where to travel to catch them
-    const list = [...FISH].sort((a, b) => (!localOdds(a)) - (!localOdds(b)));
-    return `<h4>Fish collection · ${got} / ${FISH.length} species</h4><p class="sh-note">Local waters: <b>${REGION.name}</b>. Travel to other seas for their fish.</p><div class="sh-fishes">${list.map(f => { const r = fc.log[f.id], st = fc.stars(f), here = localOdds(f) > 0;
-      return `<div class="sh-fish${r ? '' : ' locked'}${here ? '' : ' away'}" title="${r ? f.name : here ? 'Lives in these waters' : 'Found in ' + fishWhere(f)}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
-        <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : here ? 'Not caught yet' : `Found in ${fishWhere(f)}`}</small></div>`; }).join('')}</div>`; };
-  const openGarage = () => {
-    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true; $('dk-more').classList.remove('has-new'); paintMenu();
-    const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
-    const card = b => { const st = api.boatStatus(b.id), empty = st.fuel <= 0.05, pct = Math.round(st.fuel / st.cap * 100), on = b.id === active;
-      return `<div class="sh-card boat${on ? ' on' : ''}${empty && !on ? ' empty' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div class="sh-boat"><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small>
-        <div class="sh-specs"><span title="Fuel"><i class="sh-fuel"><i style="width:${pct}%" class="${pct < 20 ? 'low' : ''}"></i></i>${Math.round(st.fuel)}/${st.cap} L</span><span title="Fish in hold">🐟 ${st.fish}/${st.holdCap}</span><span title="Top speed">⚡ ${st.kn} kn</span></div>
-        ${empty ? `<small class="sh-warn">${on ? 'Out of fuel · running on the reserve' : 'No fuel · refuel it at Paradise Station'}</small>` : ''}</div>
-        ${on ? '<span class="sh-tag">Sailing</span>' : `<button class="sh-btn sh-pick" data-boat="${b.id}">Sail this boat</button>`}</div>`; };
-    const ss = api.sailStyle(), st = ss.style;
-    const swatches = (row, label) => `<div class="sh-sw-row"><span>${label}</span><div class="sh-sw">${ss.colours.map(c => `<button class="sh-swatch${st.c[row] === c ? ' on' : ''}" style="background:${c}" data-row="${row}" data-c="${c}" aria-label="${label} ${c}"></button>`).join('')}</div></div>`;
-    const styleUI = `<h4>Sail style · Sail Boat</h4>
-      <div class="seg3" id="sh-mode">${['classic', 'solid', 'layers'].map(m => `<button data-mode="${m}" class="${st.mode === m ? 'on' : ''}">${{ classic: 'Classic', solid: 'Solid', layers: '3 layers' }[m]}</button>`).join('')}</div>
-      ${st.mode === 'solid' ? swatches(0, 'Colour') : st.mode === 'layers' ? swatches(0, 'Top') + swatches(1, 'Middle') + swatches(2, 'Bottom') : ''}
-      <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-img" type="file" accept="image/*" hidden></label>${st.img ? '<button class="sh-btn ghost" id="sh-imgx">Remove image</button>' : ''}<small>Shows pixelated on the mainsail</small></div>`;
-    const yf = api.yachtFlag(), fl = yf.flag;
-    const flagUI = `<h4>Custom flag · Motor Yacht</h4>
-      <div class="seg3 seg2" id="sh-flag-on"><button data-on="1" class="${fl.on ? 'on' : ''}">Flag up</button><button data-on="0" class="${fl.on ? '' : 'on'}">No flag</button></div>
-      ${fl.on ? `<div class="sh-sw-row"><span>Colour</span><div class="sh-sw">${yf.colours.map(c => `<button class="sh-swatch sh-fsw${fl.c === c ? ' on' : ''}" style="background:${c}" data-c="${c}" aria-label="Flag ${c}"></button>`).join('')}</div></div>
-      <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-fimg" type="file" accept="image/*" hidden></label>${fl.img ? '<button class="sh-btn ghost" id="sh-fimgx">Remove image</button>' : ''}<small>Shows pixelated on the flag</small></div>` : ''}`;
-    const ds = api.dinghySail(), dsl = ds.sail;
-    const dinghyUI = `<h4>Sail colour · Dinghy Sailing Boat</h4>
-      <div class="sh-sw-row"><div class="sh-sw">${ds.colours.map(c => `<button class="sh-swatch sh-dsw${dsl.c === c ? ' on' : ''}" style="background:${c}" data-c="${c}" aria-label="Sail ${c}"></button>`).join('')}</div></div>
-      <div class="sh-img-row"><label class="sh-btn ghost">Add image<input id="sh-dimg" type="file" accept="image/*" hidden></label>${dsl.img ? '<button class="sh-btn ghost" id="sh-dimgx">Remove image</button>' : ''}<small>Shows pixelated on the mainsail</small></div>`;
-    openSheet('Garage', `My fleet · ${boats.length} boats`, `
-      ${boats.map(card).join('')}
-      <div class="sh-msg" id="sh-fleet-msg" hidden></div>
-      <div class="sh-stats"><div class="sh-stat"><b>${ECON.coins}</b><span>Coins</span></div><div class="sh-stat"><b>${lastStats.catchN}</b><span>Fish caught</span></div><div class="sh-stat"><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div></div>
-      ${collectionUI()}
-      ${styleUI}
-      ${flagUI}
-      ${dinghyUI}`);
-    sheetBody.querySelectorAll('.sh-pick').forEach(b => b.addEventListener('click', () => {
-      const r = api.setBoat(b.dataset.boat);
-      if (r === 'ok') { closeSheet(); paintFleet(); return; }
-      const m = $('sh-fleet-msg'); m.hidden = false;
-      m.textContent = r === 'nofuel' ? `That boat has no fuel. Moor at Paradise Station (${STATION.where}), then switch to it there and refuel at the Boathouse.` : 'Raise the anchor and stop fishing first (and wait while mooring).'; }));
-    sheetBody.querySelectorAll('#sh-mode [data-mode]').forEach(b => b.addEventListener('click', () => { ss.set({ mode: b.dataset.mode }); openGarage(); }));
-    sheetBody.querySelectorAll('.sh-swatch').forEach(b => b.addEventListener('click', () => { const c = [...st.c]; c[+b.dataset.row] = b.dataset.c; ss.set({ c }); openGarage(); }));
-    $('sh-imgx')?.addEventListener('click', () => { ss.set({ img: null }); openGarage(); });
-    sheetBody.querySelectorAll('.sh-dsw').forEach(b => b.addEventListener('click', () => { ds.set({ c: b.dataset.c }); openGarage(); }));
-    $('sh-dimgx')?.addEventListener('click', () => { ds.set({ img: null }); openGarage(); });
-    $('sh-dimg')?.addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
-      rd.onload = () => { const i = new Image(); i.onload = () => { const k = 48 / Math.max(i.width, i.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
-        c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); ds.set({ img: c.toDataURL('image/png') }); openGarage(); }; i.src = rd.result; }; rd.readAsDataURL(f); });
-    sheetBody.querySelectorAll('#sh-flag-on [data-on]').forEach(b => b.addEventListener('click', () => { yf.set({ on: b.dataset.on === '1' }); openGarage(); }));
-    sheetBody.querySelectorAll('.sh-fsw').forEach(b => b.addEventListener('click', () => { yf.set({ c: b.dataset.c }); openGarage(); }));
-    $('sh-fimgx')?.addEventListener('click', () => { yf.set({ img: null }); openGarage(); });
-    $('sh-fimg')?.addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
-      rd.onload = () => { const i = new Image(); i.onload = () => { const k = 40 / Math.max(i.width, i.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
-        c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); yf.set({ img: c.toDataURL('image/png') }); openGarage(); }; i.src = rd.result; }; rd.readAsDataURL(f); });
-    $('sh-img').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
-      rd.onload = () => { const i = new Image(); i.onload = () => { const k = 48 / Math.max(i.width, i.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
-        c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); ss.set({ img: c.toDataURL('image/png') }); openGarage(); }; i.src = rd.result; }; rd.readAsDataURL(f); });
-  };
+  const lastStats = { catchN: 0, distNm: 0, topKn: 0, x: 0, z: 0 };
+  const gf = createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBody, paintFleet: () => paintFleet(), lastStats,
+    ECON, FISH, REGION, localOdds, fishWhere, STATION, WORLD,
+    onGarageOpen: () => { try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true; $('dk-more').classList.remove('has-new'); paintMenu(); } });
+  const openGarage = gf.openGarage;
   const paintFleet = () => { $('tb-fleet-n').textContent = api.boats().length; $('tb-fleet').setAttribute('aria-label', `My fleet: ${api.boats().length} boats`); };
   paintFleet();
   $('tb-fleet').addEventListener('click', openGarage);
@@ -431,22 +374,8 @@ export function initHud(api) {
   addEventListener('pointerdown', e => { if (!menu.hidden && !menu.contains(e.target) && !menuBtn.contains(e.target)) setMenu(false); }, true);
   addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
   paintMenu();
-  // add friends: share an invite link carrying your captain code
-  const openFriends = () => {
-    let dev = ''; try { dev = localStorage.getItem('sailo:device') || ''; } catch { /* storage blocked */ }
-    const code = (dev.replace(/-/g, '').slice(0, 6) || 'SAILOR').toUpperCase(), link = `${location.origin}${location.pathname}?invite=${code}`;
-    openSheet('Add friends', `Invite a friend to sail ${WORLD.name}`, `
-      <div class="sh-msg">Share your invite link. Your friend opens it on their phone or computer and starts sailing.</div>
-      <h4>Your captain code</h4><div class="sh-code">${code}</div>
-      <button class="sh-btn" id="sh-share">${navigator.share ? 'Share invite link' : 'Copy invite link'}</button>
-      ${navigator.share ? '<button class="sh-btn ghost" id="sh-copy">Copy link</button>' : ''}
-      <h4>Friends</h4><div class="sh-msg">No friends yet. Once a friend joins with your link, you'll see them here.</div>`);
-    const copyBtn = () => $('sh-copy') || $('sh-share');
-    const copy = async () => { try { await navigator.clipboard.writeText(link); copyBtn().textContent = 'Link copied'; } catch { copyBtn().textContent = link; } };
-    $('sh-copy')?.addEventListener('click', copy);
-    $('sh-share').addEventListener('click', async () => { if (navigator.share) { try { await navigator.share({ title: `Sail with me in ${WORLD.name}`, text: `Join me on the water! Captain code ${code}`, url: link }); } catch { /* cancelled */ } } else copy(); });
-  };
-  const lastStats = { catchN: 0, distNm: 0, topKn: 0, x: 0, z: 0 };
+  // add friends: share an invite link carrying your captain code (garage-friends.js)
+  const openFriends = gf.openFriends;
 
   // ---- per-frame readouts ----
   const needle = document.querySelector('#dk-compass .needle');

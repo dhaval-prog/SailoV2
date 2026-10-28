@@ -13,6 +13,7 @@ import { buildDinghy } from './boats/dinghy.js';
 import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 import './boat-actions.css';
+import './garage-friends.css';
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
