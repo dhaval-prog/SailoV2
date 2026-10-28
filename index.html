@@ -132,17 +132,23 @@
   </div>
 </nav>
 
-<div id="boatmenu" style="display:none">
-  <div class="arrow"></div>
-  <div class="actions">
-    <button id="act-fish" class="action"><span id="act-fish-l">Go fishing</span><span class="sub">Cast a line off the stern</span></button>
-    <button id="act-anchor" class="action"><span id="act-anchor-l">Drop anchor</span><span class="sub">Hold the boat in place</span></button>
-    <button id="act-garage" class="action"><span>Garage</span><span class="sub">My fleet</span></button>
-    <button id="act-profile" class="action"><span>Your profile</span><span class="sub">Name, rank &amp; stats</span></button>
-    <button id="act-friends" class="action"><span>Add friends</span><span class="sub">Invite a friend to sail</span></button>
+<!-- boat tap: action carousel along the bottom (boat-actions.js) -->
+<div id="boatmenu" style="display:none" role="menu" aria-label="Boat actions">
+  <div class="ba-ripples" aria-hidden="true"><i></i><i></i></div>
+  <div class="ba-scrim" aria-hidden="true"></div>
+  <div class="ba-caret" aria-hidden="true"></div>
+  <div class="ba-bar-row">
+    <button class="ba-nav prev" id="car-prev" type="button" aria-label="Previous actions"><img src="./boat/white/chevron-left.svg" alt="" draggable="false"></button>
+    <div class="ba-row actions">
+      <button id="act-fish" class="ba-item" type="button" role="menuitem"><span class="ba-ring"><img class="ba-ico w" src="./boat/white/go-fishing.svg" alt="" draggable="false"><img class="ba-ico n" src="./boat/navy/go-fishing.svg" alt="" draggable="false"></span><span class="ba-txt"><b id="act-fish-l">Go fishing</b><small class="sub">Cast a line off the stern</small><i class="ba-bar" aria-hidden="true"></i></span></button>
+      <button id="act-anchor" class="ba-item" type="button" role="menuitem"><span class="ba-ring"><img class="ba-ico w" src="./boat/white/drop-anchor.svg" alt="" draggable="false"><img class="ba-ico n" src="./boat/navy/drop-anchor.svg" alt="" draggable="false"></span><span class="ba-txt"><b id="act-anchor-l">Drop anchor</b><small class="sub">Hold the boat in place</small><i class="ba-bar" aria-hidden="true"></i></span></button>
+      <button id="act-garage" class="ba-item" type="button" role="menuitem"><span class="ba-ring"><img class="ba-ico w" src="./boat/white/garage.svg" alt="" draggable="false"><img class="ba-ico n" src="./boat/navy/garage.svg" alt="" draggable="false"></span><span class="ba-txt"><b>Garage</b><small class="sub">My fleet</small><i class="ba-bar" aria-hidden="true"></i></span></button>
+      <button id="act-profile" class="ba-item" type="button" role="menuitem"><span class="ba-ring"><img class="ba-ico w" src="./boat/white/your-profile.svg" alt="" draggable="false"><img class="ba-ico n" src="./boat/navy/your-profile.svg" alt="" draggable="false"></span><span class="ba-txt"><b>Your profile</b><small class="sub">Name, rank &amp; stats</small><i class="ba-bar" aria-hidden="true"></i></span></button>
+      <button id="act-friends" class="ba-item" type="button" role="menuitem"><span class="ba-ring"><img class="ba-ico w" src="./boat/white/add-friends.svg" alt="" draggable="false"><img class="ba-ico n" src="./boat/navy/add-friends.svg" alt="" draggable="false"></span><span class="ba-txt"><b>Add friends</b><small class="sub">Invite a friend to sail</small><i class="ba-bar" aria-hidden="true"></i></span></button>
+    </div>
+    <button class="ba-nav next" id="car-next" type="button" aria-label="More actions"><img src="./boat/white/chevron-right.svg" alt="" draggable="false"></button>
   </div>
-  <button class="car-nav prev" id="car-prev" type="button" aria-label="Previous actions" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-  <button class="car-nav next" id="car-next" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div class="ba-dots" aria-hidden="true"></div>
 </div>
 
 <div id="fxlayer"></div>
