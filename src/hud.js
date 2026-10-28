@@ -101,27 +101,35 @@ export function initHud(api) {
     if (on) applyLive();
   }
   liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setWeather(prefs.w); paint(); } });
+  const escT = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const tick = () => {
     const c = clock(), key = c.time + c.date;
-    if (key !== lastClock) { clkTime.textContent = c.time; clkDate.textContent = `${c.date} · ${PLACE.name}`; lastClock = key; applyLive(); paintWxIcon(); }
+    if (key !== lastClock) { const i = c.time.indexOf(':'); clkTime.innerHTML = i < 0 ? escT(c.time) : `${escT(c.time.slice(0, i))}<i class="blink">:</i>${escT(c.time.slice(i + 1))}`; clkDate.textContent = `${c.date} · ${PLACE.name}`; lastClock = key; applyLive(); paintWxIcon(); }
   };
   // weather icon: the settings icon by day; at night a moon replaces the sun (clear) or peeks from behind the cloud (cloudy)
-  const MOON = '<path d="M30 10a12 12 0 1 0 9 19 10 10 0 0 1-9-19Z" fill="#dfe6ff" stroke="#aab8e8"/>';
-  const NIGHT_ICONS = {
-    clear: `<svg viewBox="0 0 48 48">${MOON}<path d="M11 13v3M9.5 14.5h3M38 34v2M37 35h2" stroke="#dfe6ff" stroke-width="1.5"/></svg>`,
-    cloudy: '<svg viewBox="0 0 48 48"><path d="M33 7a9 9 0 1 0 7 14 7.5 7.5 0 0 1-7-14Z" fill="#dfe6ff" stroke="#aab8e8"/><path d="M14 36h20a7 7 0 0 0 0-14 10 10 0 0 0-19 2 6 6 0 0 0-1 12Z" fill="#cfd8e6" stroke="#8b9ab3"/></svg>',
+  // white weather glyphs for the scene, 20×14 like the asset pack's cloud (weather-cloudy.svg)
+  const CLOUD = '<circle cx="7" cy="8" r="5"/><circle cx="12" cy="6" r="6"/><rect x="3" y="8" width="15" height="6" rx="3"/>';
+  const SMALL_CLOUD = '<g transform="translate(1.5 -1.5) scale(.85)">' + CLOUD + '</g>';
+  const WX_ICONS = {
+    clear: '<circle cx="10" cy="7" r="3.6"/><g stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M10 .8v1.4M10 11.8v1.4M3.8 7H2.4M17.6 7h-1.4M5.6 2.6l1 1M14.4 2.6l-1 1M5.6 11.4l1-1M14.4 11.4l-1-1"/></g>',
+    cloudy: CLOUD,
+    rain: SMALL_CLOUD + '<g stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M6 12.2l-.8 1.6M10 12.2l-.8 1.6M14 12.2l-.8 1.6"/></g>',
+    storm: SMALL_CLOUD + '<path d="M10.5 9.5 8 13.6h2.2l-.9 2.4 3.2-4.2h-2.1l1.1-2.3z"/>',
+    fog: '<g stroke="#fff" stroke-width="1.7" stroke-linecap="round"><path d="M2 3.5h12M5 7h13M2 10.5h11"/></g>',
+    snow: SMALL_CLOUD + '<circle cx="6" cy="13" r="1"/><circle cx="10" cy="13.4" r="1"/><circle cx="14" cy="13" r="1"/>',
   };
+  const MOON = '<path d="M12.5 1.5a6 6 0 1 0 5.5 8.2 4.8 4.8 0 0 1-5.5-8.2Z"/>';
+  const NIGHT_ICONS = { clear: MOON, cloudy: '<g opacity=".85">' + MOON + '</g><g transform="translate(-2 1.5) scale(.82)">' + CLOUD + '</g>' };
   let iconKey = '';
   const paintWxIcon = () => {
     if (!wx) return;
     const night = isNight(clock().mins, wx), key = wx.preset + night; if (key === iconKey) return; iconKey = key;
-    if (night && NIGHT_ICONS[wx.preset]) clkIco.innerHTML = NIGHT_ICONS[wx.preset];
-    else { const ico = document.querySelector(`.wx[data-w="${wx.preset}"] svg`); if (ico) clkIco.replaceChildren(ico.cloneNode(true)); }
+    clkIco.innerHTML = `<svg viewBox="0 0 20 14" fill="#fff">${(night && NIGHT_ICONS[wx.preset]) || WX_ICONS[wx.preset] || CLOUD}</svg>`;
   };
   const refreshWx = async () => {
     const w = await fetchWeather(); if (!w) return;
     wx = w; clkWx.hidden = false; paintWxIcon();
-    clkWxt.textContent = `${w.tempC != null ? w.tempC + '°C ' : ''}${WX_LABEL[w.preset]}`;
+    clkWxt.innerHTML = `${w.tempC != null ? `<span class="wx-t">${escT(w.tempC)}°</span><span class="wx-l">C </span>` : ''}<span class="wx-l">${WX_LABEL[w.preset]}</span>`; clkWxt.title = `${w.tempC != null ? w.tempC + '°C ' : ''}${WX_LABEL[w.preset]}`;
     applyLive();
   };
 
@@ -330,7 +338,7 @@ export function initHud(api) {
       return `<div class="sh-fish${r ? '' : ' locked'}${here ? '' : ' away'}" title="${r ? f.name : here ? 'Lives in these waters' : 'Found in ' + fishWhere(f)}"><img src="${fc.img(f.id) || ''}" alt=""><b>${r ? f.name : '???'}</b>
         <span class="sh-fstars">${'★'.repeat(st)}<i>${'★'.repeat(5 - st)}</i></span><small>${r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : here ? 'Not caught yet' : `Found in ${fishWhere(f)}`}</small></div>`; }).join('')}</div>`; };
   const openGarage = () => {
-    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true; $('dk-more').classList.remove('has-new');
+    try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked */ } $('tb-fleet-dot').hidden = true; $('dk-more').classList.remove('has-new'); paintMenu();
     const hold = FISH.reduce((a, f) => a + (ECON.hold[f.id] || 0), 0), boats = api.boats(), active = api.getBoat();
     const card = b => { const st = api.boatStatus(b.id), empty = st.fuel <= 0.05, pct = Math.round(st.fuel / st.cap * 100), on = b.id === active;
       return `<div class="sh-card boat${on ? ' on' : ''}${empty && !on ? ' empty' : ''}"><span class="sh-ico">${BOAT_INFO[b.id].ico}</span><div class="sh-boat"><b>${b.name}</b><small>${BOAT_INFO[b.id].sub}</small>
@@ -403,10 +411,26 @@ export function initHud(api) {
   };
   $('tb-search').addEventListener('click', openSearch);
   // inbox
-  const openInbox = () => openSheet('Inbox', 'Messages from the harbour', `
+  const INBOX_SEEN = 'sailo:inbox-seen'; let inboxSeen = false; try { inboxSeen = localStorage.getItem(INBOX_SEEN) === '1'; } catch { /* storage blocked */ }
+  const openInbox = () => { inboxSeen = true; try { localStorage.setItem(INBOX_SEEN, '1'); } catch { /* storage blocked */ } paintMenu(); openSheet('Inbox', 'Messages from the harbour', `
     <div class="sh-msg"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
-    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`);
+    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`); };
   $('tb-inbox').addEventListener('click', openInbox);
+  // phones: the grid button under the avatar holds fleet, search, inbox, map, photo and zoom;
+  // its badge counts what is new (an unseen garage, unread inbox messages)
+  const menuBtn = $('hud-menu-btn'), menu = $('hud-menu');
+  const setMenu = open => { menu.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); menuBtn.classList.toggle('on', open); };
+  function paintMenu() {
+    const garageNew = !$('tb-fleet-dot').hidden, unread = inboxSeen ? 0 : 2, n = (garageNew ? 1 : 0) + unread;
+    $('hud-menu-n').hidden = !n; $('hud-menu-n').textContent = n;
+    $('hm-fleet-n').textContent = api.boats().length; $('hm-inbox-n').hidden = !unread; $('hm-inbox-n').textContent = unread;
+  }
+  menuBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(menu.hidden); });
+  menu.querySelectorAll('[data-proxy]').forEach(b => b.addEventListener('click', () => { setMenu(false); $(b.dataset.proxy).click(); paintMenu(); }));
+  menu.querySelectorAll('[data-proxy-z]').forEach(b => b.addEventListener('click', () => api.zoomBy(b.dataset.proxyZ === 'in' ? 0.7 : 1.45)));
+  addEventListener('pointerdown', e => { if (!menu.hidden && !menu.contains(e.target) && !menuBtn.contains(e.target)) setMenu(false); }, true);
+  addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+  paintMenu();
   // add friends: share an invite link carrying your captain code
   const openFriends = () => {
     let dev = ''; try { dev = localStorage.getItem('sailo:device') || ''; } catch { /* storage blocked */ }

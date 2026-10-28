@@ -1,0 +1,275 @@
+/* Naked HUD: no panels or pills. White type and icons sit straight on the scene,
+   kept readable by one text shadow, one icon drop shadow and three soft scrims.
+   Desktop follows the 1280×720 design and phones the 390×844 one. Loaded after
+   every other stylesheet, so its rules lead with ids. Fonts are Nunito 600–900
+   and JetBrains Mono 500–600; icons come from public/hud (the HUD asset pack). */
+:root {
+  --nh-ts: 0 1px 2px rgba(0, 20, 50, 0.6), 0 0 14px rgba(0, 20, 50, 0.4);
+  --nh-ds: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.6)) drop-shadow(0 0 8px rgba(0, 20, 50, 0.35));
+  --nh-font: 'Nunito', system-ui, sans-serif;
+  --nh-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --nh-navy: #172443;
+  --nh-coral: #FF7A45;
+  --nh-red: #FF5A4E;
+  --nh-lime: #D4DC6E;
+  --nh-top: calc(20px + var(--safe-t, 0px));
+}
+
+@keyframes nh-blurIn { from { opacity: 0; filter: blur(10px); transform: translateY(-6px); } }
+@keyframes nh-ping { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes nh-coinFlip { 0%, 82% { transform: rotateY(0); } 100% { transform: rotateY(360deg); } }
+@keyframes nh-flow { from { background-position: 0 0; } to { background-position: 24px 0; } }
+@keyframes nh-drift { 0%, 100% { transform: translateX(-1.5px); } 50% { transform: translateX(1.5px); } }
+@keyframes nh-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.25; } }
+@keyframes nh-lowPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 91, 0.6); } 50% { box-shadow: 0 0 0 6px rgba(255, 107, 91, 0); } }
+@keyframes nh-rock { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@keyframes nh-spin { to { transform: rotate(360deg); } }
+@keyframes nh-notif { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+@keyframes nh-glow { 0%, 100% { filter: drop-shadow(0 0 0 #FFC531); } 50% { filter: drop-shadow(0 0 7px #FFC531); } }
+@keyframes nh-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes nh-popIn { 0% { opacity: 0; transform: scale(0.7); } 60% { opacity: 1; transform: scale(1.06); } 100% { transform: scale(1); } }
+
+/* shared look for every icon and line of HUD type */
+body .hi { display: block; width: 22px; height: 22px; filter: var(--nh-ds); pointer-events: none; -webkit-user-drag: none; }
+body #hud-tl, body #compass-strip, body .topbar, body #speedo, body #hint { color: #fff; text-shadow: var(--nh-ts); font-family: var(--nh-font); }
+
+/* ---------- scrims ---------- */
+#hud-scrim { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+#hud-scrim i { position: absolute; display: block; }
+#hud-scrim .s-top { top: 0; left: 0; right: 0; height: 200px; background: linear-gradient(180deg, rgba(6, 24, 60, 0.45), transparent); }
+#hud-scrim .s-bl { bottom: 0; left: 0; width: 420px; height: 320px; background: radial-gradient(ellipse at 0 100%, rgba(6, 24, 60, 0.4), transparent 70%); }
+#hud-scrim .s-br { bottom: 0; right: 0; width: 260px; height: 520px; background: radial-gradient(ellipse at 100% 100%, rgba(6, 24, 60, 0.35), transparent 70%); }
+
+/* ---------- top left: place, time & weather, coins & fuel ---------- */
+body #hud-tl { position: fixed; z-index: 30; top: var(--nh-top); left: calc(20px + var(--safe-l, 0px)); width: 344px; display: flex; flex-direction: column; gap: 16px; pointer-events: none; animation: nh-blurIn 0.8s ease-out both; }
+body #hud-tl #loc, body #hud-tl #clock, body #hud-tl #stn-wallet { position: static; inset: auto; transform: none; opacity: 1; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: #fff; pointer-events: none; }
+body #loc { display: flex; align-items: center; gap: 10px; }
+body #loc .loc-ico { flex: none; position: relative; width: 32px; height: 32px; display: grid; place-items: center; background: none; box-shadow: none; border-radius: 0; }
+body #loc .loc-ico i { position: absolute; width: 12px; height: 12px; border-radius: 50%; }
+body #loc .loc-ico .ping { background: #7FD3FF; animation: nh-ping 2s ease-out infinite; }
+body #loc .loc-ico .dot { background: #fff; box-shadow: 0 0 0 3px #3BA9FF; }
+body #loc .loc-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+body #loc .loc-text b { font: 900 22px/1 var(--nh-font); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body #loc .loc-text span { font: 600 12.5px/1 var(--nh-mono); color: rgba(255, 255, 255, 0.92); white-space: nowrap; font-variant-numeric: normal; }
+
+body #clock { display: flex; align-items: center; gap: 14px; padding-left: 2px; font: 700 14px/1 var(--nh-font); }
+body #clk-time { display: flex; font: 900 16px/1 var(--nh-font); white-space: nowrap; font-variant-numeric: normal; }
+body #clk-time .blink { font-style: normal; animation: nh-blink 1s steps(1) infinite; }
+body #clock .clock-gap { flex: 1; min-width: 16px; }
+body #clock .clock-wx { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; white-space: nowrap; }
+body #clock .clock-wx[hidden] { display: none; }
+body #clk-ico { display: block; width: 20px; height: 14px; animation: nh-drift 4s ease-in-out infinite; filter: var(--nh-ds); }
+body #clk-ico svg { display: block; width: 100%; height: 100%; }
+body #clk-wxt { font: 700 14px/1 var(--nh-font); }
+body #clk-date { color: rgba(255, 255, 255, 0.92); white-space: nowrap; }
+
+body #stn-wallet { display: flex; align-items: center; gap: 8px; padding: 2px 0 0 2px; font-family: var(--nh-font); }
+body #stn-wallet .pill { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: #fff; text-shadow: var(--nh-ts); font: 900 16px/1 var(--nh-font); }
+body #coins { perspective: 200px; }
+body #coins .coin { flex: none; width: 20px; height: 20px; border: 0; border-radius: 50%; background: #FFC531; box-shadow: inset 0 0 0 3px #E69A00, 0 2px 6px rgba(0, 20, 50, 0.4); animation: nh-coinFlip 4s ease-in-out 1.2s infinite; }
+body #fuelPill { flex: 1; gap: 10px; margin-left: 12px; }
+body #fuelPill .fuelbar { flex: 1; width: auto; height: 5px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, 0.35); overflow: hidden; }
+body #fuelPill .fuelbar i, body #fuelPill .fuelbar i.mid { display: block; height: 100%; border-radius: 5px; background-color: #34D1B6; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.38) 0 6px, transparent 6px 12px); animation: nh-flow 0.9s linear infinite; }
+body #fuelPill .fuelbar i.low { background-color: #FF6B5B; }
+body #fuelPill .fuelbar:has(i.low) { animation: nh-lowPulse 1.2s ease-in-out infinite; }
+body #fuelN { white-space: nowrap; }
+
+/* ---------- compass strip (top centre) ---------- */
+body #compass-strip { top: calc(22px + var(--safe-t, 0px)); left: calc(50% - 250px); width: 500px; height: 58px; transform: none; font-family: var(--nh-font); animation: nh-blurIn 0.8s ease-out 0.1s backwards; }
+body #compass-strip::before { top: 30px; height: 1.5px; background: rgba(255, 255, 255, 0.6); box-shadow: none; }
+body #compass-strip .cs-tape i { padding-top: 40px; font: 900 12px/1 var(--nh-font); color: #fff; text-shadow: var(--nh-ts); }
+body #compass-strip .cs-tape i::after { top: 30px; width: 1.5px; height: 4px; margin-left: -0.75px; background: rgba(255, 255, 255, 0.75); box-shadow: none; opacity: 1; }
+body #compass-strip .cs-tape i.tc::after { height: 8px; }
+body #compass-strip .cs-tape i[data-a="0"] { color: #fff; }
+body #compass-strip .cs-notch { top: 24px; width: 12px; height: 12px; margin-left: -6px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 2px rgba(10, 30, 70, 0.5); }
+body #compass-strip .cs-m { height: 58px; }
+body #compass-strip .cs-m i { top: 21px; left: -3px; width: 6px; height: 6px; background: #fff; opacity: 0.9; box-shadow: none; }
+body #compass-strip .cs-m b { top: 5px; font: 900 11.5px/1 var(--nh-font); color: #fff; text-shadow: var(--nh-ts); }
+body #compass-strip .cs-station i, body #compass-strip .cs-course i { top: 18px; left: -6px; width: 12px; height: 12px; border-radius: 2px; opacity: 1; transform: rotate(45deg); }
+body #compass-strip .cs-station i { background: #FFC531; animation: nh-glow 2s ease-in-out infinite; }
+body #compass-strip .cs-station b { color: #FFD36B; }
+body #compass-strip .cs-course i { background: #FF6B55; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
+body #compass-strip .cs-course b { color: #FFC2B4; }
+body #status { top: calc(92px + var(--safe-t, 0px)); }
+body #edge-warn { top: calc(128px + var(--safe-t, 0px)); }
+
+/* ---------- top right: fleet, search, inbox, captain ---------- */
+body .topbar { top: calc(23px + var(--safe-t, 0px)); right: calc(104px + var(--safe-r, 0px)); align-items: center; gap: 10px; }
+body .topbar .tb-btn, body .topbar .tb-chip { position: relative; flex: none; height: 52px; margin: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+body .topbar .tb-btn { width: 52px; border-radius: 50%; }
+body .topbar .tb-chip { gap: 8px; padding: 0 18px; border-radius: 26px; font: 900 20px/1 var(--nh-font); text-shadow: var(--nh-ts); animation: nh-blurIn 0.8s ease-out 0.15s backwards; }
+body .topbar .tb-chip .dk-n { position: static; min-width: 0; height: auto; padding: 0; border-radius: 0; background: none; color: #fff; font: 900 20px/1 var(--nh-font); }
+body .topbar .tb-chip .tb-dot { position: absolute; top: -3px; right: -2px; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; background: var(--nh-red); border: 2px solid #fff; box-shadow: none; animation: nh-notif 1.6s ease-in-out infinite; }
+body .topbar .tb-chip .tb-dot[hidden] { display: none; }
+body #tb-search { animation: nh-blurIn 0.8s ease-out 0.2s backwards; }
+body #tb-inbox { animation: nh-blurIn 0.8s ease-out 0.25s backwards; }
+body .topbar .tb-btn:hover, body .topbar .tb-chip:hover { background: none; transform: scale(1.08); }
+body .topbar .tb-btn:active, body .topbar .tb-chip:active { transform: scale(0.92); }
+
+body #acct-btn { top: var(--nh-top); right: calc(20px + var(--safe-r, 0px)); width: 58px; height: 58px; padding: 0; box-sizing: border-box; border: 3px solid var(--nh-coral); border-radius: 50%; background: #EAF2FB; box-shadow: 0 4px 14px rgba(5, 15, 40, 0.3); animation: nh-blurIn 0.8s ease-out 0.3s backwards; }
+body #acct-btn::before { display: none; }
+body #acct-btn .avatar { width: 100%; height: 100%; }
+body #acct-btn .gear { right: -4px; bottom: -4px; width: 24px; height: 24px; padding: 0; box-sizing: border-box; display: grid; place-items: center; border-radius: 50%; background: var(--nh-navy); border: 2px solid #fff; box-shadow: none; }
+body #acct-btn .gear .hi { width: 16px; height: 16px; filter: none; animation: nh-spin 8s linear infinite; }
+
+/* side tab (placeholder for the logo) */
+#side-tab { position: fixed; z-index: 29; top: calc(100px + var(--safe-t, 0px)); right: var(--safe-r, 0px); width: 44px; height: 58px; display: grid; place-items: center; border-radius: 14px 0 0 14px; pointer-events: none; animation: nh-blurIn 0.8s ease-out 0.35s backwards; }
+#side-tab .hi { width: 26.4px; height: 26.4px; animation: nh-spin 14s linear infinite; }
+
+/* phones only: the grid button and its menu */
+#hud-menu-btn, #hud-menu { display: none; }
+
+/* ---------- bottom right: camera dock ---------- */
+body #dock { right: calc(24px + var(--safe-r, 0px)); bottom: calc(30px + var(--safe-b, 0px)); flex-direction: column; align-items: center; gap: 12px; }
+body #dock .dk { position: relative; flex: none; width: 54px; height: 54px; margin: 0; padding: 0; box-sizing: border-box; border: 0; border-radius: 50%; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: #fff; display: grid; place-items: center; overflow: visible; }
+body #dock .dk::after { display: none; }
+body #dock .dk:hover { background: none; box-shadow: none; transform: scale(1.08); }
+body #dock .dk:active { transform: scale(0.92); }
+body #dock .dk.on { background: none; border: 2.5px solid #fff; box-shadow: 0 0 0 4px rgba(255, 122, 69, 0.7), 0 2px 10px rgba(0, 20, 50, 0.4); }
+body #dock .dk .hi { width: 22px; height: 22px; }
+body #dock .dk-helm { width: 68px; height: 68px; }
+body #dock .dk-helm .hi { width: 30px; height: 30px; animation: nh-rock 3s ease-in-out infinite; }
+body #dock .dk-helm .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--nh-coral); animation: nh-ping 2.4s ease-out infinite; display: none; pointer-events: none; }
+body #dock .dk-helm.on .ring { display: block; inset: -2.5px; }
+body #dock [data-v="top"] { animation: nh-blurIn 0.8s ease-out 0.3s backwards; }
+body #dock .dk-helm { animation: nh-blurIn 0.8s ease-out 0.36s backwards; }
+body #dock #dk-more { display: none; }
+body #dock .dk-moreg { position: static; display: flex; flex-direction: column; align-items: center; }
+body #dock #dk-tray, body #dock #dk-tray[hidden] { position: static; display: flex; flex-direction: column; align-items: center; gap: 12px; transform: none; animation: none; }
+body #dock #dk-shot { animation: nh-blurIn 0.8s ease-out 0.42s backwards; }
+body #dock #dk-compass { animation: nh-blurIn 0.8s ease-out 0.48s backwards; }
+body #dock #dk-compass .needle { transition: transform 0.12s linear; }
+body #dock .dk-zoom { flex: none; width: 54px; height: auto; flex-direction: column; align-items: center; border-radius: 27px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; animation: nh-blurIn 0.8s ease-out 0.54s backwards; }
+body #dock .dk-zoom button { width: 54px; height: 54px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; overflow: visible; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+body #dock .dk-zoom button:hover { background: none; transform: scale(1.08); }
+body #dock .dk-zoom button:active { transform: scale(0.9); }
+body #dock .dk-sep { width: 55%; height: 1.5px; margin: 0; background: rgba(255, 255, 255, 0.35); }
+
+/* ---------- bottom left: steering wheel, speed, gear, heading ---------- */
+body #helm { left: calc(30px + var(--safe-l, 0px)); bottom: calc(22px + var(--safe-b, 0px)); align-items: center; gap: 12px; }
+body #helm #joy { width: 170px; height: 170px; opacity: 1; background: none; box-shadow: none; animation: nh-blurIn 0.8s ease-out 0.45s backwards; }
+body #helm #joy.active { opacity: 1; }
+body #joy .joy-ring, body #joy .joy-dial { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; filter: var(--nh-ds); }
+body #joy .joy-ring { transform: rotate(-90deg); }
+body #joy .track { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 3; }
+body #joy .speed { fill: none; stroke: var(--nh-lime); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 0 100; transform: none; filter: none; transition: stroke-dasharray 0.15s linear; }
+body #joy .spokes { stroke: rgba(255, 255, 255, 0.78); stroke-width: 6; stroke-linecap: round; fill: none; }
+body #joy .rim { fill: none; stroke: rgba(255, 255, 255, 0.78); stroke-width: 9; }
+body #joy .rim-dots { fill: none; stroke: rgba(10, 30, 70, 0.45); stroke-width: 1.6; stroke-dasharray: 0.5 5; }
+body #joy .mark { stroke: var(--nh-lime); stroke-width: 3; stroke-linecap: round; }
+body #joy #wheel-rot, body #joy .w-rock { transform-origin: 85px 85px; }
+body #joy:not(.active) .w-rock { animation: nh-rock 5s ease-in-out infinite; }
+body #joy #joy-dir { background: linear-gradient(to top, rgba(212, 220, 110, 0), rgba(212, 220, 110, 0.9)); }
+body #joy #knob { width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
+body #joy #knob .hub { display: block; width: 100%; height: 100%; box-sizing: border-box; border-radius: 50%; border: 3px solid rgba(10, 30, 70, 0.4); background: radial-gradient(circle at 35% 30%, #fff 0, #C9D3E2 45%, #7F8DA6 100%); box-shadow: 0 2px 10px rgba(0, 20, 50, 0.45); animation: nh-breathe 2.6s ease-in-out infinite; }
+body #helm #speedo { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; opacity: 1; white-space: nowrap; animation: nh-blurIn 0.8s ease-out 0.45s backwards; }
+body #speedo #spd { min-width: 0; margin-right: -5px; font: 900 22px/1 var(--nh-font); text-align: left; font-variant-numeric: normal; }
+body #speedo > span { font: 700 13px/1 var(--nh-font); color: rgba(255, 255, 255, 0.9); align-self: baseline; padding-top: 6px; }
+body #speedo #gear { margin: 0; padding: 5px 9px; border-radius: 9px; font: 900 11px/1 var(--nh-font); font-style: normal; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: none; background: rgba(255, 255, 255, 0.2); color: #fff; }
+body #speedo #gear.fwd { background: rgba(52, 209, 182, 0.3); color: #CFFFF4; }
+body #speedo #gear.rev { background: rgba(255, 110, 160, 0.28); color: #FFD3E4; }
+body #speedo #gear.hold { background: rgba(255, 197, 49, 0.3); color: #FFEBB0; }
+body #speedo #hdg { margin: 0; padding: 1px 0 1px 10px; border-left: 1.5px solid rgba(255, 255, 255, 0.4); font: 900 14px/1 var(--nh-font); font-style: normal; letter-spacing: 0.04em; color: #F1E59A; }
+body #hint { font: 700 13px/1.3 var(--nh-font); }
+
+/* map credits */
+body .geo-attr { bottom: calc(8px + var(--safe-b, 0px)); font: 700 10.5px/1 var(--nh-font); color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px rgba(0, 20, 50, 0.5); }
+body .geo-attr a { color: inherit; text-decoration: none; }
+
+/* medium screens: the strip drops under the top rows so it never meets the top-left block or the top bar */
+@media (min-width: 721px) and (max-width: 1120px) and (min-height: 521px) {
+  body #compass-strip { top: calc(132px + var(--safe-t, 0px)); left: calc(50% - 210px); width: 420px; }
+  body #status { top: calc(196px + var(--safe-t, 0px)); }
+  body #edge-warn { top: calc(232px + var(--safe-t, 0px)); }
+}
+
+/* ---------- phones (and short landscape screens): the 390×844 layout ---------- */
+@media (max-width: 720px), (max-height: 520px) {
+  :root { --nh-top: max(14px, calc(var(--safe-t, 0px) + 11px)); --nh-tl: max(18px, calc(var(--safe-t, 0px) + 15px)); }
+  #hud-scrim .s-top { height: 300px; background: linear-gradient(180deg, rgba(6, 24, 60, 0.5), rgba(6, 24, 60, 0.18) 60%, transparent); }
+  #hud-scrim .s-bl { left: 0; right: 0; width: auto; height: 340px; background: linear-gradient(0deg, rgba(6, 24, 60, 0.45), transparent); }
+  #hud-scrim .s-br, #side-tab, body .topbar { display: none; }
+
+  body #hud-tl { top: var(--nh-tl); left: calc(22px + var(--safe-l, 0px)); width: auto; max-width: calc(100vw - 110px - var(--safe-l, 0px) - var(--safe-r, 0px)); flex-flow: row wrap; align-items: center; gap: 10px; }
+  body #loc { margin-left: -8px; gap: 10px; min-width: 0; }
+  body #loc .loc-ico { width: 26px; height: 26px; }
+  body #loc .loc-ico i { width: 10px; height: 10px; }
+  body #loc .loc-text b { font-size: 19px; }
+  body #loc .loc-text span, body #clock .clock-gap, body #clk-date, body #clk-wxt .wx-l { display: none; }
+  body #clock { gap: 10px; padding: 0; }
+  body #clock::before { content: ''; flex: none; width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.7); }
+  body #clk-time { font-size: 15px; }
+  body #clock .clock-wx { gap: 5px; }
+  body #clk-ico { width: 15px; height: 11px; }
+  body #clk-wxt { font: 800 13px/1 var(--nh-font); }
+  body #stn-wallet { flex-basis: 100%; gap: 16px; padding: 0; }
+  body #stn-wallet .pill { gap: 7px; font-size: 15px; }
+  body #coins .coin { width: 16px; height: 16px; }
+  body #fuelPill { flex: none; gap: 8px; margin-left: 0; }
+  body #fuelPill .fuelbar { flex: none; width: 56px; }
+
+  body #compass-strip { top: calc(var(--nh-tl) + 66px); left: calc(50% - 130px); width: 260px; height: 52px; }
+  body #compass-strip::before { top: 28px; }
+  body #compass-strip .cs-tape i { padding-top: 38px; font-size: 11px; }
+  body #compass-strip .cs-tape i::after { top: 28px; }
+  body #compass-strip .cs-notch { top: 22px; }
+  body #compass-strip .cs-m { height: 52px; }
+  body #compass-strip .cs-m i { top: 19px; }
+  body #compass-strip .cs-m b { top: 3px; font-size: 11px; }
+  body #compass-strip .cs-station i, body #compass-strip .cs-course i { top: 16px; left: -5.5px; width: 11px; height: 11px; }
+  body #status { top: calc(var(--nh-tl) + 128px); }
+  body #edge-warn { top: auto; bottom: calc(220px + var(--safe-b, 0px)); }
+
+  body #acct-btn { top: var(--nh-top); right: calc(18px + var(--safe-r, 0px)); width: 44px; height: 44px; }
+  body #acct-btn .gear { width: 18px; height: 18px; }
+  body #acct-btn .gear .hi { width: 12px; height: 12px; }
+  #hud-menu-btn { position: fixed; z-index: 40; top: calc(var(--nh-top) + 54px); right: calc(20px + var(--safe-r, 0px)); width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: #fff; cursor: pointer; animation: nh-blurIn 0.8s ease-out 0.3s backwards; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  #hud-menu-btn:active, #hud-menu-btn.on { transform: scale(0.92); }
+  #hud-menu-btn .hi { width: 19px; height: 19px; }
+  #hud-menu-n { position: absolute; top: 0; right: -2px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--nh-red); border: 2px solid #fff; font: 900 10px/14px var(--nh-font); color: #fff; text-align: center; animation: nh-notif 1.6s ease-in-out infinite; }
+  #hud-menu-n[hidden] { display: none; }
+  /* the menu: a light card, so it uses the pack's navy icons */
+  #hud-menu { position: fixed; z-index: 41; top: calc(var(--nh-top) + 102px); right: calc(14px + var(--safe-r, 0px)); width: 220px; display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 20px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 14px 40px rgba(5, 15, 40, 0.35); transform-origin: calc(100% - 26px) 0; animation: nh-popIn 0.35s ease-out; font-family: var(--nh-font); }
+  #hud-menu[hidden] { display: none; }
+  #hud-menu > button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--nh-navy); font: 800 14px/1 var(--nh-font); text-align: left; cursor: pointer; }
+  #hud-menu > button:active, #hud-menu .hm-zoom button:active { background: rgba(23, 36, 67, 0.08); }
+  #hud-menu .hi { width: 20px; height: 20px; filter: none; }
+  #hud-menu > button span { flex: 1; }
+  #hud-menu em { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: rgba(23, 36, 67, 0.08); font: 900 11px/20px var(--nh-font); font-style: normal; text-align: center; color: var(--nh-navy); }
+  #hud-menu #hm-inbox-n { background: var(--nh-red); color: #fff; }
+  #hud-menu em[hidden] { display: none; }
+  #hud-menu .hm-zoom { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 4px 0 12px; margin-top: 2px; border-top: 1px solid rgba(23, 36, 67, 0.1); color: var(--nh-navy); font: 800 14px/1 var(--nh-font); }
+  #hud-menu .hm-zoom span { flex: 1; }
+  #hud-menu .hm-zoom button { width: 44px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 12px; background: none; cursor: pointer; }
+
+  body #dock { right: calc(20px + var(--safe-r, 0px)); bottom: calc(14px + var(--safe-b, 0px)); gap: 16px; flex-direction: column; }
+  body #dock .dk { width: 44px; height: 44px; }
+  body #dock .dk .hi { width: 21px; height: 21px; }
+  body #dock .dk-helm { width: 66px; height: 66px; }
+  body #dock .dk-helm .hi { width: 30px; height: 30px; }
+  body #dock .dk-moreg { display: none; }
+
+  body #helm { left: calc(18px + var(--safe-l, 0px)); bottom: max(16px, calc(var(--safe-b, 0px) + 10px)); align-items: flex-start; gap: 10px; }
+  body #helm #joy { width: 116px; height: 116px; }
+  /* the phone wheel keeps the design's line weights at its smaller size (viewBox units × 170/116) */
+  body #joy .track { stroke-width: 4.4; }
+  body #joy .speed { stroke-width: 5.9; }
+  body #joy .spokes { stroke-width: 7.3; }
+  body #joy .rim { stroke-width: 10.3; }
+  body #joy .rim-dots { stroke-width: 2.3; }
+  body #joy .mark { display: none; }
+  body #joy #knob { width: 23.2px; height: 23.2px; margin: -11.6px 0 0 -11.6px; }
+  body #helm #speedo { gap: 8px; }
+  body #speedo #spd { font-size: 18px; margin-right: -4px; }
+  body #speedo > span { font-size: 12px; padding-top: 4px; }
+  body #speedo #gear { padding: 4px 8px; border-radius: 8px; font-size: 10px; }
+  body #speedo #hdg { padding-left: 8px; font-size: 12.5px; }
+  body #hint { font-size: 12px; max-width: 220px; }
+  body .geo-attr { bottom: max(6px, calc(var(--safe-b, 0px) - 12px)); font-size: 9.5px; color: rgba(255, 255, 255, 0.7); }
+}
+/* short landscape phones: the strip and status sit beside the place name instead of under it */
+@media (max-height: 520px) and (min-width: 721px) {
+  body #compass-strip { top: calc(var(--nh-tl) - 4px); }
+  body #status { top: calc(var(--nh-tl) + 56px); }
+  body #hint { display: none; }
+}

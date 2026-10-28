@@ -147,12 +147,12 @@ export function initStation(ctx) {
     <button class="marker locked" id="mk-boathouse" hidden><span class="mk"><span class="mk-name">Boathouse</span><span class="mk-sub">Refuel · boat inventory</span></span></button>
     <div id="toast"></div>
     <div class="modal" id="stn-modal" hidden><div class="card" id="card"></div></div>`;
-  const $ = id => ui.querySelector('#' + id);
+  const $ = id => ui.querySelector('#' + id) || document.getElementById(id); // (the wallet lives in the HUD's top-left block)
   BERTHS.forEach((b, i) => { b.el = document.createElement('button'); b.el.className = 'marker berth'; b.el.hidden = true;
     b.el.innerHTML = `<span class="mk"><span class="mk-name">${b.name}</span><span class="mk-sub">Moor here</span></span>`; b.el.onclick = () => startDocking(i); ui.appendChild(b.el); });
   let toastT; const toast = msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2800); };
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
-  const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} / ${S.cap} L`;
+  const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} L`; $('fuelPill').title = `Fuel ${Math.round(S.fuel)} of ${S.cap} L`;
     $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15); };
 
   // ---------- camera framing from the sea side, so the island never sits between camera and boat ----------
