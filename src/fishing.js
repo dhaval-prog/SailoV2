@@ -127,9 +127,9 @@ export function createFishing(ctx) {
 
   // ---------- power meter (on the water, in the aiming direction) ----------
   const ARC = 0.55;
-  const powerArc = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff3a6', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
-  const arcEdge = new THREE.LineSegments(new THREE.EdgesGeometry(powerArc.geometry), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.95 })); powerArc.add(arcEdge);
-  const sweet = new THREE.Mesh(new THREE.RingGeometry(1, 1.0001, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff7c9', transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
+  const powerArc = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff3a6', transparent: true, opacity: 0.55, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+  const arcEdge = new THREE.LineSegments(new THREE.EdgesGeometry(powerArc.geometry), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.95, depthTest: false })); powerArc.add(arcEdge); powerArc.renderOrder = 6; arcEdge.renderOrder = 7;
+  const sweet = new THREE.Mesh(new THREE.RingGeometry(1, 1.0001, 40, 1, -ARC / 2, ARC), new THREE.MeshBasicMaterial({ color: '#fff7c9', transparent: true, opacity: 0.45, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
   const powerG = new THREE.Group(); powerG.visible = false; [sweet, powerArc].forEach(m => { m.rotation.x = -Math.PI / 2; powerG.add(m); }); stage._scene.add(powerG);
   const SWEET = [0.76, 0.9];
   { const r0 = CAST.min + (CAST.max - CAST.min) * SWEET[0], r1 = CAST.min + (CAST.max - CAST.min) * SWEET[1]; sweet.geometry.dispose(); sweet.geometry = new THREE.RingGeometry(r0, r1, 40, 1, -ARC / 2, ARC); }
@@ -282,7 +282,7 @@ export function createFishing(ctx) {
       s.birds.forEach(b => { const a = t * 0.8 + b.ph; b.b.position.set(Math.cos(a) * b.r, b.h + Math.sin(t * 1.3 + b.ph) * 0.4, Math.sin(a) * b.r); b.b.rotation.set(0, -a, 0); b.b.scale.y = 0.6 + 0.5 * Math.abs(Math.sin(t * 7 + b.ph)); }); });
     // charging a cast: the power arc swings out and back along the aim
     if (G.charging) { G.charging.k += dt; const pw = power(G.charging.k), r = CAST.min + (CAST.max - CAST.min) * pw, dir = G.charging.p.clone().sub(boat.position).setY(0);
-      powerG.position.set(boat.position.x, WL + 0.15, boat.position.z); powerG.rotation.y = Math.atan2(-dir.z, dir.x);
+      powerG.position.set(boat.position.x, WL + 0.4, boat.position.z); // drawn over the waves powerG.rotation.y = Math.atan2(-dir.z, dir.x);
       powerArc.geometry.dispose(); powerArc.geometry = new THREE.RingGeometry(Math.max(0.5, r - 0.6), r + 0.6, 24, 1, -ARC / 2, ARC);
       arcEdge.geometry.dispose(); arcEdge.geometry = new THREE.EdgesGeometry(powerArc.geometry);
       const inSweet = pw >= SWEET[0] && pw <= SWEET[1]; powerArc.material.color.set(inSweet ? '#ffe066' : '#fff3a6'); powerArc.material.opacity = inSweet ? 0.8 : 0.55; sweet.material.opacity = inSweet ? 0.6 : 0.3;

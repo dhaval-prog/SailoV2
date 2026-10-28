@@ -35,11 +35,11 @@ export function initBoatQuick({ THREE, boat, toScreen, state, onFish, onAnchor }
     if (t - lastT > 0.05 || !rect) { lastT = t; rect = measure() || rect; }
     if (!rect) return;
     // two rings on a quarter-curve hugging the boat's top-right corner
-    const cx = rect[2], cy = rect[1], R = Math.max(46, Math.min(90, (rect[2] - rect[0]) * 0.35));
+    const cx = rect[2], cy = rect[1] + Math.min(60, (rect[3] - rect[1]) * 0.25), R = 50;
     const vis = [fishB, anchorB].filter(b => !b.hidden);
-    vis.forEach((b, i) => { const a = (vis.length === 1 ? -45 : -70 + i * 50) * Math.PI / 180;
-      const x = Math.min(innerWidth - 30, cx + Math.cos(a) * R * 0.55), y = Math.max(30, cy + 18 + Math.sin(a) * R * 0.6 + i * 6);
-      b.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`; });
+    vis.forEach((b, i) => { const a = (vis.length === 1 ? -15 : -38 + i * 52) * Math.PI / 180;
+      const x = Math.min(innerWidth - 30, cx + 8 + Math.cos(a) * R * 0.6), y = Math.max(30, cy + Math.sin(a) * R);
+      b.style.left = x.toFixed(1) + 'px'; b.style.top = y.toFixed(1) + 'px'; });
   }
   return { update };
 }
