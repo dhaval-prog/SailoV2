@@ -67,3 +67,4 @@ body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
 /* a real captain online: a teal dot before the name */
 .cpu-tag.live b { display: inline-flex; align-items: center; gap: 6px; }
 .cpu-tag.live b::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #6EE7C5; box-shadow: 0 0 0 2px rgba(110, 231, 197, 0.3), 0 1px 2px rgba(0, 20, 50, 0.6); }
+#sheet.nk .cp-acts { display: flex; flex-wrap: wrap; gap: 10px; }

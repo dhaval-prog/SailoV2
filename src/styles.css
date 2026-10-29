@@ -1139,3 +1139,9 @@ body.view-top #you-tag { opacity: 1; }
   .dk-zoom-h button { width: 42px; height: 42px; }
   .dk-zoom-h .dk-sep { width: auto; height: 1px; margin: 0 9px; }
 }
+/* SOS calls on the map (radio-help.js) */
+.map-sos { cursor: pointer; }
+.map-sos-wave { fill: none; stroke: #ff3b30; }
+.map-sos-dot { fill: #ff3b30; stroke: #fff; }
+.map-sos-x { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; pointer-events: none; }
+.map-sos-t { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; paint-order: stroke; stroke: rgba(120, 0, 0, 0.6); stroke-width: 0.35em; stroke-linejoin: round; pointer-events: none; }

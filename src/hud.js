@@ -212,6 +212,19 @@ export function initHud(api) {
   el('circle', { cy: -u * 4.2, r: u * 0.75, class: 'map-pin-dot' }, destM);
   // everyone else out on the water: local sailors and real captains online (setOthers)
   const othersG = el('g', { class: 'map-others' }), others = new Map(); let othersFn = null, othersPick = null, othersT = 0;
+  // SOS calls (radio-help.js): pulsing red markers with expanding rings
+  const sosG = el('g', { class: 'map-sos-g' }), sosM = new Map(); let sosFn = null, sosPick = null;
+  const paintSOS = () => { const list = sosFn ? sosFn() : [], ids = new Set(), k = view.w / V0;
+    list.forEach(s => { ids.add(s.id); let g = sosM.get(s.id);
+      if (!g) { g = el('g', { class: `map-sos${s.mine ? ' mine' : ''}`, 'data-id': s.id }, sosG);
+        [0, 1].forEach(i => { const c = el('circle', { r: u * 1.6, class: 'map-sos-wave', 'stroke-width': u * 0.4 }, g);
+          el('animate', { attributeName: 'r', from: u * 1.6, to: u * 7, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); el('animate', { attributeName: 'opacity', from: 0.9, to: 0, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); });
+        el('circle', { r: u * 1.7, class: 'map-sos-dot', 'stroke-width': u * 0.4 }, g);
+        el('text', { y: u * 0.95, class: 'map-sos-x', 'font-size': u * 2 }, g).textContent = '!';
+        el('text', { y: -u * 3.4, class: 'map-sos-t', 'font-size': u * 2.6 }, g).textContent = s.mine ? 'Your SOS' : `SOS · ${s.name.split(' ')[0]}`;
+        sosM.set(s.id, g); }
+      g.setAttribute('transform', `translate(${s.x} ${s.z}) scale(${k})`); });
+    sosM.forEach((g, id) => { if (!ids.has(id)) { g.remove(); sosM.delete(id); } }); };
   const boatM = el('g', { class: 'map-boat' });
   el('circle', { r: u * 4, class: 'map-pulse' }, boatM);
   const boatArrow = el('path', { d: `M${u * 3} 0L${-u * 2} ${u * 2.2}L${-u * 1} 0L${-u * 2} ${-u * 2.2}Z`, 'stroke-width': u * 0.4 }, boatM);
@@ -324,6 +337,7 @@ export function initHud(api) {
   mapSvg.addEventListener('pointerleave', hideTip);
   mapSvg.addEventListener('click', e => {
     if (dragged) { dragged = false; return; } // a pan is not a pin
+    const sg = e.target.closest?.('.map-sos'); if (sg && sosPick) { setMap(false); sosPick(sg.dataset.id); return; } // an SOS: its card
     const o = otherAt(e); if (o && othersPick) { setMap(false); othersPick(o.c); return; } // a boat: their card
     const w = toWorld(e); if (!w) return;
     if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${tipText(w)}`); if (navigator.vibrate) navigator.vibrate(10); }
@@ -335,7 +349,7 @@ export function initHud(api) {
   addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) setMap(false); });
   const drawMap = (x, z, heading, dest, pos) => {
     boatXY = [x, z]; destXY = dest ? [dest.x, dest.z] : null;
-    if (performance.now() > othersT) { othersT = performance.now() + 250; paintOthers(); }
+    if (performance.now() > othersT) { othersT = performance.now() + 250; paintOthers(); paintSOS(); }
     placeMarks();
     boatArrow.setAttribute('transform', `rotate(${-heading * 180 / Math.PI})`);
     const vis = dest ? 'visible' : 'hidden'; destM.setAttribute('visibility', vis); destLine.setAttribute('visibility', vis);
@@ -450,6 +464,8 @@ export function initHud(api) {
     closePanel: () => closeSheet(), captainName: () => prefs.name, rank: () => rankEl.textContent,
     /** The other boats on the map: list() => [{ c, x, z, yaw, status }]; pick(c) when one is tapped. */
     setOthers: (list, pick) => { othersFn = list; othersPick = pick; },
+    /** SOS calls on the map: list() => [{ id, x, z, name, mine }]; pick(id) when one is tapped. */
+    setSOS: (list, pick) => { sosFn = list; sosPick = pick; },
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
       lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);

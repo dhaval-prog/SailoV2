@@ -50,7 +50,7 @@ const text = e => {
   return `${n} is heading home to ${e.c.home}`;
 };
 
-export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playerName, onRadio }) {
+export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playerName, onRadio, onCompose }) {
   const radioBtn = c => document.querySelector('#sheet-body .cp-call')?.addEventListener('click', () => { hud.closePanel(); onRadio?.(c); });
   const $ = id => document.getElementById(id);
   const you = () => (playerName() || 'Captain').split(' ')[0];
@@ -67,6 +67,7 @@ export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playe
   // a real captain's card: a wave goes to them for real
   function openLive(c) {
     const st = online?.list().find(p => 'u:' + p.id === c.id)?.st, k = liveCard(c, st); hud.openPanel(k.title, k.sub, k.html, 'captain'); radioBtn(c);
+    document.querySelectorAll('#sheet-body .cp-msg').forEach(b => b.addEventListener('click', () => { hud.closePanel(); onCompose?.(c, b.dataset.k); }));
     const b = document.querySelector('#sheet-body .cp-wv'), reply = document.querySelector('#sheet-body .cp-reply');
     b?.addEventListener('click', () => { online?.wave(c.uid); b.disabled = true; b.textContent = 'Waved'; reply.textContent = `You waved at ${first(c)}. They’ll see it over your boat.`; reply.hidden = false; });
   }
