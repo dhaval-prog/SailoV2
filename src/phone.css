@@ -17,8 +17,6 @@
 
   /* the steering hint: centred above the icons round the wheel, at a readable size (the helm is drawn larger on phones) */
   body #helm #hint { left: 50%; right: auto; bottom: calc(100% + 54px); width: max-content; max-width: 240px; transform: translateX(-50%); text-align: center; font-size: 9.5px; }
-  /* the radio's channel sits right under its icon */
-  body #radio-fab .rf-ch { margin-top: -12px; }
   /* bare icons stay easy to see over light water: a stronger shadow, and a bigger top-view target */
   body :is(#helm-orbit .dk .hi, #joy #helm-anchor img.w, #radio-fab img) { filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.85)) drop-shadow(0 0 10px rgba(0, 20, 50, 0.55)); }
   body #helm-orbit [data-v="top"] .hi { width: 34px; height: 34px; }
@@ -28,9 +26,6 @@
   body #voyage { top: calc(var(--nh-tl, 18px) + 92px); bottom: auto; }
   body:has(> #voyage:not(.out)) :is(#hb-ticker, #geo-toast, #geo-labels, #helm #hint) { display: none; } /* (the card says it all) */
   body:has(> #voyage:not(.out)) :is(#helm-orbit .dk, #radio-fab, #joy #helm-anchor) { opacity: 0.55; transition: opacity 0.3s; }
-
-  /* the game fills the whole screen, under the home indicator too (no dark band at the bottom) */
-  html body three-d-stage { bottom: auto !important; height: calc(100vh + env(safe-area-inset-bottom, 0px)) !important; height: calc(100lvh + env(safe-area-inset-bottom, 0px)) !important; }
 }
 /* phones held sideways: the card sits top-left, under the coins and fuel, clear of the compass and the wheel */
 @media (max-height: 520px) { body #voyage { top: calc(var(--nh-tl, 18px) + 54px); left: calc(22px + var(--safe-l, 0px) + 130px); width: 260px; padding: 8px 0; } body #voyage .vg-p { font-size: 12px; } }

@@ -88,9 +88,6 @@ body.tablet.steering :is(#dock, #radio-fab, #helm-anchor, #topbar) { pointer-eve
   body.tablet #compass-strip { top: calc(84px + var(--safe-t, 0px)); left: auto; right: calc(20px + var(--safe-r, 0px)); width: min(400px, calc(100vw - 404px)); }
 }
 
-/* ---------- the game fills the whole screen, under the home indicator too ----------
-   (on iPad the fixed stage could stop short of the bottom safe area, leaving a dark band: it now reaches past it) */
-html body.tablet three-d-stage { bottom: auto !important; height: calc(100vh + env(safe-area-inset-bottom, 0px)) !important; height: calc(100lvh + env(safe-area-inset-bottom, 0px)) !important; }
 
 /* ---------- Naked: the icons stand bare, with no circle round them (every screen). An active view, or the anchor
    while it's down, gets a small coral dot underneath instead; the radio shows it's on by brightening. ---------- */
@@ -102,6 +99,3 @@ html body #joy #helm-anchor { opacity: 0.9; }
 html body #joy #helm-anchor.on img.w { opacity: 1; }
 html body #joy #helm-anchor.on img.n { opacity: 0; }
 html body #radio-fab img { border: 0; }
-
-/* the radio stands bare too: no channel text under it */
-body.tablet #radio-fab .rf-ch { display: none; }

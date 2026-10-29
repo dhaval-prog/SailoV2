@@ -619,6 +619,16 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
     s.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2])); const k = Math.max(1, Math.round(s.length * 0.6)), m = [0, 0, 0];
     for (let i = 0; i < k; i++) for (let j = 0; j < 3; j++) m[j] += s[i][j] / k;
     const c = `rgb(${m.map(Math.round).join(', ')})`; if (c !== last) { last = c; root.style.backgroundColor = document.body.style.backgroundColor = c; } }; }
+// ?vp: a small readout of the screen and page sizes (to check the installed app reaches the bottom of the screen)
+if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre'), probe = document.createElement('i');
+  probe.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.append(probe);
+  el.style.cssText = 'position:fixed;z-index:999;left:50%;top:40%;transform:translateX(-50%);margin:0;padding:10px 14px;border-radius:10px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.5 ui-monospace,monospace;pointer-events:none';
+  document.body.append(el);
+  const paint = () => { const cs = getComputedStyle(probe), st = document.querySelector('three-d-stage').getBoundingClientRect();
+    el.textContent = [`screen ${screen.width}×${screen.height}`, `window ${innerWidth}×${innerHeight}`, `visual ${Math.round(visualViewport?.width)}×${Math.round(visualViewport?.height)}`,
+      `page ${document.documentElement.clientHeight}`, `game ${Math.round(st.top)}→${Math.round(st.bottom)}`, `safe t${cs.paddingTop} b${cs.paddingBottom} l${cs.paddingLeft} r${cs.paddingRight}`,
+      `mode ${['fullscreen', 'standalone', 'minimal-ui', 'browser'].find(m => matchMedia(`(display-mode: ${m})`).matches)}`].join('\n'); };
+  paint(); setInterval(paint, 1000); }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
