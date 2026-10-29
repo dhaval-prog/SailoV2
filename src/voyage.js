@@ -4,13 +4,15 @@
 //   3. sell it at Paradise Station's Fish Market ("Show me" sets a course there)   +25 coins
 // Each step finishes by doing it. Skip ends it; Later hides it until the next visit. Progress is kept in sailo:voyage (saved with the account),
 // and returning captains (anyone who has sailed before) never see it.
+import { isTablet } from './tablet.js';
+
 const KEY = 'sailo:voyage';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 const write = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* storage blocked */ } };
 
 const touch = matchMedia('(pointer: coarse)').matches;
 const STEPS = [
-  { title: 'Set a course', text: touch ? 'Tap anywhere on the water, or push the wheel’s lever up to sail.' : 'Click anywhere on the water, or push the wheel’s lever up to sail.', coins: 10 },
+  { title: 'Set a course', text: isTablet() ? 'Tap anywhere on the water, or slide the throttle up to sail.' : touch ? 'Tap anywhere on the water, or push the centre of the wheel up to sail.' : 'Click anywhere on the water, or push the wheel’s lever up to sail.', coins: 10 },
   { title: 'Catch a fish', text: 'Tap your tug, choose Go fishing, then hold on the sea to cast. Strike when it bites!', coins: 15 },
   { title: 'Sell it at Paradise Station', text: 'Keep a fish, sail into port and sell it at the Fish Market.', coins: 25, showMe: true },
 ];

@@ -26,10 +26,12 @@ import { initHelmOrbit } from './helm-orbit.js';
 import { createRadioHelp } from './radio-help.js';
 import { createBerths } from './berths.js';
 import { isTablet } from './tablet.js';
+const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px)');
 import './radio.css';
 import './cpu.css';
 import './voyage.css';
-import './tablet.css'; // tablets: both thumbs drive (loaded last)
+import './tablet.css'; // tablets: both thumbs drive
+import './phone.css'; // phones: the lever's idle stop, top view, the first-voyage card (loaded last)
 // a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
@@ -560,23 +562,32 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
     thr.setAttribute('aria-valuetext', v > 0 ? `Ahead ${Math.round(v * 100)}%` : v < 0 ? `Astern ${Math.round(-v * 100)}%` : 'Idle'); };
   HELM.paint = paintLever;
   HELM.reset = () => { if (!HELM.lever && !HELM.deg) return; HELM.lever = 0; HELM.deg = 0; paintLever(); };
-  const setLever = v => { v = Math.max(-1, Math.min(1, v)); const was = HELM.lever; HELM.lever = Math.abs(v) < 0.12 ? 0 : v;
-    if (!was !== !HELM.lever && navigator.vibrate) navigator.vibrate(6); paintLever(); }; // (a tick through idle)
-  const lever = g => setLever(-g.dy / (40 * g.k));
+  // phones: the idle stop is wider and holds the lever (it clicks into place: a tick, and the hub settles with a bounce)
+  const idleZone = () => phoneQ.matches ? 0.2 : 0.12; let snapT = 0;
+  { const notch = document.createElement('i'); notch.className = 'joy-notch'; notch.setAttribute('aria-hidden', 'true'); base.insertBefore(notch, knob); } // (phone.css draws it)
+  const setLever = v => { v = Math.max(-1, Math.min(1, v)); const was = HELM.lever; HELM.lever = Math.abs(v) < idleZone() ? 0 : v;
+    if (!was !== !HELM.lever) { if (navigator.vibrate) navigator.vibrate(6); if (!HELM.lever) { base.classList.remove('idle-snap'); void base.offsetWidth; base.classList.add('idle-snap'); clearTimeout(snapT); snapT = setTimeout(() => base.classList.remove('idle-snap'), 400); } }
+    paintLever(); }; // (a tick through idle)
+  // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
+  let grab = null;
+  const lever = g => setLever(grab ? grab.v - (g.dy - grab.dy) / (40 * g.k) : -g.dy / (40 * g.k));
   // while a thumb is on the wheel or the throttle, the buttons round them don't take stray taps
   const holding = () => document.body.classList.toggle('steering', id != null || thrId != null);
   base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
     id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8);
-    // on the hub (or the slot it slides in): the lever; anywhere else: the wheel (on tablets the wheel only steers)
-    HELM.mode = !isTablet() && Math.abs(g.dx) < 24 * g.k && (Math.hypot(g.dx, g.dy - hubY) < 24 * g.k || Math.abs(g.dy) < 46 * g.k) ? 'lever' : 'wheel';
+    // on the hub (or the slot it slides in): the lever; anywhere else: the wheel (on tablets the wheel only steers).
+    // Phones get a bigger lever area: a band down the middle of the wheel, inside its rim.
+    const big = phoneQ.matches, w = (big ? 34 : 24) * g.k;
+    HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 50 : 46) * g.k) ? 'lever' : 'wheel';
     base.classList.toggle('lever', HELM.mode === 'lever'); holding();
+    grab = HELM.mode === 'lever' && big ? { v: HELM.lever, dy: g.dy } : null;
     if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
   base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
     if (HELM.mode === 'lever') { lever(g); return; }
     if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
     const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
     HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
-  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; base.classList.remove('active', 'lever'); holding(); };
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; base.classList.remove('active', 'lever'); holding(); };
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => base.addEventListener(ev, end));
   // the throttle: drag the handle (or touch anywhere along the track) up for ahead, down for astern; it stays where
   // it's left. Idle (or a tap on "Idle") stops the boat.
@@ -590,6 +601,12 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   thr.addEventListener('keydown', e => { const k = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[e.key];
     if (k) { e.preventDefault(); e.stopPropagation(); setLever(HELM.lever ? HELM.lever + k : Math.sign(k) * 0.15); } else if (e.key === 'Home' || e.key === '0') setLever(0); });
   addEventListener('sailo:controls', paintLever); addEventListener('resize', () => setTimeout(paintLever, 100)); paintLever(); }
+// upright phones: the picture is framed a little higher, so the boat sits clear of the wheel and its icons at the bottom
+// (the view is shifted, not the camera, so taps on the water and labels on the scene still line up)
+{ const upright = matchMedia('(max-width: 720px) and (orientation: portrait)'), cam = stage._camera;
+  const frame = () => { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+    if (upright.matches) cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
+  new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -1051,7 +1068,7 @@ stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
 if (isTablet()) document.getElementById('hint').textContent = 'Slide the throttle up to go, down to reverse · turn the wheel to steer';
-else if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Push the lever up to go, down to reverse · turn the wheel to steer';
+else if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Push the centre of the wheel up to go, down to reverse · turn the wheel to steer';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 // the helm hint is a one-time guide: it fades after the first steer (or a few seconds) and stays hidden on later visits
 { const hint = document.getElementById('hint'), KEY = 'sailo-hint-seen'; let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }
