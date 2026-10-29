@@ -300,11 +300,25 @@ body #joy #helm-anchor.on img.n { opacity: 1; }
 }
 
 /* ---------- the helm on the right (wheel, anchor to its left, speed underneath), beside the dock column ---------- */
-html body #helm { left: auto; right: calc(106px + var(--safe-r, 0px)); align-items: center; } /* (html: over fishing-naked.css, loaded later) */
+html body #helm { left: auto; right: calc(106px + var(--safe-r, 0px)); align-items: center; scale: 1.25; transform-origin: right bottom; } /* (html: over fishing-naked.css, loaded later); the helm a size larger */
+/* at anchor the helm steps aside (Raise anchor by the boat brings it back) */
+html body.anchored #helm { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body #helm #hint { text-align: right; align-self: flex-end; }
 body #joy #helm-anchor { left: auto; right: calc(100% + 16px); }
 @media (max-width: 720px), (max-height: 520px) {
   /* phones: left of the big helm ring, the speed line right-aligned under the wheel so it clears the ring */
-  html body #helm { left: auto; right: calc(96px + var(--safe-r, 0px)); align-items: flex-end; }
+  /* phones: the helm centred along the bottom, a size larger; it steps aside while the "Sail into port" bar shows */
+  html body #helm { left: 50%; right: auto; translate: -50% 0; align-items: center; scale: 1.2; transform-origin: center bottom; }
+  html body #helm #speedo { scale: 0.84; transform-origin: center top; } /* (keeps the speed line clear of the helm ring) */
+  html body.stn-bar-on #helm, body.stn-bar-on #radio-fab { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
   body #joy #helm-anchor { left: auto; right: calc(100% + 12px); }
+}
+@media (max-width: 720px), (max-height: 520px) {
+  /* phones: as the game opens the place name and time show for a moment, then fade; the rest moves up (hud.js) */
+  body #hud-tl #loc, body #hud-tl #clock { transition: opacity 0.45s ease; }
+  body.tl-fade #hud-tl #loc, body.tl-fade #hud-tl #clock { opacity: 0; }
+  body.tl-brief #hud-tl #loc, body.tl-brief #hud-tl #clock { display: none; }
+  body #compass-strip, body #status { transition: top 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  body.tl-brief #compass-strip { top: calc(var(--nh-tl) + 30px); }
+  body.tl-brief #status { top: calc(var(--nh-tl) + 92px); }
 }

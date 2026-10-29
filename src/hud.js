@@ -437,6 +437,8 @@ export function initHud(api) {
   const note = (text, ms = 7000) => { noteEl.querySelector('p').textContent = text; const b = noteEl.querySelector('button'); b.hidden = !/Settings/.test(text);
     noteEl.classList.remove('show'); void noteEl.offsetWidth; noteEl.classList.add('show'); clearTimeout(noteT); noteT = setTimeout(() => noteEl.classList.remove('show'), ms); };
   noteEl.querySelector('button').addEventListener('click', () => { noteEl.classList.remove('show'); setOpen(true); });
+  // phones: the place name and time show for a moment as the game opens, then make room (coins, fuel and the compass move up)
+  if (matchMedia('(max-width: 720px), (max-height: 520px)').matches) setTimeout(() => { document.body.classList.add('tl-fade'); setTimeout(() => document.body.classList.add('tl-brief'), 450); }, 2800);
   setTimeout(() => { let t = null; try { t = sessionStorage.getItem('sailo:note'); sessionStorage.removeItem('sailo:note'); } catch { /* storage blocked */ } if (t) note(t, 9000); }, 2500); // (left by sign-in / start-up)
   // first entry: name your captain, then pick a boat in the Garage. Skip (or ✕) leaves it for later.
   const openWelcome = onDone => {

@@ -80,3 +80,14 @@ body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
 #sheet.nk .cp-fuel.crit i b, #sheet.nk .cp-fuel.empty i b { background: #ff6b5e; }
 #sheet.nk .cp-fuel em, #sheet.nk .cp-row em { font-style: normal; font: 500 12.5px/1 'JetBrains Mono', monospace; color: #fff; }
 #sheet.nk .cp-fuel.crit em, #sheet.nk .cp-fuel.empty em { color: #ff8a80; }
+
+/* the avatar over each boat (cpu-fleet.js): small and gently fading far off, steady close by, clear on hover */
+@keyframes cpu-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+.cpu-tag { gap: 6px; padding: 0; transition: opacity 0.2s linear; }
+.cpu-av { display: block; box-sizing: border-box; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: #fff7ea;
+  box-shadow: 0 0 0 2px var(--ring, #fff), 0 2px 8px rgba(0, 20, 50, 0.55); transition: width 0.35s ease, height 0.35s ease, box-shadow 0.35s ease; }
+.cpu-av svg, .cpu-av img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cpu-tag[data-m="far"] .cpu-av { width: 18px; height: 18px; animation: cpu-pulse 2.8s ease-in-out infinite; }
+.cpu-tag[data-m="near"] .cpu-av { width: 28px; height: 28px; }
+.cpu-tag[data-m="hover"] .cpu-av { width: 38px; height: 38px; box-shadow: 0 0 0 2.5px var(--ring, #fff), 0 0 0 7px rgba(255, 255, 255, 0.22), 0 4px 14px rgba(0, 20, 50, 0.5); }
+@media (prefers-reduced-motion: reduce) { .cpu-tag[data-m="far"] .cpu-av { animation: none; opacity: 0.8; } }

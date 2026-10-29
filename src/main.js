@@ -642,6 +642,7 @@ const paintStatus = () => {
   else if (ACT.anchor === 'raising') s += chip('Raising anchor…', 'rgba(21,32,66,0.6)');
   statusEl.innerHTML = s;
   document.body.classList.toggle('fishing', ACT.fish !== 'off');
+  document.body.classList.toggle('anchored', ACT.anchor === 'down' || ACT.anchor === 'dropping'); // (the helm steps aside at anchor; Raise anchor by the boat brings it back)
   document.getElementById('act-fish-l').textContent = ACT.fish === 'off' ? 'Go fishing' : 'Stop fishing';
   { const h = document.getElementById('helm-anchor'), down = ACT.anchor === 'down' || ACT.anchor === 'dropping';
     h.classList.toggle('on', down); h.disabled = ACT.anchor === 'dropping' || ACT.anchor === 'raising'; h.setAttribute('aria-label', down ? 'Raise anchor' : 'Drop anchor'); }
@@ -814,6 +815,11 @@ function stepCourse(t, dt) {
   dashes.count = n; dashes.instanceMatrix.needsUpdate = true;
 }
 stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; }, true);
+// a mouse over another captain's boat brings their avatar up (checked at most ~12 times a second)
+{ let hoverT = 0; stage.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse' || performance.now() < hoverT) return; hoverT = performance.now() + 80;
+  const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera);
+  cpuFleet.setHover(cpuFleet.hit(ray)?.id ?? null); });
+  stage.addEventListener('pointerleave', () => cpuFleet.setHover(null)); }
 stage.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6 || performance.now() - downAt.t > 450) return;
   if (seaLabels.cancelled) return; // that tap just put a place name back

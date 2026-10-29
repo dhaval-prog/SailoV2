@@ -5,14 +5,14 @@
 @keyframes rd-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 /* the floating button (while the radio is on) */
-#radio-fab { position: fixed; z-index: 20; left: 50%; bottom: calc(30px + var(--safe-b, 0px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer;
+#radio-fab { position: fixed; z-index: 20; left: 50%; bottom: calc(30px + var(--safe-b, 0px)); transform: translateX(-50%); /* (placed above the helm's anchor by radio.js once laid out) */ display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer;
   text-shadow: 0 1px 2px rgba(0, 20, 50, 0.6), 0 0 14px rgba(0, 20, 50, 0.4); animation: rd-rise 0.5s ease-out both; }
 #radio-fab[hidden] { display: none; }
-#radio-fab img { box-sizing: border-box; width: 48px; height: 48px; padding: 11px; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 50%; filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.6)); transition: transform 0.2s; }
+#radio-fab img { box-sizing: border-box; width: 60px; height: 60px; padding: 14px; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 50%; filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.6)); transition: transform 0.2s; }
 #radio-fab.on img { border-color: #6EE7C5; }
 #radio-fab.rx img { animation: rd-rx 1.1s ease-out infinite; }
 #radio-fab:hover img { transform: scale(1.06); }
-#radio-fab .rf-ch { font: 500 10px/1 'JetBrains Mono', monospace; letter-spacing: 0.08em; }
+#radio-fab .rf-ch { font: 500 11.5px/1 'JetBrains Mono', monospace; letter-spacing: 0.08em; }
 #radio-fab .rf-rx { position: absolute; top: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; background: #FFC531; box-shadow: 0 0 0 2px rgba(0, 20, 50, 0.35); opacity: 0; }
 #radio-fab.ping .rf-rx { opacity: 1; }
 body.boat-sel #radio-fab, body.stn-docked #radio-fab, body.map-open #radio-fab { display: none; }
@@ -107,8 +107,8 @@ body.radio-open #dock, body.radio-open #helm, body.radio-open #status, body.radi
 #radio .rd-state small { font: 500 10.5px/1.3 'JetBrains Mono', monospace; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.7); }
 
 @media (max-width: 720px), (max-height: 520px) {
-  #radio-fab { left: calc(38px + var(--safe-l, 0px)); bottom: calc(34px + var(--safe-b, 0px)); transform: none; } /* (the helm is on the right) */
-  #radio-fab img { width: 44px; height: 44px; padding: 10px; }
+
+  #radio-fab img { width: 50px; height: 50px; padding: 12px; }
   #radio .rd-scrim { height: 92%; }
   #radio .rd-body { width: calc(100% - 32px); gap: 12px; padding-bottom: calc(18px + var(--safe-b, 0px)); }
   #radio .rd-ch { min-width: 86px; } #radio .rd-ch b { font-size: 38px; }

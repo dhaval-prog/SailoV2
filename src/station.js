@@ -188,8 +188,8 @@ export function initStation(ctx) {
   const worldAt = ([x, y, z]) => new V3(O.x + x * K, WL + y * K, O.z + z * K);
   const ropes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), M('rope', '#e6cf9a')); m.visible = false; stage._scene.add(m); return m; });
   const renderBar = () => {
-    const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near;
-    bar.hidden = !show; document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
+    const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near && !dismissed;
+    bar.hidden = !show; document.body.classList.toggle('stn-bar-on', show); document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
     if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = 'Moor at the pier to open the shops'; }
     else if (mode === 'picking') { b.textContent = 'Cancel'; b.disabled = false; sub.textContent = 'Pick a berth along the pier'; }
     else if (mode === 'docking') { b.textContent = 'Mooring…'; b.disabled = true; sub.textContent = `Approaching ${berth.name}`; }
@@ -213,6 +213,9 @@ export function initStation(ctx) {
     b.el.classList.toggle('taken', taken); b.el.disabled = taken || booking;
     b.el.querySelector('.mk-sub').textContent = !h || h.by === 'you' ? 'Moor here' : h.by === 'local' ? `${h.name.split(' ')[0]} · local sailor` : `Taken · ${h.name}`; });
   let booking = false, berthPaintT = 0;
+  // phones: a tap anywhere off the "Sail into port" bar puts it away (until you next come into range)
+  let dismissed = false; const compact = matchMedia('(max-width: 720px), (max-height: 520px)');
+  addEventListener('pointerdown', e => { if (compact.matches && mode === 'sea' && near && !dismissed && !$('stn-bar').contains(e.target)) { dismissed = true; renderBar(); } }, true);
   async function startDocking(i) {
     if (mode !== 'picking' || booking) return;
     // book it first: two boats can't take the same berth
@@ -480,7 +483,7 @@ export function initStation(ctx) {
     if (mode === 'picking' && (berthPaintT -= dt) < 0) { berthPaintT = 1; paintBerths(); } // (boats come and go while you choose)
     if (!island && dist < 3500) build();
     root.visible = ready && dist < SHOW;
-    const wasNear = near; near = dist < NEAR; if (near !== wasNear && mode === 'sea') renderBar();
+    const wasNear = near; near = dist < NEAR; if (!near) dismissed = false; if (near !== wasNear && mode === 'sea') renderBar();
     if (root.visible) {
       island.tick(t, dt, ctx.night ? ctx.night() : 0, stage._camera);
     }
