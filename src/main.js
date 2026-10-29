@@ -22,6 +22,7 @@ import { createCpuFleet } from './cpu-fleet.js';
 import { createHarbour } from './harbour-board.js';
 import { createOnline } from './online.js';
 import { createRadio } from './radio.js';
+import { initHelmOrbit } from './helm-orbit.js';
 import { createRadioHelp } from './radio-help.js';
 import { createBerths } from './berths.js';
 import './radio.css';
@@ -892,7 +893,7 @@ const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x
 hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
 const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c), onCompose: (c, kind) => radioHelp.compose?.(kind, { uid: c.uid, name: c.name }) });
 // the boat's marine radio; the worldwide channel is joined only when someone tunes to it
-const radio = createRadio({ online, fleet: cpuFleet, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName,
+const radio = createRadio({ online, fleet: cpuFleet, orbit: initHelmOrbit(), cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName,
   global: heard => createOnline({ chartId: 'global', positions: false, me: () => ({ x: 0, z: 0, yaw: 0, kn: 0, kind: 'sail', boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal() }), on: { radio: heard } }) });
 // berths at Paradise Station: real captains book them in the database; the local sailors' come from their schedule
 var berths = createBerths({ chartId: CHART.id, online, playerName: hud.captainName, fleet: cpuFleet, cpu: isPuneChart });

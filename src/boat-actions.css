@@ -64,7 +64,7 @@ body #boatmenu { position: fixed; inset: 0; left: 0; top: 0; z-index: 35; transf
 /* while a boat is selected the rest of the HUD steps aside (it plays its entrance again after);
    the map's place names are hidden too, so its credits can step aside with them */
 body.boat-sel #hud-tl, body.boat-sel #compass-strip, body.boat-sel .topbar, body.boat-sel #acct-btn, body.boat-sel #hud-menu-btn, body.boat-sel #hud-menu,
-body.boat-sel #dock, body.boat-sel #helm, body.boat-sel #hud-scrim, body.boat-sel #geo-labels, body.boat-sel #status, body.boat-sel #you-tag,
+body.boat-sel #dock, body.boat-sel #helm-orbit, body.boat-sel #radio-fab, body.boat-sel #helm, body.boat-sel #hud-scrim, body.boat-sel #geo-labels, body.boat-sel #status, body.boat-sel #you-tag,
 body.boat-sel #course-hint, body.boat-sel #edge-warn, body.boat-sel .geo-attr { animation: none; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
 
 /* ---------- phones (and short landscape screens): the 390×844 layout ---------- */

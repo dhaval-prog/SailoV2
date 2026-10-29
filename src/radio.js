@@ -27,7 +27,7 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const toB64 = buf => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 const fromB64 = s => { const bin = atob(s), b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return b.buffer; };
 
-export function createRadio({ online, global: makeGlobal, fleet, playerPos, playerName, cpu }) {
+export function createRadio({ online, global: makeGlobal, fleet, playerPos, playerName, cpu, orbit }) {
   const $ = s => root.querySelector(s);
   const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
   const st = { power: false, auto: saved.auto !== false, mode: saved.mode || 'marine', ch: Math.min(CH.length - 1, saved.ch ?? 0), vol: saved.vol ?? 0.8, voices: !!saved.voices,
@@ -39,7 +39,9 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   const live = () => (st.mode === 'direct' ? null : chan().global ? glob : online);
 
   // ---------- markup ----------
-  const fab = document.createElement('button'); fab.type = 'button'; fab.id = 'radio-fab'; fab.setAttribute('aria-label', 'Radio'); fab.hidden = true;
+  // the floating button is there from the start, dimmed and disabled until the radio comes on (you start sailing, or pick
+  // Radio in the boat menu); it waits, invisible, for its first place round the wheel so it never jumps
+  const fab = document.createElement('button'); fab.type = 'button'; fab.id = 'radio-fab'; fab.setAttribute('aria-label', 'Radio'); fab.disabled = true; fab.style.visibility = 'hidden';
   fab.innerHTML = '<img src="./boat/white/radio.svg" alt="" draggable="false"><span class="rf-ch"></span><i class="rf-rx" aria-hidden="true"></i>';
   document.body.appendChild(fab);
   const root = document.createElement('div'); root.id = 'radio'; root.hidden = true; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Marine radio');
@@ -122,7 +124,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     return ROSTER.map(c => ({ c, s: stateAt(c, now) })).filter(q => q.s && Math.hypot(q.s.x - me.x, q.s.z - me.z) <= r); };
   function paint() { paintTop(); paintDial(); paintGate(); paintFeed(); paintCtrl(); }
   function paintTop() {
-    root.classList.toggle('off', !st.power); fab.classList.toggle('on', st.power);
+    root.classList.toggle('off', !st.power); fab.classList.toggle('on', st.power); fab.disabled = !st.power; fab.setAttribute('aria-label', st.power ? 'Radio' : 'Radio (off: starts when you set sail)');
     root.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
     const c = chan(), me = playerPos();
     root.dataset.mode = st.mode;
@@ -275,7 +277,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   // ---------- power, modes, channels ----------
   function setPower(on, quiet) {
     if (on === st.power) return; st.power = on; if (!on) { txEnd(); st.queue.length = 0; }
-    if (!quiet) { on ? sfx.on() : sfx.off(); } fab.hidden = !on || st.open;
+    if (!quiet) { on ? sfx.on() : sfx.off(); } fab.hidden = st.open;
     tuneGlobal(); paint();
   }
   function tuneGlobal() { const want = st.power && st.mode === 'marine' && chan().global && st.voices;
@@ -286,7 +288,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     audio(); if (mode) setMode(mode); if (!st.power) setPower(true);
     st.open = true; root.hidden = false; document.body.classList.add('radio-open'); fab.hidden = true; fab.classList.remove('ping'); requestAnimationFrame(() => root.classList.add('open')); paint();
   }
-  function close() { if (!st.open) return; txEnd(); st.open = false; root.classList.remove('open'); document.body.classList.remove('radio-open'); setTimeout(() => { if (!st.open) root.hidden = true; }, 320); fab.hidden = !st.power; }
+  function close() { if (!st.open) return; txEnd(); st.open = false; root.classList.remove('open'); document.body.classList.remove('radio-open'); setTimeout(() => { if (!st.open) root.hidden = true; }, 320); fab.hidden = false; }
   /** Talk to one captain: { id, name, live, uid?, colours, c? } (from their card). */
   function openDirect(p) { st.target = p.live ? { id: p.id, uid: p.uid, name: p.name, live: true, colours: p.colours } : { id: p.id, name: p.name, live: false, colours: p.colours, c: p };
     open('direct'); }
@@ -319,12 +321,18 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   function view(html) { const v = $('.rd-view'); root.classList.toggle('viewing', !!html); v.hidden = !html; v.innerHTML = html || ''; return v; }
   $('.rd-sos').addEventListener('click', () => hooks.sos?.());
 
-  // ---------- the floating button sits just above the helm's anchor icon (wherever the layout puts the helm) ----------
-  const anchorEl = document.getElementById('helm-anchor');
+  // ---------- the floating button sits on the circle round the steering wheel (helm-orbit.js) ----------
+  let lastSpot = null, steady = 0;
   function placeFab() {
-    const b = document.body.classList; if (fab.hidden || b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel')) return; // (the helm is away: stay put)
-    const r = anchorEl?.getBoundingClientRect(); if (!r?.width) return;
-    fab.style.left = `${Math.round(r.left + r.width / 2 - fab.offsetWidth / 2)}px`; fab.style.top = `${Math.round(r.top - 12 - fab.offsetHeight)}px`; fab.style.bottom = 'auto'; fab.style.transform = 'none';
+    const b = document.body.classList, placed = fab.style.visibility !== 'hidden';
+    if (fab.hidden || placed && (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel'))) return; // (the helm is away: stay put)
+    const img = fab.querySelector('img'), p = orbit?.radioAt?.(img.offsetWidth); if (!p) return;
+    const x = Math.round(p[0] - fab.offsetWidth / 2), y = Math.round(p[1] - img.offsetHeight / 2);
+    // first time: wait until the wheel has settled (it eases in), so the button appears once, in its place
+    if (!placed) { steady = lastSpot && Math.abs(lastSpot[0] - x) < 1 && Math.abs(lastSpot[1] - y) < 1 ? steady + 1 : 0; lastSpot = [x, y];
+      const easing = document.getElementById('helm')?.getAnimations?.({ subtree: true }).some(a => a.animationName === 'nh-blurIn' && a.playState === 'running');
+      if (steady < 2 || easing) return; }
+    fab.style.left = `${x}px`; fab.style.top = `${y}px`; fab.style.bottom = 'auto'; fab.style.transform = 'none'; fab.style.visibility = '';
   }
   addEventListener('resize', () => setTimeout(placeFab, 400));
 
@@ -336,6 +344,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     chatter();
     if (st.open) { drawWave(t); if (performance.now() > paintT) { paintT = performance.now() + (st.tx ? 100 : 1000); paintCtrl(); if (!st.tx) { paintTop(); if (++slow % 4 === 0 && st.mode === 'direct') paintDial(); } } }
   }
+  paintTop(); // (the button shows its channel, dimmed, before the radio comes on)
   const ui = { hooks, root, view, sfx, micStart, playClip: (buf, who, direct = true) => play({ who, buf, direct }), post, note, paint, paintFeed, paintTop, setMode,
     b64: { toB64, fromB64 }, get mode() { return st.mode; }, get isOpen() { return st.open; }, get power() { return st.power; }, muted: st.muted, keep };
   return { update, open, close, openDirect, heard, setPower, ui, get power() { return st.power; } };
