@@ -17,7 +17,7 @@
 #radio-fab.ping .rf-rx { opacity: 1; }
 body.boat-sel #radio-fab, body.stn-docked #radio-fab, body.map-open #radio-fab { display: none; }
 /* while the radio is open the sailing controls step aside, as they do for the boat menu */
-body.radio-open #dock, body.radio-open #helm, body.radio-open #status, body.radio-open #course-hint, body.radio-open #hb-ticker { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
+body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.radio-open #status, body.radio-open #course-hint, body.radio-open #hb-ticker { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
 
 /* the radio: a scrim and the set's face, rising from the bottom */
 #radio { position: fixed; inset: 0; z-index: 36; pointer-events: none; color: #fff; font-family: 'Nunito', system-ui, sans-serif; text-shadow: 0 1px 2px rgba(0, 20, 50, 0.6), 0 0 14px rgba(0, 20, 50, 0.4); }
@@ -209,3 +209,11 @@ body.radio-open #nk-note { top: calc(112px + var(--safe-t, 0px)); bottom: auto; 
   #radio .rd-modes { justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
   body.radio-open #nk-note { top: calc(150px + var(--safe-t, 0px)); }
 }
+
+/* the radio is there from the start: dimmed while it's off, lit teal once it's on */
+#radio-fab:not(.on) img { opacity: 0.55; border-color: rgba(255, 255, 255, 0.6); }
+#radio-fab:not(.on) .rf-ch { opacity: 0.6; }
+/* phones: the two view buttons orbit the wheel in a layer of their own (helm-orbit.js) */
+#helm-orbit { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+#helm-orbit .dk { pointer-events: auto; }
+body.stn-bar-on #helm-orbit .dk { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
