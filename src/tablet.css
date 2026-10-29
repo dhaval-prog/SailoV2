@@ -42,15 +42,13 @@ html body.tablet.lefty #helm { right: auto; left: calc(116px + var(--safe-l, 0px
 body.tablet #joy #joy-dir { display: none; }
 body.tablet.lefty #helm #hint { right: auto; left: 0; text-align: left; }
 
-/* ---------- the side column: one set of outlined, labelled circles ---------- */
-body.tablet #dock { right: calc(22px + var(--safe-r, 0px)); bottom: calc(26px + var(--safe-b, 0px)); gap: 10px; }
+/* ---------- the side column: one set of 52 px buttons ---------- */
+body.tablet #dock { right: calc(22px + var(--safe-r, 0px)); bottom: calc(26px + var(--safe-b, 0px)); gap: 14px; }
 body.tablet.lefty #dock { right: auto; left: calc(22px + var(--safe-l, 0px)); }
-body.tablet #dock .dk, body.tablet #dock .dk.on { width: 52px; height: 52px; margin-bottom: 15px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); background: rgba(10, 30, 70, 0.3); }
+body.tablet #dock .dk, body.tablet #dock .dk.on { width: 52px; height: 52px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); background: rgba(10, 30, 70, 0.3); }
 body.tablet #dock .dk { box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3), inset 0 0 8px rgba(0, 20, 50, 0.15); }
 body.tablet #dock .dk.on { border: 2.5px solid #fff; box-shadow: 0 0 0 4px rgba(255, 122, 69, 0.7), 0 2px 10px rgba(0, 20, 50, 0.4); }
 body.tablet #dock .dk .hi { width: 24px; height: 24px; }
-body.tablet #dock .dk::after { display: block; content: attr(data-lbl); inset: auto; top: calc(100% + 5px); left: 50%; width: max-content; height: auto; transform: translateX(-50%); border-radius: 0; background: none; opacity: 1;
-  font: 500 10px/1 var(--nh-mono); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); text-shadow: var(--nh-ts); }
 /* "Follow" (the chase camera): the same size as the rest, and it pulses only while the camera isn't following the boat */
 body.tablet #dock .dk-helm .hi { width: 26px; height: 26px; animation: none; }
 body.tablet #dock .dk-helm .ring { display: block; inset: -2px; animation: tb-ping 2.4s ease-out infinite; }
@@ -65,9 +63,9 @@ body.tablet #dock #dk-compass .dk-north b { position: absolute; left: 50%; top: 
 body.tablet #dock .dk-moreg { flex-direction: column-reverse; }
 body.tablet #dock #dk-more { display: grid; }
 body.tablet #dock #dk-more svg { width: 22px; height: 22px; fill: #fff; filter: var(--nh-ds); }
-body.tablet #dock #dk-tray, body.tablet #dock #dk-tray[hidden] { gap: 10px; }
+body.tablet #dock #dk-tray, body.tablet #dock #dk-tray[hidden] { gap: 14px; }
 body.tablet #dock #dk-tray[hidden] .dk-zoom { display: none; }
-body.tablet #dock .dk-zoom { width: 52px; margin-bottom: 15px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); border-radius: 26px; background: rgba(10, 30, 70, 0.3); box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3); animation: nh-blurIn 0.3s ease-out both; }
+body.tablet #dock .dk-zoom { width: 52px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); border-radius: 26px; background: rgba(10, 30, 70, 0.3); box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3); animation: nh-blurIn 0.3s ease-out both; }
 body.tablet #dock .dk-zoom button { width: 48px; height: 48px; }
 /* while a thumb is on the wheel or the throttle, the buttons round them ignore stray touches */
 body.tablet.steering :is(#dock, #radio-fab, #helm-anchor, #topbar) { pointer-events: none; }
@@ -93,3 +91,14 @@ body.tablet.steering :is(#dock, #radio-fab, #helm-anchor, #topbar) { pointer-eve
 /* ---------- the game fills the whole screen, under the home indicator too ----------
    (on iPad the fixed stage could stop short of the bottom safe area, leaving a dark band: it now reaches past it) */
 html body.tablet three-d-stage { bottom: auto !important; height: calc(100vh + env(safe-area-inset-bottom, 0px)) !important; height: calc(100lvh + env(safe-area-inset-bottom, 0px)) !important; }
+
+/* ---------- Naked: the icons stand bare, with no circle round them (every screen). An active view, or the anchor
+   while it's down, gets a small coral dot underneath instead; the radio shows it's on by brightening. ---------- */
+html body :is(#dock, #helm-orbit) .dk, html body :is(#dock, #helm-orbit) .dk.on, html body.tablet #dock .dk, html body.tablet #dock .dk.on,
+html body.tablet #dock .dk-zoom, html body #joy #helm-anchor, html body #joy #helm-anchor.on { border: 0; background: none; box-shadow: none; }
+html body :is(#dock, #helm-orbit) .dk.on, html body.tablet #dock .dk.on, html body #joy #helm-anchor.on { background: radial-gradient(circle at 50% calc(100% - 3px), #FF7A45 0 3px, transparent 3.5px) no-repeat; }
+html body :is(#dock, #helm-orbit) .dk-helm .ring { display: none !important; }
+html body #joy #helm-anchor { opacity: 0.9; }
+html body #joy #helm-anchor.on img.w { opacity: 1; }
+html body #joy #helm-anchor.on img.n { opacity: 0; }
+html body #radio-fab img { border: 0; }

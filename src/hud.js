@@ -68,7 +68,7 @@ export function initHud(api) {
     tod.classList.toggle('night', st.night);
     tod.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-checked', String((b.dataset.t === 'night') === st.night)));
     document.querySelectorAll('.wx').forEach(b => b.setAttribute('aria-checked', String(b.dataset.w === st.w)));
-    document.querySelectorAll('#dock [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view));
+    document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view)); // (on phones they orbit the wheel, outside the dock)
     document.body.classList.toggle('view-top', st.view === 'top');
   };
   // picking a time of day or weather by hand switches live mode off

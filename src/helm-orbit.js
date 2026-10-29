@@ -4,6 +4,8 @@
 //   its right half when a left-handed captain has the wheel on the left of a tablet (tablet.js);
 // - phones: the helm ring right above the wheel, then round its left side the top view, the radio and the anchor
 //   (held sideways there's no room above the wheel without covering the boat: the two view buttons go on its right).
+// In the top view on a phone the wheel steps aside: Follow (the way back) sits bottom-right on its own, with the radio
+// beside it, and the top-view button (you're there) and the anchor go with the wheel.
 // On phones the two view buttons move out of the side column into a layer of their own while they orbit the wheel,
 // and go back when the screen is wide again. Angles are in degrees, counter-clockwise from the right.
 import { isLefty } from './tablet.js';
@@ -33,6 +35,9 @@ export function initHelmOrbit() {
   function place() {
     home(); const b = document.body.classList;
     if (api.radioAt && (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel') || b.contains('stn-docked'))) return; // (the helm is away: keep the last layout)
+    if (phone.matches && b.contains('view-top')) { // (Follow's corner is set in phone.css)
+      if (chaseB.style.position !== 'fixed') chaseB.style.cssText = 'position:fixed;margin:0';
+      api.radioAt = size => { const r = chaseB.getBoundingClientRect(); return [r.left - 16 - size / 2, r.top + r.height / 2]; }; return; }
     const w = wheel(); if (!w) return;
     const A = !phone.matches ? (isLefty() ? mirror(ORBIT.wide) : ORBIT.wide) : flat.matches ? ORBIT.flat : ORBIT.phone;
     // the anchor lives inside the wheel's box (it scales with the helm): place it in that box's own units
