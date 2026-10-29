@@ -46,7 +46,13 @@ const text = e => {
   const n = first(e.c), at = placeNear(e.p[0], e.p[1]);
   if (e.kind === 'catch') return `${n} landed a ${kgs(e.kg)} kg ${fishNameOf(e.fish)} near ${at}`;
   if (e.kind === 'sell') return `${n} sold ${e.n} fish for ${e.coins} coins at Paradise Station`;
-  if (e.kind === 'out') return `${n} set out from ${e.c.home}`;
+  if (e.kind === 'out') return `${n} set out from ${e.from === 'station' ? 'the Paradise Station moorings' : e.c.home}`;
+  if (e.kind === 'wait') return `${n} is waiting offshore for a berth at Paradise Station`;
+  if (e.kind === 'fuel') return `${n} took on ${e.litres} L of fuel at Paradise Station`;
+  if (e.kind === 'dry') return `${n} ran out of fuel near ${at}`;
+  if (e.kind === 'rescue') return `A passing boat sold ${n} ${e.litres} L of fuel near ${at}`;
+  if (e.kind === 'moored') return `${n} moored off Paradise Station for the night`;
+  if (e.kind === 'ashore') return `${n} is working a shift at the fish market today`;
   return `${n} is heading home to ${e.c.home}`;
 };
 
@@ -109,7 +115,7 @@ export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playe
     const now = Date.now(), me = playerPos();
     harbourFeed(now, 30).filter(e => e.ms > seen).reverse().forEach(e => {
       const d = Math.hypot(e.p[0] - me.x, e.p[1] - me.z), near = d < 3000;
-      if ((e.kind === 'catch' && (near || e.kg >= BIG_KG)) || (e.kind === 'sell' && e.coins >= 150) || (near && e.kind !== 'sell')) queue.push(e); });
+      if ((e.kind === 'catch' && (near || e.kg >= BIG_KG)) || (e.kind === 'sell' && e.coins >= 150) || e.kind === 'dry' || (near && ['out', 'home', 'wait', 'rescue'].includes(e.kind))) queue.push(e); });
     seen = now; queue.splice(0, Math.max(0, queue.length - 3)); // (only the latest few are worth saying)
     if (queue.length && now - lastShown > 25000 && !document.querySelector('#sheet.open')) {
       const e = queue.pop(); queue.length = 0; lastShown = now; flash(text(e), e.c.colours.sail || e.c.colours.hull);

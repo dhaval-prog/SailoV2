@@ -23,6 +23,7 @@ import { createHarbour } from './harbour-board.js';
 import { createOnline } from './online.js';
 import { createRadio } from './radio.js';
 import { createRadioHelp } from './radio-help.js';
+import { createBerths } from './berths.js';
 import './radio.css';
 import './cpu.css';
 import './voyage.css';
@@ -658,7 +659,12 @@ const castEdge = new THREE.Mesh(new THREE.RingGeometry(CAST.max - 0.18, CAST.max
 const castIn = new THREE.Mesh(new THREE.RingGeometry(CAST.min - 0.1, CAST.min, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
 [castFill, castEdge, castIn].forEach(m => { m.rotation.x = -Math.PI / 2; castRing.add(m); });
 F.target = new THREE.Vector3();
-function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; } clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Hold on the sea, release to cast', '#bfefff'); fishStatus = 'Hold on the sea to cast'; paintStatus(); fishCam(); }
+// fishing needs the anchor fully down: "Go fishing" under way drops it first, and the line goes out once it holds
+let fishAfterAnchor = false;
+function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; }
+  if (ACT.anchor === 'raising') { floatText(boat.position.clone().setY(9), 'Wait for the anchor', '#ffd36b'); return; }
+  if (ACT.anchor !== 'down') { fishAfterAnchor = true; if (ACT.anchor === 'up') { floatText(boat.position.clone().setY(9), 'Dropping anchor first', '#fff7ea'); dropAnchor(); } return; }
+  fishAfterAnchor = false; clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Hold on the sea, release to cast', '#bfefff'); fishStatus = 'Hold on the sea to cast'; paintStatus(); fishCam(); }
 /** Cast to a spot (clamped into the ring). Returns false when not ready to cast. */
 function castAt(p) {
   if (ACT.fish !== 'aim') return false;
@@ -676,9 +682,9 @@ const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.
   animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
 function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false);
   // the sail boat anchors without the drop animation: it just holds position and furls its sails
-  if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'down'; anchorG.visible = false; chain.visible = false; floatText(boat.position.clone().setY(boat.position.y + 9), 'Anchored · lowering sails', '#fff7ea'); paintStatus(); return; }
+  if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'down'; anchorG.visible = false; chain.visible = false; floatText(boat.position.clone().setY(boat.position.y + 9), 'Anchored · lowering sails', '#fff7ea'); paintStatus(); if (fishAfterAnchor) startFishing(); return; }
   ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
-function raiseAnchor() { if (ACT.anchor !== 'down') return;
+function raiseAnchor() { fishAfterAnchor = false; if (ACT.anchor !== 'down') return;
   stopFishing(); // raising the anchor means sailing on: the rod comes in and the wheel comes back
   if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'up'; anchorG.visible = true; anchorG.position.y = ANC.y0; floatText(boat.position.clone().setY(boat.position.y + 9), 'Hoisting sails', '#fff7ea'); paintStatus(); return; }
   ACT.anchor = 'raising'; A.k = -0.4; A.up = false; anchorCam(); paintStatus(); }
@@ -691,7 +697,7 @@ function stepActions(t, dt) {
     const wl = WL + waveJS(tmpV.x, tmpV.z, t);
     if (!A.splashed && k > 0.15 && tmpV.y - 0.45 * ANC.s < wl) { A.splashed = true; splash(tmpV.x, tmpV.z, 34, 1.4); floatText(tmpV.clone().setY(wl + 2.2), 'Splash!', '#bfefff'); }
     if (A.splashed) { A.bub -= dt; if (A.bub <= 0) { A.bub = 0.22; ripple(tmpV.x + (Math.random() - 0.5) * 0.6, tmpV.z + (Math.random() - 0.5) * 0.6, 0.3, 1.2); emit(tmpV.x, wl, tmpV.z, (Math.random() - 0.5) * 0.6, 0.8 + Math.random(), (Math.random() - 0.5) * 0.6); } }
-    if (anchorG.position.y < -8) { ACT.anchor = 'down'; anchorG.visible = false; floatText(tmpV.clone().setY(wl + 2.2), 'Anchored', '#fff7ea'); paintStatus(); }
+    if (anchorG.position.y < -8) { ACT.anchor = 'down'; anchorG.visible = false; floatText(tmpV.clone().setY(wl + 2.2), 'Anchored', '#fff7ea'); paintStatus(); if (fishAfterAnchor) startFishing(); }
   } else if (ACT.anchor === 'raising') {
     A.k += dt; anchorG.visible = true; anchorG.position.y = Math.min(ANC.y0, -8 + Math.max(0, A.k) * 4.6); anchorG.rotation.x = Math.sin(t * 5) * 0.12;
     anchorG.getWorldPosition(tmpV);
@@ -846,6 +852,7 @@ queueMicrotask(() => { const w = document.getElementById('stn-wallet'); if (w) d
 const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
   camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
   onDockEnd: () => setView(state.view),
+  berthInfo: i => berths?.info(i), bookBerth: i => berths ? berths.book(i) : Promise.resolve({ ok: true }), berthState: s => berths?.state(s),
   canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
   onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); boatActions.setOpen(false); } });
 onBoatApplied = id => station.setActive(id); onBoatApplied(boatId);
@@ -875,12 +882,14 @@ const myColours = () => { const get = k => { try { return JSON.parse(localStorag
 let myCatches = { n: 0, at: 0 }; const caughtTotal = () => { if (Date.now() - myCatches.at > 60000) { let n = 0; try { Object.values(JSON.parse(localStorage.getItem('sailo:fishlog') || '{}')).forEach(r => { n += r.n || 0; }); } catch { /* storage blocked */ } myCatches = { n, at: Date.now() }; } return myCatches.n; };
 const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x, z: boat.position.z, yaw, kn: Math.abs(vel * 1.944), boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal(),
   kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail' }),
-  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
+  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
 hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
 const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c), onCompose: (c, kind) => radioHelp.compose?.(kind, { uid: c.uid, name: c.name }) });
 // the boat's marine radio; the worldwide channel is joined only when someone tunes to it
 const radio = createRadio({ online, fleet: cpuFleet, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName,
   global: heard => createOnline({ chartId: 'global', positions: false, me: () => ({ x: 0, z: 0, yaw: 0, kn: 0, kind: 'sail', boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal() }), on: { radio: heard } }) });
+// berths at Paradise Station: real captains book them in the database; the local sailors' come from their schedule
+var berths = createBerths({ chartId: CHART.id, online, playerName: hud.captainName, fleet: cpuFleet, cpu: isPuneChart });
 // SOS, saved messages, blocks and reports (signed-in captains)
 const radioHelp = createRadioHelp({ radio, online, chartId: CHART.id, chartName: WORLD.name, playerPos: () => boat.position, playerName: hud.captainName, fleet: cpuFleet, hud,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), cpu: isPuneChart, myScreen: () => toScreen(boat.position) });
@@ -982,7 +991,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1024,4 +1033,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, radioHelp: () => radioHelp, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, radioHelp: () => radioHelp, berths: () => berths, station: () => station, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
