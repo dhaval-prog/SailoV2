@@ -6,6 +6,7 @@ import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { currentSession, signOut } from './auth.js';
+import { beforeSignOut } from './cloud.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
@@ -46,7 +47,7 @@ export function initHud(api) {
   // account: who's signed in, and signing out (back to the sign-in page); guests can sign in from here
   currentSession().then(ses => { const who = $('acct-who'), out = $('acct-out');
     if (ses) { who.textContent = ses.user?.email ? `Signed in as ${ses.user.email}` : 'Signed in'; out.textContent = 'Sign out'; }
-    out.addEventListener('click', async () => { await signOut(); location.reload(); }); });
+    out.addEventListener('click', async () => { out.disabled = true; out.textContent = 'Saving…'; await beforeSignOut(); await signOut(); location.reload(); }); });
   nameIn.value = prefs.name;
   nameIn.addEventListener('input', () => { prefs.name = nameIn.value.trim() || 'Captain'; save(prefs); });
   nameIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') nameIn.blur(); });
