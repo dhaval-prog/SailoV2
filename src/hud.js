@@ -6,7 +6,7 @@ import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { currentSession, signOut } from './auth.js';
-import { beforeSignOut } from './cloud.js';
+import { beforeSignOut, lastSaved } from './cloud.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
@@ -48,6 +48,14 @@ export function initHud(api) {
   currentSession().then(ses => { const who = $('acct-who'), out = $('acct-out');
     if (ses) { who.textContent = ses.user?.email ? `Signed in as ${ses.user.email}` : 'Signed in'; out.textContent = 'Sign out'; }
     out.addEventListener('click', async () => { out.disabled = true; out.textContent = 'Saving…'; await beforeSignOut(); await signOut(); location.reload(); }); });
+  // progress is safe: "Saved ✓ · just now" after each cloud save (cloud.js)
+  { const el = $('acct-saved'); let at = lastSaved();
+    const ago = t => { const s2 = (Date.now() - Date.parse(t)) / 1000; return s2 < 60 ? 'just now' : s2 < 3600 ? `${Math.floor(s2 / 60)} min ago` : new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+    const paintSaved = () => { el.hidden = !at; if (at) el.textContent = `Saved ✓ · ${ago(at)}`; };
+    addEventListener('sailo:saved', e => { at = e.detail?.at || at; paintSaved(); }); setInterval(paintSaved, 30000); paintSaved(); }
+  // the city you're sailing, and changing it (the world map)
+  $('acct-city').textContent = `Sailing ${WORLD.name}`;
+  $('acct-city-btn').addEventListener('click', () => { setOpen(false); openWorld(); });
   nameIn.value = prefs.name;
   nameIn.addEventListener('input', () => { prefs.name = nameIn.value.trim() || 'Captain'; save(prefs); });
   nameIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') nameIn.blur(); });
@@ -325,7 +333,9 @@ export function initHud(api) {
     if (!sheetOpen) { sheetFocus = document.activeElement; sheet.hidden = false; requestAnimationFrame(() => sheet.classList.add('open')); sheetOpen = true; }
     $('sheet-close').focus();
   };
-  const closeSheet = () => { if (!sheetOpen) return; sheetOpen = false; sheet.classList.remove('open'); setTimeout(() => { if (!sheetOpen) sheet.hidden = true; }, 260); if (sheetFocus) sheetFocus.focus(); };
+  let afterSheet = null; // one-off: runs when the sheet next closes (the first-entry flow waits on it)
+  const closeSheet = () => { if (!sheetOpen) return; sheetOpen = false; sheet.classList.remove('open'); setTimeout(() => { if (!sheetOpen) sheet.hidden = true; }, 260); if (sheetFocus) sheetFocus.focus();
+    const f = afterSheet; afterSheet = null; f?.(); };
   $('sheet-close').addEventListener('click', closeSheet);
   sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) closeSheet(); });
@@ -385,12 +395,34 @@ export function initHud(api) {
   // ---- per-frame readouts ----
   const needle = document.querySelector('#dk-compass .needle');
   const spd = $('spd'), gear = $('gear'), arc = $('joy-speed'), hdgEl = $('hdg');
+  // a one-off note on the scene (Naked HUD): fallbacks, "your progress followed you"; a Settings shortcut when it mentions them
+  const noteEl = document.createElement('div'); noteEl.id = 'nk-note'; noteEl.setAttribute('role', 'status'); noteEl.innerHTML = '<p></p><button type="button" hidden>Open Settings</button>'; document.body.appendChild(noteEl);
+  let noteT = 0;
+  const note = (text, ms = 7000) => { noteEl.querySelector('p').textContent = text; const b = noteEl.querySelector('button'); b.hidden = !/Settings/.test(text);
+    noteEl.classList.remove('show'); void noteEl.offsetWidth; noteEl.classList.add('show'); clearTimeout(noteT); noteT = setTimeout(() => noteEl.classList.remove('show'), ms); };
+  noteEl.querySelector('button').addEventListener('click', () => { noteEl.classList.remove('show'); setOpen(true); });
+  setTimeout(() => { let t = null; try { t = sessionStorage.getItem('sailo:note'); sessionStorage.removeItem('sailo:note'); } catch { /* storage blocked */ } if (t) note(t, 9000); }, 2500); // (left by sign-in / start-up)
+  // first entry: name your captain, then pick a boat in the Garage. Skip (or ✕) leaves it for later.
+  const openWelcome = onDone => {
+    let ended = false; const end = () => { if (!ended) { ended = true; onDone?.(); } };
+    openSheet('Make it yours', 'Name your captain, then pick the boat you’ll sail.', `
+      <label class="wl-field"><span>Captain name</span><input id="wl-name" maxlength="18" spellcheck="false" autocomplete="nickname" placeholder="Captain"></label>
+      <p class="wl-hint">This is how other sailors will see you. You can change it any time in Settings.</p>
+      <div class="wl-acts"><button type="button" class="wl-go" id="wl-go">Choose your boat →</button><button type="button" class="wl-skip" id="wl-skip">Skip for now</button></div>`, 'welcome');
+    afterSheet = end;
+    const inp = $('wl-name'); inp.value = prefs.name === 'Captain' ? '' : prefs.name;
+    inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') $('wl-go').click(); }); inp.addEventListener('keyup', e => e.stopPropagation());
+    setTimeout(() => inp.focus(), 350);
+    $('wl-go').addEventListener('click', () => { const n = inp.value.trim(); if (n) { prefs.name = n; nameIn.value = n; save(prefs); }
+      afterSheet = null; gf.openGarage({ intro: 'Pick the boat you’ll sail: tap Sail this boat. The Garage is always here in the top bar.' }); afterSheet = end; });
+    $('wl-skip').addEventListener('click', () => closeSheet());
+  };
   const stCatch = $('st-catch'), stDist = $('st-dist'), stTop = $('st-top'), rankEl = $('acct-rank'), lvl = $('you-lvl');
   const locPos = $('loc-pos'), warn = $('edge-warn');
   let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
   return {
     paint,
-    openGarage, openFriends, openProfile: () => setOpen(true),
+    openGarage, openFriends, openProfile: () => setOpen(true), openWelcome, note,
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
       lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);

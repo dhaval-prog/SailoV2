@@ -17,7 +17,11 @@ async function chooseChart() {
     if (r) { setChart(validChart(r.chart) ? r.chart : PUNE); return; } } catch { /* offline: ask */ }
   const { openPicker } = await import('./picker.js');
   window.__sailoChart = setChart(await openPicker({ first: true })); // (also kept in memory in case storage is blocked)
+  chosenNow = true;
 }
+let chosenNow = false;
+// something went wrong (offline): never a stuck screen. Sail Pune Paradise and say how to change city later.
+const fallBack = why => { window.__sailoChart = setChart(PUNE); try { sessionStorage.setItem('sailo:note', `${why} You’re sailing Pune Paradise. Choose another city any time in Settings.`); } catch { /* storage blocked */ } };
 
 await (await import('./signin.js')).ensureSignedIn();
 // a signed-in captain's progress follows their account: bring this device up to date first
@@ -26,6 +30,9 @@ await cloud.syncOnStart();
 await chooseChart();
 // a new city's station goes to a real harbour: look it up once and keep it with the chart
 { const c = savedChart() || window.__sailoChart;
-  if (c && c.station === undefined) { const { findHarbour } = await import('./harbour.js'); const st = await findHarbour(c); if (st !== undefined) window.__sailoChart = setChart({ ...c, station: st }); } }
+  if (c && c.station === undefined) { let st;
+    try { const { findHarbour } = await import('./harbour.js'); st = await findHarbour(c); } catch { st = undefined; }
+    if (st !== undefined) window.__sailoChart = setChart({ ...c, station: st });
+    else if (chosenNow && !navigator.onLine && c.id !== 'pune') fallBack(`Couldn’t load ${c.name} while offline.`); } } // (online, a city without a harbour found just uses the default spot)
 await import('./main.js');
 cloud.startAutoSave();

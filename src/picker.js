@@ -5,6 +5,7 @@
 
 import { countries, searchCountries, searchStates, searchCities, cityAt, myLocation } from './geocode.js';
 import { chartFor, PUNE, visitedCharts } from './chart-store.js';
+import './naked-panels.css'; // (the Naked look; the first-time picker opens before the game's styles load)
 
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const debounce = (f, ms = 280) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f(...a), ms); }; };
@@ -20,6 +21,7 @@ export function openPicker({ first = false, current = null } = {}) {
       <p class="pk-sub">Your city becomes a 400 sq mi ocean, with its real neighbourhoods floating on the water.</p>
       <button class="pk-loc" id="pk-loc" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.4"/></svg><span>Use my location</span></button>
       <p class="pk-msg" id="pk-msg" role="status"></p>
+      ${first ? '<button class="pk-later" id="pk-later" type="button">Do this later · sail Pune Paradise</button>' : ''}
       <div class="pk-or"><span>or choose</span></div>
       <label class="pk-f"><span>Country</span><input id="pk-country" type="search" placeholder="Search countries" autocomplete="off" spellcheck="false"></label>
       <div class="pk-list" id="pk-country-l"></div>
@@ -38,6 +40,9 @@ export function openPicker({ first = false, current = null } = {}) {
     const onKey = e => { if (e.key === 'Escape' && !first) done(null); };
     addEventListener('keydown', onKey);
     $('pk-x')?.addEventListener('click', () => done(null));
+    // first time: no need to decide now (and the way out when offline): Pune Paradise, with a note in the game
+    $('pk-later')?.addEventListener('click', () => { try { sessionStorage.setItem('sailo:note', 'You’re sailing Pune Paradise. Choose another city any time in Settings.'); } catch { /* storage blocked */ } done({ ...PUNE }); });
+    if (first && !navigator.onLine) say('You’re offline. Sail Pune Paradise for now, and choose your city later.', true);
     const say = (t, bad) => { $('pk-msg').textContent = t; $('pk-msg').classList.toggle('bad', !!bad); };
     const pick = chart => { chosen = chart; $('pk-go').hidden = false; $('pk-go-name').textContent = chart.name; $('pk-go-sub').textContent = [chart.region, chart.country].filter(Boolean).join(', '); $('pk-sail').focus(); };
     el.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => pick(quick[+b.dataset.q])));
