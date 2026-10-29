@@ -210,6 +210,8 @@ export function initHud(api) {
   el('circle', { r: u * 2.6, class: 'map-dest-ring', 'stroke-width': u * 0.3 }, destM);
   el('path', { d: `M0 0C${-u * 0.6} ${-u * 1.6} ${-u * 2} ${-u * 2.6} ${-u * 2} ${-u * 4.2}A${u * 2} ${u * 2} 0 1 1 ${u * 2} ${-u * 4.2}C${u * 2} ${-u * 2.6} ${u * 0.6} ${-u * 1.6} 0 0Z`, class: 'map-pin', 'stroke-width': u * 0.35 }, destM);
   el('circle', { cy: -u * 4.2, r: u * 0.75, class: 'map-pin-dot' }, destM);
+  // everyone else out on the water: local sailors and real captains online (setOthers)
+  const othersG = el('g', { class: 'map-others' }), others = new Map(); let othersFn = null, othersPick = null, othersT = 0;
   const boatM = el('g', { class: 'map-boat' });
   el('circle', { r: u * 4, class: 'map-pulse' }, boatM);
   const boatArrow = el('path', { d: `M${u * 3} 0L${-u * 2} ${u * 2.2}L${-u * 1} 0L${-u * 2} ${-u * 2.2}Z`, 'stroke-width': u * 0.4 }, boatM);
@@ -241,7 +243,22 @@ export function initHud(api) {
   };
   const zoomAt = (f, wx = view.cx, wz = view.cz) => { const w0 = view.w; view.w = Math.min(V0, Math.max(VMIN, view.w * f)); const r = view.w / w0; view.cx = wx + (view.cx - wx) * r; view.cz = wz + (view.cz - wz) * r; applyView(); };
   // the boat and the pin keep their on-screen size at any zoom
-  const placeMarks = () => { const k = view.w / V0; boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${k})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${k})`); };
+  const placeOthers = () => { const k = view.w / V0, named = mapLevel() >= 2; others.forEach(o => { o.g.setAttribute('transform', `translate(${o.x} ${o.z}) scale(${k})`); o.a.setAttribute('transform', `rotate(${-o.yaw * 180 / Math.PI})`); o.t.setAttribute('visibility', named || o.live ? 'visible' : 'hidden'); }); };
+  const paintOthers = () => {
+    const list = othersFn ? othersFn() : [], ids = new Set();
+    list.forEach(p => { ids.add(p.c.id); let o = others.get(p.c.id);
+      if (!o) { const g = el('g', { class: `map-other${p.c.live ? ' live' : ''}`, 'data-id': p.c.id }, othersG);
+        if (p.c.live) el('circle', { r: u * 2.9, class: 'map-other-ring', 'stroke-width': u * 0.4 }, g);
+        const a = el('path', { d: `M${u * 2.2} 0L${-u * 1.5} ${u * 1.6}L${-u * 0.7} 0L${-u * 1.5} ${-u * 1.6}Z`, 'stroke-width': u * 0.35, fill: p.c.colours.sail || p.c.colours.hull || p.c.colours.flag || '#ffffff' }, g);
+        const t = el('text', { y: -u * 3.4, class: 'map-other-t', 'font-size': u * 2.6 }, g); t.textContent = p.c.name.split(' ')[0];
+        o = { g, a, t, live: !!p.c.live }; others.set(p.c.id, o); }
+      Object.assign(o, { c: p.c, x: p.x, z: p.z, yaw: p.yaw || 0, status: p.status }); });
+    others.forEach((o, id) => { if (!ids.has(id)) { o.g.remove(); others.delete(id); } });
+    placeOthers();
+    const live = list.filter(p => p.c.live).length, cpu = list.length - live, row = $('map-others-row');
+    if (row) { row.hidden = !list.length; $('map-others').textContent = [cpu ? `${cpu} local sailor${cpu === 1 ? '' : 's'} out` : '', live ? `${live} captain${live === 1 ? '' : 's'} online` : ''].filter(Boolean).join(' · '); }
+  };
+  const placeMarks = () => { placeOthers(); const k = view.w / V0; boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${k})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${k})`); };
   // place names, sized in screen pixels, drawn most important first and never overlapping
   const PRI = { region: 0, major: 1, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = [15, 12.5, 10.5, 10, 9.5];
   const CATC = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
@@ -301,10 +318,13 @@ export function initHud(api) {
   };
   const hideTip = () => { tip.hidden = true; ghost.setAttribute('visibility', 'hidden'); };
   const tipText = w => { const z = zoneAt(w.x, w.y); return (z ? z.name + ' · ' : '') + formatPosition(w.x, w.y); };
-  mapSvg.addEventListener('pointermove', e => { if (drag && dragged) { hideTip(); return; } const w = toWorld(e); if (w) showTip(e, w, tipText(w)); else hideTip(); });
+  const otherAt = e => others.get(e.target.closest?.('.map-other')?.dataset.id);
+  mapSvg.addEventListener('pointermove', e => { if (drag && dragged) { hideTip(); return; } const o = otherAt(e), w = toWorld(e);
+    if (o && w) showTip(e, w, `${o.c.name} · ${o.status}`); else if (w) showTip(e, w, tipText(w)); else hideTip(); });
   mapSvg.addEventListener('pointerleave', hideTip);
   mapSvg.addEventListener('click', e => {
     if (dragged) { dragged = false; return; } // a pan is not a pin
+    const o = otherAt(e); if (o && othersPick) { setMap(false); othersPick(o.c); return; } // a boat: their card
     const w = toWorld(e); if (!w) return;
     if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${tipText(w)}`); if (navigator.vibrate) navigator.vibrate(10); }
     else showTip(e, w, 'Raise the anchor first');
@@ -314,7 +334,9 @@ export function initHud(api) {
   mapEl.addEventListener('click', e => { if (e.target === mapEl) setMap(false); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) setMap(false); });
   const drawMap = (x, z, heading, dest, pos) => {
-    boatXY = [x, z]; destXY = dest ? [dest.x, dest.z] : null; placeMarks();
+    boatXY = [x, z]; destXY = dest ? [dest.x, dest.z] : null;
+    if (performance.now() > othersT) { othersT = performance.now() + 250; paintOthers(); }
+    placeMarks();
     boatArrow.setAttribute('transform', `rotate(${-heading * 180 / Math.PI})`);
     const vis = dest ? 'visible' : 'hidden'; destM.setAttribute('visibility', vis); destLine.setAttribute('visibility', vis);
     if (dest) { destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
@@ -426,6 +448,8 @@ export function initHud(api) {
     /** Any full-screen Naked sheet (a local sailor's card, ...). */
     openPanel: (title, sub, html, kind = 'panel') => openSheet(title, sub, html, kind),
     captainName: () => prefs.name, rank: () => rankEl.textContent,
+    /** The other boats on the map: list() => [{ c, x, z, yaw, status }]; pick(c) when one is tapped. */
+    setOthers: (list, pick) => { othersFn = list; othersPick = pick; },
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
       lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);

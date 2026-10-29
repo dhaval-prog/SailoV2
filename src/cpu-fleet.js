@@ -97,5 +97,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     const m = all().find(q => q.c.id === id); if (!m?.g?.visible || !m.tag) return false;
     const e = m.tag.querySelector('.cpu-say'); e.textContent = text; e.hidden = false; e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); m.sayT = Date.now() + ms; return true;
   }
-  return { update, hit, out, near, say, setLive };
+  /** Everyone out on the water, near or far (the map): [{ c, x, z, yaw, status }]. */
+  const everyone = () => all().filter(m => m.st).map(m => ({ c: m.c, x: m.c.live ? m.x : m.st.x, z: m.c.live ? m.z : m.st.z, yaw: m.st.yaw ?? m.yaw, status: status(m, m.st) }));
+  return { update, hit, out, near, say, setLive, everyone };
 }
