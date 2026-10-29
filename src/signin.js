@@ -2,21 +2,21 @@
 // By day the form sits straight on the sunny scene; at night it's a frosted card by the lamp-lit tug.
 // The tug is live (signin-scene.js): tap the water to steer, tap the tug for a splash, typing throws
 // bow spray, the lamp goes out while you type a password, and signing in sails the tug off.
-// Accounts are real (auth.js / Supabase Auth); "Sail as a guest" skips signing in on this device.
+// Accounts are real (auth.js / Supabase Auth): every captain signs in.
 import './signin.css';
-import { signIn, signUp, sendReset, setPassword, oauth, sailAsGuest, captainName, fromRedirect, currentSession, isGuest } from './auth.js';
+import { signIn, signUp, sendReset, setPassword, oauth, captainName, fromRedirect, currentSession } from './auth.js';
 import { savedChart } from './chart-store.js';
 
 const SETTINGS = 'sailo:settings';
 const setCaptain = name => { try { const s = JSON.parse(localStorage.getItem(SETTINGS)) || {}; s.name = name; localStorage.setItem(SETTINGS, JSON.stringify(s)); } catch { /* storage blocked */ } };
 const native = !/^https?:$/.test(location.protocol); // the desktop / phone apps can't come back from a Google redirect yet
 
-/** Resolves once the captain is signed in (or chose to sail as a guest), showing the page when needed. */
+/** Resolves once the captain is signed in, showing the page when needed. */
 export async function ensureSignedIn() {
   const back = await fromRedirect().catch(() => null);
   if (back?.session && !back.recovery) { setCaptain(captainName(back.session.user)); return showPage({ done: captainName(back.session.user) }); } // back from Google or an email link
   if (back?.recovery) return showPage({ mode: 'reset', session: back.session });
-  if (!back?.error && (await currentSession() || isGuest())) return;
+  if (!back?.error && await currentSession()) return;
   return showPage({ err: back?.error });
 }
 
@@ -42,7 +42,6 @@ function showPage({ mode = 'in', session = null, done = '', err = '' } = {}) {
             <div class="si-actions"><button type="submit" class="si-cta"></button><a href="#" class="si-forgot">Forgot password?</a></div>
             <div class="si-or"><i></i><span>OR</span><i></i></div>
             <div class="si-social"><button type="button" data-p="google">Google</button><button type="button" data-p="apple">Apple</button></div>
-            <button type="button" class="si-guest">Just looking? <span>Sail as a guest →</span></button>
           </form>
         </main>
         <footer class="si-foot"><small>© Sailo${chart?.name ? ' · ' + chart.name : ''}</small><span class="si-hint"></span></footer>
@@ -84,7 +83,7 @@ function showPage({ mode = 'in', session = null, done = '', err = '' } = {}) {
       $('.si-cta').textContent = st.busy ? (st.busy === 'sail' ? 'Casting off…' : 'Checking the charts…') : reset ? 'Save password' : up ? 'Claim my tug' : 'Set sail';
       $('.si-cta').disabled = !!st.busy;
       $('.si-forgot').hidden = st.mode !== 'in'; $('.si-forgot').textContent = st.sent ? 'Message in a bottle sent ✓' : 'Forgot password?';
-      $('.si-or').hidden = reset || m; $('.si-social').hidden = reset; $('.si-guest').hidden = reset;
+      $('.si-or').hidden = reset || m; $('.si-social').hidden = reset;
       $('.si-hint').textContent = m ? 'Tap the water to steer' : 'Tap the water to steer · tap the tug to say hi';
     }
     const say = (el, text) => { const e = $(el); e.textContent = text || ''; e.hidden = !text; };
@@ -112,7 +111,6 @@ function showPage({ mode = 'in', session = null, done = '', err = '' } = {}) {
       if (b.dataset.p === 'apple') return error('Apple sign-in is coming soon. Use Google or email for now.');
       if (native) return error('Google sign-in works on the web for now. Use your email here.');
       st.busy = 'wait'; paint(); oauth('google'); }));
-    $('.si-guest').addEventListener('click', () => { if (st.busy) return; sailAsGuest(); castOff('Guest Captain'); });
     form.addEventListener('submit', async e => {
       e.preventDefault(); if (st.busy) return;
       const up = st.mode === 'up', reset = st.mode === 'reset', name = inp('name').value.trim(), email = inp('email').value.trim(), pw = inp('pw').value;
