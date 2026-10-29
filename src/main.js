@@ -25,9 +25,11 @@ import { createRadio } from './radio.js';
 import { initHelmOrbit } from './helm-orbit.js';
 import { createRadioHelp } from './radio-help.js';
 import { createBerths } from './berths.js';
+import { isTablet } from './tablet.js';
 import './radio.css';
 import './cpu.css';
 import './voyage.css';
+import './tablet.css'; // tablets: both thumbs drive (loaded last)
 // a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
@@ -535,27 +537,59 @@ addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
 // back to the middle to stop) and the rim is the wheel (turn it round and round: two full
 // turns either way is full rudder). The lever stays where you leave it; the wheel, let go, spins back to centre.
+// Tablets (tablet.js) drive with both thumbs: the throttle is a lever of its own on the other side of the screen,
+// and the whole wheel steers.
 const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
+  const thr = document.createElement('div'); thr.id = 'throttle'; thr.setAttribute('role', 'slider'); thr.setAttribute('aria-label', 'Throttle'); thr.setAttribute('aria-orientation', 'vertical');
+  thr.setAttribute('aria-valuemin', '-100'); thr.setAttribute('aria-valuemax', '100'); thr.tabIndex = 0;
+  thr.innerHTML = `<span class="th-lbl th-ahead">Ahead</span>
+    <div class="th-track"><i class="th-fill"></i><i class="th-mid" aria-hidden="true"></i><button type="button" class="th-idle" aria-label="Idle">Idle</button>
+      <span class="th-thumb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5-5 5 5M7 14l5 5 5-5"/></svg></span></div>
+    <span class="th-lbl th-astern">Astern</span>`;
+  document.body.appendChild(thr);
+  const track = thr.querySelector('.th-track'), thumb = thr.querySelector('.th-thumb'), fill = thr.querySelector('.th-fill');
+  const travel = () => (track.clientHeight - thumb.offsetHeight) / 2; // px from idle to full ahead (or astern)
   const geo = e => { const r = base.getBoundingClientRect(), k = r.width / 170; return { k, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) }; };
-  const paintLever = () => { const R = 40; knob.style.transform = `translate(0px, ${(-HELM.lever * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
-    base.classList.toggle('fwd', HELM.lever > 0); base.classList.toggle('rev', HELM.lever < 0); };
+  const paintLever = () => { const R = 40, v = HELM.lever, t = travel();
+    knob.style.transform = isTablet() ? 'none' : `translate(0px, ${(-v * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
+    base.classList.toggle('fwd', v > 0); base.classList.toggle('rev', v < 0);
+    thumb.style.transform = `translateY(${(-v * t).toFixed(1)}px)`;
+    fill.style.cssText = v > 0 ? `bottom:50%;height:${(v * t).toFixed(1)}px` : v < 0 ? `top:50%;height:${(-v * t).toFixed(1)}px` : 'height:0';
+    thr.classList.toggle('fwd', v > 0); thr.classList.toggle('rev', v < 0); thr.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+    thr.setAttribute('aria-valuetext', v > 0 ? `Ahead ${Math.round(v * 100)}%` : v < 0 ? `Astern ${Math.round(-v * 100)}%` : 'Idle'); };
   HELM.paint = paintLever;
   HELM.reset = () => { if (!HELM.lever && !HELM.deg) return; HELM.lever = 0; HELM.deg = 0; paintLever(); };
-  const lever = g => { let v = -g.dy / (40 * g.k); v = Math.max(-1, Math.min(1, v)); HELM.lever = Math.abs(v) < 0.12 ? 0 : v; paintLever(); };
+  const setLever = v => { v = Math.max(-1, Math.min(1, v)); const was = HELM.lever; HELM.lever = Math.abs(v) < 0.12 ? 0 : v;
+    if (!was !== !HELM.lever && navigator.vibrate) navigator.vibrate(6); paintLever(); }; // (a tick through idle)
+  const lever = g => setLever(-g.dy / (40 * g.k));
+  // while a thumb is on the wheel or the throttle, the buttons round them don't take stray taps
+  const holding = () => document.body.classList.toggle('steering', id != null || thrId != null);
   base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
     id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8);
-    // on the hub (or the slot it slides in): the lever; anywhere else: the wheel
-    HELM.mode = Math.abs(g.dx) < 24 * g.k && (Math.hypot(g.dx, g.dy - hubY) < 24 * g.k || Math.abs(g.dy) < 46 * g.k) ? 'lever' : 'wheel';
-    base.classList.toggle('lever', HELM.mode === 'lever');
+    // on the hub (or the slot it slides in): the lever; anywhere else: the wheel (on tablets the wheel only steers)
+    HELM.mode = !isTablet() && Math.abs(g.dx) < 24 * g.k && (Math.hypot(g.dx, g.dy - hubY) < 24 * g.k || Math.abs(g.dy) < 46 * g.k) ? 'lever' : 'wheel';
+    base.classList.toggle('lever', HELM.mode === 'lever'); holding();
     if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
   base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
     if (HELM.mode === 'lever') { lever(g); return; }
     if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
     const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
     HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
-  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; base.classList.remove('active', 'lever'); };
-  base.addEventListener('pointerup', end); base.addEventListener('pointercancel', end); }
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; base.classList.remove('active', 'lever'); holding(); };
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => base.addEventListener(ev, end));
+  // the throttle: drag the handle (or touch anywhere along the track) up for ahead, down for astern; it stays where
+  // it's left. Idle (or a tap on "Idle") stops the boat.
+  let thrId = null;
+  const fromY = e => { const r = track.getBoundingClientRect(); return -(e.clientY - (r.top + r.height / 2)) / travel(); };
+  thr.addEventListener('pointerdown', e => { if (e.target.closest('.th-idle')) return; thrId = e.pointerId; thr.setPointerCapture(thrId); thr.classList.add('active'); e.stopPropagation(); setLever(fromY(e)); holding(); });
+  thr.addEventListener('pointermove', e => { if (e.pointerId === thrId) setLever(fromY(e)); });
+  const thrEnd = e => { if (e.pointerId !== thrId) return; thrId = null; thr.classList.remove('active'); holding(); };
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => thr.addEventListener(ev, thrEnd));
+  thr.querySelector('.th-idle').addEventListener('click', e => { e.stopPropagation(); setLever(0); });
+  thr.addEventListener('keydown', e => { const k = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[e.key];
+    if (k) { e.preventDefault(); e.stopPropagation(); setLever(HELM.lever ? HELM.lever + k : Math.sign(k) * 0.15); } else if (e.key === 'Home' || e.key === '0') setLever(0); });
+  addEventListener('sailo:controls', paintLever); addEventListener('resize', () => setTimeout(paintLever, 100)); paintLever(); }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -901,6 +935,8 @@ var berths = createBerths({ chartId: CHART.id, online, playerName: hud.captainNa
 const radioHelp = createRadioHelp({ radio, online, chartId: CHART.id, chartName: WORLD.name, playerPos: () => boat.position, playerName: hud.captainName, fleet: cpuFleet, hud,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), cpu: isPuneChart, myScreen: () => toScreen(boat.position) });
 document.getElementById('act-radio').addEventListener('click', () => { boatActions.setOpen(false); radio.open(); });
+// tablets: one inbox, the radio's: the top bar's inbox opens it, and the harbour's notes sit under the captains' messages
+hud.routeInbox(() => radio.openInbox()); radio.ui.hooks.notes = () => isTablet() ? hud.harbourNotes() : '';
 if (firstVisit && !madeYours) setTimeout(() => hud.openWelcome(() => { try { localStorage.setItem('sailo:made-yours', '1'); } catch { /* storage blocked */ } voyage.start(); }), 2600);
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
@@ -998,7 +1034,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1014,7 +1050,8 @@ stage._exportObj = clean(stage._exportObj.bind(stage));
 stage._exportGlb = clean(stage._exportGlb.bind(stage));
 
 // app shell: touch-friendly hint, and fade out the splash once the first frames are drawn
-if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Push the lever up to go, down to reverse · turn the wheel to steer';
+if (isTablet()) document.getElementById('hint').textContent = 'Slide the throttle up to go, down to reverse · turn the wheel to steer';
+else if (matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'Push the lever up to go, down to reverse · turn the wheel to steer';
 else document.getElementById('course-hint').textContent = 'Click anywhere on the water to set a course';
 // the helm hint is a one-time guide: it fades after the first steer (or a few seconds) and stays hidden on later visits
 { const hint = document.getElementById('hint'), KEY = 'sailo-hint-seen'; let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }
