@@ -1,6 +1,6 @@
 // Playable fishing: hold to charge a cast, read the shadows and nibbles, strike on the bite,
 // fight the fish on a tension bar (each species fights its own way), then a catch card with
-// weight, rarity, records and a keep-or-release choice. Also: fishing spots (birds + bubbles),
+// weight, rarity, records and a keep-or-release choice. Also: fishing spots (bubbles; the gulls over them are wildlife.js's),
 // perfect-cast combos, a fish log for the Garage collection, synthesized sounds and vibration.
 // The scene objects (rod, line, bobber) belong to main.js and are passed in through ctx.
 
@@ -102,20 +102,17 @@ export function createFishing(ctx) {
     </div></div>`;
   const $ = id => ui.querySelector('#' + id);
 
-  // ---------- fishing spots: birds circling over bubbles; casting into one draws bigger fish ----------
+  // ---------- fishing spots: bubbles and a shimmer (gulls circle over them: wildlife.js); casting into one draws bigger fish ----------
   const soft = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.4)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-  const birdGeo = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, -0.5, 0.25, 0.9, -0.15, 0, 0.15, 0, 0, 0, -0.15, 0, -0.15, -0.5, 0.25, -0.9], 3)); g.computeVertexNormals(); return g; })();
-  const birdMat = new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.DoubleSide });
   const spots = [0, 1].map(() => {
     const g = new THREE.Group(); g.visible = false; stage._scene.add(g);
     const shimmer = new THREE.Mesh(new THREE.CircleGeometry(4.2, 32), new THREE.MeshBasicMaterial({ color: '#d8fbff', map: soft, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     shimmer.rotation.x = -Math.PI / 2; shimmer.position.y = 0.07; g.add(shimmer);
     const bub = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(30 * 3), 3)), new THREE.PointsMaterial({ color: '#ffffff', size: 0.22, transparent: true, opacity: 0.9, depthWrite: false }));
     bub.frustumCulled = false; g.add(bub);
-    const birds = [0, 1, 2].map(i => { const b = new THREE.Mesh(birdGeo, birdMat); b.scale.setScalar(0.9); g.add(b); return { b, ph: i * 2.1, r: 3 + i, h: 6 + i * 1.2 }; });
     const seeds = Array.from({ length: 30 }, () => [Math.random() * 6.28, Math.random() * 3.2, Math.random()]);
-    return { g, shimmer, bub, birds, seeds, ttl: 0, pos: new V3() };
+    return { g, shimmer, bub, seeds, ttl: 0, pos: new V3() };
   });
   const placeSpot = s => { const a = Math.random() * Math.PI * 2, r = CAST.min + 4 + Math.random() * (CAST.max - CAST.min - 6);
     s.pos.set(boat.position.x + Math.cos(a) * r, WL, boat.position.z + Math.sin(a) * r); s.ttl = 30 + Math.random() * 20; s.g.visible = true; };
@@ -280,8 +277,7 @@ export function createFishing(ctx) {
       if (!s.g.visible || (s.ttl -= dt) <= 0 || Math.hypot(s.pos.x - boat.position.x, s.pos.z - boat.position.z) > CAST.max + 6) placeSpot(s);
       s.g.position.set(s.pos.x, WL + waveJS(s.pos.x, s.pos.z, t) * 0.6, s.pos.z);
       s.shimmer.material.opacity = 0.22 + 0.14 * Math.sin(t * 3 + i); s.shimmer.scale.setScalar(1 + 0.06 * Math.sin(t * 2 + i));
-      const bp = s.bub.geometry.attributes.position; s.seeds.forEach(([a, r, ph], k) => { const y = ((t * 0.6 + ph) % 1) * 0.6; bp.setXYZ(k, Math.cos(a + t * 0.2) * r, 0.1 + y, Math.sin(a + t * 0.2) * r); }); bp.needsUpdate = true;
-      s.birds.forEach(b => { const a = t * 0.8 + b.ph; b.b.position.set(Math.cos(a) * b.r, b.h + Math.sin(t * 1.3 + b.ph) * 0.4, Math.sin(a) * b.r); b.b.rotation.set(0, -a, 0); b.b.scale.y = 0.6 + 0.5 * Math.abs(Math.sin(t * 7 + b.ph)); }); });
+      const bp = s.bub.geometry.attributes.position; s.seeds.forEach(([a, r, ph], k) => { const y = ((t * 0.6 + ph) % 1) * 0.6; bp.setXYZ(k, Math.cos(a + t * 0.2) * r, 0.1 + y, Math.sin(a + t * 0.2) * r); }); bp.needsUpdate = true; });
     // charging a cast: the power arc swings out and back along the aim
     if (G.charging) { G.charging.k += dt; const pw = power(G.charging.k), r = CAST.min + (CAST.max - CAST.min) * pw, dir = G.charging.p.clone().sub(boat.position).setY(0);
       powerG.position.set(boat.position.x, WL + 0.4, boat.position.z); // drawn over the waves
@@ -389,5 +385,5 @@ export function createFishing(ctx) {
     if (jumpModel) { jumpModel.removeFromParent(); jumpModel = null; } shadow.material.opacity = 0; setWhine(0); spots.forEach(s => { s.g.visible = false; });
   }
 
-  return { step, landed, reset, get busy() { return !!G.charging; }, get combo() { return G.combo; }, get _dbg() { return G; } };
+  return { step, landed, reset, /** The fishing spots showing now (wildlife.js: gulls and jumping fish over them). */ spots: () => spots.filter(sp => sp.g.visible).map(sp => sp.pos), get busy() { return !!G.charging; }, get combo() { return G.combo; }, get _dbg() { return G; } };
 }

@@ -3,7 +3,7 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, CHART, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
-import { initStation, STATION, BOAT_SPECS, boatStatus } from './station.js';
+import { initStation, STATION, BOAT_SPECS, boatStatus, FISH, localOdds, PORT } from './station.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
 import * as geo from './geo.js';
@@ -26,6 +26,9 @@ import { initHelmOrbit } from './helm-orbit.js';
 import { createRadioHelp } from './radio-help.js';
 import { createBerths } from './berths.js';
 import { isTablet } from './tablet.js';
+import { createWildlife } from './wildlife.js';
+import { ROSTER, stateAt } from './cpu-captains.js';
+import { clock as liveClock } from './live.js';
 const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px)');
 import './radio.css';
 import './cpu.css';
@@ -954,6 +957,12 @@ const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: n => station.addCo
 const isPuneChart = CHART.id === 'pune';
 const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group }, waveJS, WL, toScreen, cpu: isPuneChart,
   playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c) });
+// the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
+const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
+  getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
+  station: { x: STATION.x, z: STATION.z, points: () => [...PORT.berths.map(b => ({ x: b.pos[0], z: b.pos[1] })), { x: PORT.sea0[0], z: PORT.sea0[1] }] },
+  spots: () => fishing.spots(), species: FISH.map(f => ({ f, w: localOdds(f) })).filter(s => s.w > 0), minutes: () => liveClock().mins,
+  captains: isPuneChart ? () => ROSTER.map(c => ({ c, s: stateAt(c) })).filter(q => q.s?.kind === 'fish').map(q => ({ id: q.c.id, x: q.s.x, z: q.s.z })) : null });
 const myColours = () => { const get = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
   if (boatId === 'sail') { const s = get('sailboat.sail'); return s.mode && s.mode !== 'classic' && s.c?.[0] ? { sail: s.c[0] } : {}; }
   if (boatId === 'dinghy') { const s = get('daysailer.sail'); return s.c ? { sail: s.c } : {}; }
@@ -1073,7 +1082,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1116,4 +1125,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, radioHelp: () => radioHelp, berths: () => berths, station: () => station, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
