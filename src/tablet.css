@@ -102,3 +102,6 @@ html body #joy #helm-anchor { opacity: 0.9; }
 html body #joy #helm-anchor.on img.w { opacity: 1; }
 html body #joy #helm-anchor.on img.n { opacity: 0; }
 html body #radio-fab img { border: 0; }
+
+/* the radio stands bare too: no channel text under it */
+body.tablet #radio-fab .rf-ch { display: none; }

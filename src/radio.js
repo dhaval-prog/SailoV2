@@ -11,7 +11,6 @@
 // beeps) is made with the Web Audio API.
 import { stateAt, placeNear, fishNameOf, ROSTER } from './cpu-captains.js';
 import { voiceLine } from './harbour-board.js';
-import { isTablet } from './tablet.js';
 
 const KEY = 'sailo:radio';
 const CH = [
@@ -138,7 +137,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     const n = $('.rd-n'); n.hidden = !hooks.unread; n.textContent = hooks.unread || ''; fab.classList.toggle('ping', !!hooks.unread && !st.open);
     const sig = !st.power ? 0 : st.mode === 'music' || st.mode === 'inbox' ? 0 : st.mode === 'direct' ? (st.target ? 4 : 1) : Math.min(4, 1 + inRange() + Math.min(2, cpuInRange().length));
     root.querySelectorAll('.rd-sig i').forEach((e, i) => e.classList.toggle('on', i < sig));
-    fab.querySelector('.rf-ch').textContent = st.mode === 'marine' ? `CH ${String(c.n).padStart(2, '0')}` : st.mode === 'direct' ? (isTablet() ? (st.target ? `DM · ${first(st.target.name).slice(0, 9)}` : 'DM · pick') : 'DM') : st.mode === 'inbox' ? 'MSG' : 'FM';
+    fab.querySelector('.rf-ch').textContent = st.mode === 'marine' ? `CH ${String(c.n).padStart(2, '0')}` : st.mode === 'direct' ? 'DM' : st.mode === 'inbox' ? 'MSG' : 'FM';
     void me;
   }
   function paintDial() {
