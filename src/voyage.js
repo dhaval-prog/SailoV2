@@ -2,7 +2,7 @@
 //   1. set a course (tap the water, or steer with the wheel)      +10 coins
 //   2. catch a fish (tap the tug, Go fishing, hold on the sea)    +15 coins
 //   3. sell it at Paradise Station's Fish Market ("Show me" sets a course there)   +25 coins
-// Each step finishes by doing it. Skip ends it. Progress is kept in sailo:voyage (saved with the account),
+// Each step finishes by doing it. Skip ends it; Later hides it until the next visit. Progress is kept in sailo:voyage (saved with the account),
 // and returning captains (anyone who has sailed before) never see it.
 const KEY = 'sailo:voyage';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
@@ -16,16 +16,17 @@ const STEPS = [
 ];
 
 /** Starts the guide for a new captain. `isNew`: nothing has been sailed yet on this account / device. */
-export function initFirstVoyage({ isNew, addCoins, holdCount, pinStation, onToast }) {
+export function initFirstVoyage({ isNew, addCoins, holdCount, pinStation, onToast, deferred = false }) {
   let v = read();
   if (!v) { if (!isNew) { write({ done: true }); return { update() {} }; } v = { step: 0 }; write(v); }
-  if (v.done) return { update() {} };
+  if (v.done) return { update() {}, start() {} };
+  let live = !deferred; // (deferred: waits for start(), after "Make it yours")
 
   const el = document.createElement('div'); el.id = 'voyage'; el.setAttribute('role', 'status');
   el.innerHTML = `<small><span class="vg-k">First voyage</span> · <span class="vg-n"></span></small><b class="vg-t"></b><p class="vg-p"></p>
-    <div class="vg-row"><span class="vg-dots"><i></i><i></i><i></i></span><span class="vg-btns"><button type="button" class="vg-show">Show me</button><button type="button" class="vg-skip">Skip</button></span></div>
+    <div class="vg-row"><span class="vg-dots"><i></i><i></i><i></i></span><span class="vg-btns"><button type="button" class="vg-show">Show me</button><button type="button" class="vg-later">Later</button><button type="button" class="vg-skip">Skip</button></span></div>
     <span class="vg-reward" aria-hidden="true"></span>`;
-  document.body.appendChild(el);
+  if (live) document.body.appendChild(el);
   const $ = s => el.querySelector(s);
   ['pointerdown', 'pointerup', 'click'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
 
@@ -44,16 +45,18 @@ export function initFirstVoyage({ isNew, addCoins, holdCount, pinStation, onToas
     if (v.step + 1 >= STEPS.length) { finish(); return; } v = { step: v.step + 1 }; write(v); setTimeout(paint, 700); };
 
   $('.vg-skip').addEventListener('click', () => finish(true));
+  $('.vg-later').addEventListener('click', () => { live = false; el.classList.add('out'); setTimeout(() => el.remove(), 400); clearInterval(hint); }); // back next visit
   $('.vg-show').addEventListener('click', () => pinStation());
-  addEventListener('sailo:sold', () => { if (!v.done && v.step === 2) next(); });
-  const hint = setInterval(() => { if (!v.done && STEPS[v.step]?.showMe) paint.call(null); }, 6000); // (refreshes the step 3 text when a fish is kept)
-  paint();
+  addEventListener('sailo:sold', () => { if (live && !v.done && v.step === 2) next(); });
+  const hint = setInterval(() => { if (live && !v.done && STEPS[v.step]?.showMe) paint.call(null); }, 6000); // (refreshes the step 3 text when a fish is kept)
+  if (live) paint();
 
   let base = null; // what the world looked like when this step began
   return {
     /** Called every frame with the sailing state. */
+    start() { if (live || v.done) return; live = true; document.body.appendChild(el); paint(); },
     update({ courseOn, dist, catchN }) {
-      if (v.done) return;
+      if (!live || v.done) return;
       if (!base || base.step !== v.step) base = { step: v.step, dist, catchN };
       if (v.step === 0 && (courseOn || dist - base.dist > 25)) next();
       else if (v.step === 1 && catchN > base.catchN) next();

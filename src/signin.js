@@ -5,13 +5,17 @@
 // Accounts are real (auth.js / Supabase Auth): every captain signs in.
 import './signin.css';
 import { signIn, signUp, resendConfirm, sendReset, setPassword, oauth, captainName, fromRedirect, currentSession } from './auth.js';
-import { savedChart, setChart, chartFor } from './chart-store.js';
+import { savedChart, setChart, chartFor, PUNE } from './chart-store.js';
 
 const SETTINGS = 'sailo:settings';
 const setCaptain = name => { try { const s = JSON.parse(localStorage.getItem(SETTINGS)) || {}; s.name = name; localStorage.setItem(SETTINGS, JSON.stringify(s)); } catch { /* storage blocked */ } };
 const native = !/^https?:$/.test(location.protocol); // the desktop / phone apps can't come back from a Google redirect yet
 // an account waiting for its email confirmation: the page reopens on "Check your inbox" until it's confirmed
 const PENDING = 'sailo:pending-signup';
+// the last email used here: the page reopens on Sign in with it filled in
+const LAST = 'sailo:last-email', lastEmail = { get: () => { try { return localStorage.getItem(LAST) || ''; } catch { return ''; } }, set: v => { try { localStorage.setItem(LAST, v); } catch { /* storage blocked */ } } };
+/** A note for the game to show once it has loaded (sessionStorage 'sailo:note'). */
+export const noteForGame = t => { try { sessionStorage.setItem('sailo:note', t); } catch { /* storage blocked */ } };
 const pending = { get: () => { try { return JSON.parse(localStorage.getItem(PENDING)); } catch { return null; } }, set: v => { try { v ? localStorage.setItem(PENDING, JSON.stringify(v)) : localStorage.removeItem(PENDING); } catch { /* storage blocked */ } } };
 
 /** Resolves once the captain is signed in, showing the page when needed. */
@@ -52,7 +56,7 @@ function showPage({ mode = 'in', session = null, done = '', err = '', inbox = nu
         <footer class="si-foot"><small>© Sailo${chart?.name ? ' · ' + chart.name : ''}</small><span class="si-hint"></span></footer>
       </div>
       <div class="si-done" hidden><small>Welcome aboard</small><b></b><span class="si-done-msg"></span>
-        <div class="si-where" hidden><button type="button" class="si-loc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.4"/></svg><span>Use my location</span></button><button type="button" class="si-pick">Pick a city</button></div>
+        <div class="si-where" hidden><button type="button" class="si-loc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.4"/></svg><span>Use my location</span></button><button type="button" class="si-pick">Pick a city</button><button type="button" class="si-later">Do this later</button></div>
         <button type="button" class="si-go">Start sailing</button></div>
       <span class="si-loading">LIGHTING THE LAMP…</span>`;
     document.body.appendChild(root);
@@ -117,11 +121,12 @@ function showPage({ mode = 'in', session = null, done = '', err = '', inbox = nu
     const finish = () => { ro.disconnect(); root.classList.add('gone'); setTimeout(() => { api?.dispose(); root.remove(); }, 650); resolve(); };
     $('.si-go').addEventListener('click', finish);
     $('.si-pick').addEventListener('click', finish); // (start-up opens the city picker when there's no city yet)
+    $('.si-later').addEventListener('click', () => { window.__sailoChart = setChart(PUNE); noteForGame('You’re sailing Pune Paradise. Choose another city any time in Settings.'); finish(); });
     $('.si-loc').addEventListener('click', async () => { const b = $('.si-loc'), msg = $('.si-done-msg'), lbl = b.querySelector('span'); b.disabled = true; lbl.textContent = 'Finding you…'; msg.classList.remove('bad');
       try { const { myLocation, cityAt } = await import('./geocode.js'), p = await myLocation(); lbl.textContent = 'Finding your city…'; const city = await cityAt(p.lat, p.lng);
         if (!city) throw new Error('unnamed');
         window.__sailoChart = setChart(chartFor(city)); msg.textContent = `You’re near ${city.name}. Setting sail…`; api?.splashBow?.(10); setTimeout(finish, 900); }
-      catch (e) { msg.textContent = e?.code === 1 ? 'Location wasn’t allowed. Pick a city instead?' : 'Couldn’t find your city. Pick it instead?'; msg.classList.add('bad'); b.disabled = false; lbl.textContent = 'Try my location again'; $('.si-pick').focus(); } });
+      catch (e) { msg.textContent = e?.code === 1 ? 'Location wasn’t allowed. Pick a city instead?' : !navigator.onLine ? 'You’re offline. Pick a city, or sail Pune Paradise for now.' : 'Couldn’t find your city. Pick it instead?'; msg.classList.add('bad'); b.disabled = false; lbl.textContent = 'Try my location again'; $('.si-pick').focus(); } });
     if (done) { $('.si-loading').hidden = true; castOff(done); }
 
     // ---- input ----
@@ -148,6 +153,7 @@ function showPage({ mode = 'in', session = null, done = '', err = '', inbox = nu
       const up = st.mode === 'up', reset = st.mode === 'reset', name = inp('name').value.trim(), email = inp('email').value.trim(), pw = inp('pw').value;
       const bad = up && !name ? 'Every captain needs a name.' : !reset && !validEmail(email) ? 'That email won’t float. Check it?' : (up || reset) && pw.length < 8 ? 'Fuel up: at least 8 characters.' : !pw ? 'Password, please.' : '';
       if (bad) return error(bad);
+      if (!reset) lastEmail.set(email);
       st.busy = 'wait'; paint();
       try {
         if (reset) { await setPassword(session, pw); const n = captainName(session.user); setCaptain(n); castOff(n); return; }
@@ -158,6 +164,7 @@ function showPage({ mode = 'in', session = null, done = '', err = '', inbox = nu
       } catch (x) { st.busy = false; paint(); error(x.message); }
     });
     if (inbox) { inp('email').value = inbox.email; inp('name').value = inbox.name || ''; }
+    else if (st.mode === 'in' && lastEmail.get()) inp('email').value = lastEmail.get(); // came back after using Create account (or signing out)
     paint(); if (err) error(err);
   });
 }

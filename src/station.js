@@ -278,22 +278,33 @@ export function initStation(ctx) {
   }
   // built lazily, the first time a shop opens
   let shopKit = null;
+  const box3 = new THREE.Box3(), size3 = new V3(), mid3 = new V3();
+  /** A fish's catalogue picture (a data URL), rendered the first time it's asked for and kept. */
+  function picture(f) {
+    if (f.img) return f.img;
+    const k = kit(), T = k.thumb; if (!T.r) { T.r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); T.r.setPixelRatio(1); T.r.setSize(240, 140, false); }
+    const m = k.fishModels[f.id].clone();
+    if (f.kind) { // the newer species: fit whatever shape they are (sharks, rays, seahorses) into the frame
+      const holder = new THREE.Group(); if (f.kind === 'ray') m.rotation.set(1.05, Math.PI / 2 + 0.35, 0); /* seen from above, wings across */ else m.rotation.set(0.1, -0.2, -0.05); holder.add(m); const tl = f.kind === 'ray' && m.getObjectByName('tail'); if (tl) m.remove(tl); /* rays: frame the disc, not the long tail */
+      holder.updateMatrixWorld(true); box3.setFromObject(holder).getSize(size3); box3.getCenter(mid3); if (tl) m.add(tl);
+      const s2 = Math.min(3.1 / size3.x, 1.7 / size3.y); m.position.sub(mid3); holder.scale.setScalar(s2); T.sc.add(holder); T.r.render(T.sc, T.cam); f.img = T.r.domElement.toDataURL(); T.sc.remove(holder); return f.img; }
+    m.scale.setScalar((f.puffer ? 1.35 : 1.85) / (f.len * (1 + 0.55 * (f.bill || 0)))); if (f.bill) m.position.x = -f.bill * 0.3; /* keep the bill in frame */ m.rotation.set(0.1, -0.2, -0.05);
+    T.sc.add(m); T.r.render(T.sc, T.cam); f.img = T.r.domElement.toDataURL(); T.sc.remove(m); return f.img;
+  }
+  // pictures for long lists (the Garage collection): a few each frame, so the page never stalls
+  const later = []; let laterOn = false;
+  const pump = () => { const t0 = performance.now(); while (later.length && performance.now() - t0 < 12) { const [f, cb] = later.shift(); cb(picture(f)); } if (later.length) requestAnimationFrame(pump); else laterOn = false; };
   const kit = () => {
     if (shopKit) return shopKit;
-    const fishModels = {}; FISH.forEach(f => { fishModels[f.id] = makeFish(f); });
+    // fish models are built the first time each one is needed (there are 171 species: building them all at once froze the page)
+    const fishModels = new Proxy({}, { get: (o, id) => o[id] || (o[id] = makeFish(FISH.find(f => f.id === id))) });
     const woodLightC = woodCanvas(512, 256, [168, 116, 70], 4, '70,40,18'), woodDarkC = woodCanvas(512, 256, [104, 68, 40], 5, '30,16,6');
     ui.style.setProperty('--wood-light', `url(${woodLightC.toDataURL()})`); ui.style.setProperty('--wood-dark', `url(${woodDarkC.toDataURL()})`);
     const mini = new THREE.WebGLRenderer({ antialias: true, alpha: true }); mini.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
     const studio = sc => { sc.add(new THREE.HemisphereLight('#ffffff', '#6b7b90', 1.25)); const d = new THREE.DirectionalLight('#fff2dc', 2.8); d.position.set(2, 5, 3); sc.add(d); const f2 = new THREE.DirectionalLight('#9fd8ff', 1.1); f2.position.set(-3, 2, -2); sc.add(f2); return sc; };
-    { const sc = studio(new THREE.Scene()), cam = new THREE.PerspectiveCamera(28, 240 / 140, 0.1, 50); cam.position.set(0, 0.3, 4.2); cam.lookAt(0, 0, 0); mini.setPixelRatio(1); mini.setSize(240, 140, false);
-      const box = new THREE.Box3(), size = new V3(), mid = new V3();
-      FISH.forEach(f => { const m = fishModels[f.id].clone();
-        if (f.kind) { // the newer species: fit whatever shape they are (sharks, rays, seahorses) into the frame
-          const holder = new THREE.Group(); if (f.kind === 'ray') m.rotation.set(1.05, Math.PI / 2 + 0.35, 0); /* seen from above, wings across */ else m.rotation.set(0.1, -0.2, -0.05); holder.add(m); const tl = f.kind === 'ray' && m.getObjectByName('tail'); if (tl) m.remove(tl); /* rays: frame the disc, not the long tail */
-          holder.updateMatrixWorld(true); box.setFromObject(holder).getSize(size); box.getCenter(mid); if (tl) m.add(tl);
-          const k = Math.min(3.1 / size.x, 1.7 / size.y); m.position.sub(mid); holder.scale.setScalar(k); sc.add(holder); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(holder); return; }
-        m.scale.setScalar((f.puffer ? 1.35 : 1.85) / (f.len * (1 + 0.55 * (f.bill || 0)))); if (f.bill) m.position.x = -f.bill * 0.3; /* keep the bill in frame */ m.rotation.set(0.1, -0.2, -0.05); sc.add(m); mini.render(sc, cam); f.img = mini.domElement.toDataURL(); sc.remove(m); });
-      mini.setPixelRatio(Math.min(2, devicePixelRatio)); }
+    mini.setPixelRatio(Math.min(2, devicePixelRatio));
+    // catalogue pictures (240×140) come from a small renderer of their own, one fish at a time, on demand (picture())
+    const thumb = { r: null, sc: studio(new THREE.Scene()), cam: new THREE.PerspectiveCamera(28, 240 / 140, 0.1, 50) }; thumb.cam.position.set(0, 0.3, 4.2); thumb.cam.lookAt(0, 0, 0);
     // crate on ice
     const crateSc = studio(new THREE.Scene()), crateCam = new THREE.PerspectiveCamera(34, 1.6, 0.1, 50); crateCam.position.set(0, 3.0, 2.5); crateCam.lookAt(0, 0.05, 0.1);
     const tex = cv => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
@@ -309,7 +320,7 @@ export function initStation(ctx) {
     const tugSc = studio(new THREE.Scene()), tugCam = new THREE.PerspectiveCamera(30, 1.6, 0.1, 100); tugCam.position.set(0, 9, 26); tugCam.lookAt(0, 3.5, 0);
     const tugView = new THREE.Group(); const cl = ctx.boat.clone(true); cl.position.set(0, 0, 0); cl.rotation.set(0, 0, 0); cl.traverse(x => { if (x.isLight || x.isLine || (x.material && x.material.blending === THREE.AdditiveBlending)) x.visible = false; }); tugView.add(cl); tugSc.add(tugView);
     const water = new THREE.Mesh(new THREE.CircleGeometry(13, 64), new THREE.MeshStandardMaterial({ color: '#2a86c2', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.88 })); water.rotation.x = -Math.PI / 2; water.position.y = 0.85; tugSc.add(water);
-    shopKit = { fishModels, mini, crateSc, crateCam, tugSc, tugCam, tugView }; return shopKit;
+    shopKit = { fishModels, mini, thumb, crateSc, crateCam, tugSc, tugCam, tugView }; return shopKit;
   };
   const bounce = p => { const n = 7.5625, d = 2.75; if (p < 1 / d) return n * p * p; if (p < 2 / d) return n * (p -= 1.5 / d) * p + 0.75; if (p < 2.5 / d) return n * (p -= 2.25 / d) * p + 0.9375; return n * (p -= 2.625 / d) * p + 0.984375; };
   let panel = null, crate = {}, crateFish = [], miniT = 0, miniHost = null, miniScene = null, miniCam = null, viewYaw = 0.6, drag = null;
@@ -357,9 +368,9 @@ export function initStation(ctx) {
     const inHold = FISH.filter(f => (S.hold[f.id] || 0) > 0), inCrate = FISH.filter(f => crate[f.id] > 0);
     const n = inCrate.reduce((a, f) => a + crate[f.id], 0), total = inCrate.reduce((a, f) => a + crate[f.id] * f.price, 0), kg = inCrate.reduce((a, f) => a + crate[f.id] * f.kg, 0);
     $('catchList').innerHTML = inHold.length ? inHold.map((f, i) => { const left = S.hold[f.id] - (crate[f.id] || 0);
-      return `<div class="fishrow ${left ? '' : 'out'}"><img src="${f.img}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag">${f.price}c</span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
+      return `<div class="fishrow ${left ? '' : 'out'}"><img src="${picture(f)}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag">${f.price}c</span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
       : '<div class="rp-empty">Your hold is empty. Go fishing out at sea, then come back to sell.</div>';
-    $('crateItems').innerHTML = inCrate.map(f => `<button class="cchip" data-act="dec" data-id="${f.id}" title="Put one back"><img src="${f.img}" alt=""><span>${f.name} ×${crate[f.id]}</span><b>−</b></button>`).join('');
+    $('crateItems').innerHTML = inCrate.map(f => `<button class="cchip" data-act="dec" data-id="${f.id}" title="Put one back"><img src="${picture(f)}" alt=""><span>${f.name} ×${crate[f.id]}</span><b>−</b></button>`).join('');
     const range = kg > 20 ? 200 : 20; // big fish (swordfish, sailfish) switch the scale to 0-200 kg
     $('needle').style.transform = `rotate(${-135 + 270 * Math.min(1, kg / range)}deg)`;
     ui.querySelectorAll('#crateView .tlab').forEach((l, i) => { l.textContent = range / 4 * i; }); $('kgRead').textContent = kg.toFixed(1) + ' kg';
@@ -387,7 +398,7 @@ export function initStation(ctx) {
     const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${S.holdCap}`; $('holdFill').style.width = (n / S.holdCap * 100) + '%';
     // only what's on board (there are too many species to list them all)
     const held = FISH.filter(f => S.hold[f.id]);
-    $('slots').innerHTML = held.length ? held.map(f => `<div class="slot"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${f.img}" alt=""><span>${f.name}</span></div>`).join('') : '<div class="slot zero"><span>The hold is empty</span></div>';
+    $('slots').innerHTML = held.length ? held.map(f => `<div class="slot"><span class="cnt">×${S.hold[f.id] || 0}</span><img src="${picture(f)}" alt=""><span>${f.name}</span></div>`).join('') : '<div class="slot zero"><span>The hold is empty</span></div>';
     updatePumpUI();
   }
   function pumpTick(dt) {
@@ -507,7 +518,9 @@ export function initStation(ctx) {
     coins: () => S.coins,
     /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
     fishModel: id => kit().fishModels[id].clone(),
-    fishImage: id => { kit(); return FISH.find(f => f.id === id)?.img; },
+    fishImage: id => { const f = FISH.find(q => q.id === id); return f ? picture(f) : ''; },
+    /** A picture if it's ready, else null; with cb, it's rendered soon (a few per frame) and handed to cb. */
+    fishImageSoon: (id, cb) => { const f = FISH.find(q => q.id === id); if (!f) return null; if (f.img) return f.img; if (cb) { later.push([f, cb]); if (!laterOn) { laterOn = true; requestAnimationFrame(pump); } } return null; },
     /** Make another boat the active one (its own tank and hold). */
     setActive(id) { if (!BOAT_SPECS[id]) return; S.active = id; save(); renderWallet(); },
     shoreWarn() { const now = performance.now(); if (now - lastWarn > 3000) { lastWarn = now; toast('Too shallow! Steer around the island.'); } },

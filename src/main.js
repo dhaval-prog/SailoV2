@@ -495,7 +495,7 @@ const hud = initHud({
   boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   getBoat: () => sinkOut ? sinkOut.id : boatId,
   boatStatus,
-  fishCollection: () => ({ log: fishLog, stars, img: id => station.fishImage(id) }),
+  fishCollection: () => ({ log: fishLog, stars, img: id => station.fishImageSoon(id), imgSoon: (id, cb) => station.fishImageSoon(id, cb) }), // (pictures fill in a few per frame)
   coins: () => station.coins(), spend: n => station.spend(n),
   // switching: not mid-animation, at anchor, while fishing or while mooring / leaving; an empty boat can only be taken out at Paradise Station (to refuel it)
   setBoat: id => { const cur = sinkOut ? sinkOut.id : boatId; if (id === cur) return 'ok'; if (sinkOut || dropIn) return 'busy';
@@ -850,8 +850,11 @@ const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, 
   landPoint: () => new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld),
   night: () => E.night, weather: () => state.w, yaw: () => yaw });
 // first voyage: set a course, catch a fish, sell it at Paradise Station (voyage.js)
-const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: n => station.addCoins(n), holdCount: () => station.holdInfo().n,
+// first entry: "Make it yours" (name, then pick a boat in the Garage) comes first, then the guide
+const madeYours = (() => { try { return !!localStorage.getItem('sailo:made-yours'); } catch { return true; } })();
+const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: n => station.addCoins(n), holdCount: () => station.holdInfo().n, deferred: firstVisit && !madeYours,
   pinStation: () => setCourse(new THREE.Vector3(STATION.x + 70, WL, STATION.z + 80), true) });
+if (firstVisit && !madeYours) setTimeout(() => hud.openWelcome(() => { try { localStorage.setItem('sailo:made-yours', '1'); } catch { /* storage blocked */ } voyage.start(); }), 2600);
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
 const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,

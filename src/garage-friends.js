@@ -67,18 +67,22 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
     const list = [...FISH].sort((a, b) => (!localOdds(a)) - (!localOdds(b))); // these waters first; the rest say where to travel
     return `<section class="gf-coll"><h4>Fish collection · ${got} / ${FISH.length} species</h4><p>Local waters: <b>${esc(REGION.name)}</b>. Travel to other seas for their fish.</p>
       <div class="gf-fishes">${list.map((f, i) => { const r = fc.log[f.id], here = localOdds(f) > 0, note = r ? `×${r.n} · best ${r.best >= 10 ? r.best.toFixed(1) : r.best.toFixed(2)} kg` : here ? 'Not caught yet' : `Found in ${fishWhere(f)}`;
-        return `<div class="gf-fish${r ? ' got' : ''}${here ? '' : ' away'}" title="${esc(r ? f.name : note)}" style="--d:${(0.3 + i * 0.025).toFixed(3)}s"><span class="gf-sil"><img src="${fc.img(f.id) || G('color', 'fish-silhouette-placeholder')}" alt=""></span><b>${r ? esc(f.name) : '???'}</b>${stars(fc.stars(f))}<small>${esc(note)}</small></div>`; }).join('')}</div></section>`; };
+        return `<div class="gf-fish${r ? ' got' : ''}${here ? '' : ' away'}" title="${esc(r ? f.name : note)}" style="--d:${(0.3 + i * 0.025).toFixed(3)}s"><span class="gf-sil"><img src="${fc.img(f.id) || G('color', 'fish-silhouette-placeholder')}" data-fish="${f.id}" alt=""></span><b>${r ? esc(f.name) : '???'}</b>${stars(fc.stars(f))}<small>${esc(note)}</small></div>`; }).join('')}</div></section>`; };
 
+  let intro = ''; // a first-entry note at the top ("Pick the boat you'll sail…")
   function openGarage() {
     onGarageOpen?.();
     const boats = api.boats(), active = api.getBoat(), keep = rendered && sheet.classList.contains('open') ? card()?.scrollTop : 0;
     openSheet('Garage', `My fleet · ${boats.length} boats`, `
+      ${intro ? `<p class="gf-intro">${esc(intro)}</p>` : ''}
       <div class="gf-boats">${boats.map((b, i) => boatRow(b, i, active)).join('')}</div>
       <div class="gf-msg" id="sh-fleet-msg" hidden></div>
       <div class="gf-stats"><div><b>${ECON.coins}</b><span>Coins</span></div><div><b>${lastStats.catchN}</b><span>Fish caught</span></div><div><b>${lastStats.distNm.toFixed(1)}</b><span>Nautical miles</span></div></div>
       ${editing ? editUI() : collectionUI()}
       <div class="gf-end"></div>`, 'garage');
     sheetBody.classList.toggle('gf-calm', rendered); rendered = true; // re-renders don't replay the entrance
+    // fish pictures not drawn yet: shown as the placeholder, then swapped in as they render (a few per frame)
+    { const fc = api.fishCollection(); sheetBody.querySelectorAll('img[data-fish]').forEach(im => { if (!im.src.startsWith('data:')) fc.imgSoon(im.dataset.fish, url => { if (im.isConnected) im.src = url; }); }); }
     if (keep) card().scrollTop = keep;
     wireGarage();
   }
@@ -143,5 +147,5 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
       if (navigator.share) { try { await navigator.share({ title: `Sail with me in ${WORLD.name}`, text: `Join me on the water! Captain code ${code}`, url: link }); } catch { /* cancelled */ } } else copy(shareBtn); });
   }
 
-  return { openGarage: () => { if (!sheet.classList.contains('open')) { editing = null; rendered = false; } openGarage(); }, openFriends };
+  return { openGarage: (o = {}) => { const open = sheet.classList.contains('open') && sheet.dataset.kind === 'garage'; if (!open) { editing = null; rendered = false; } intro = o.intro || (open ? intro : ''); openGarage(); }, openFriends };
 }

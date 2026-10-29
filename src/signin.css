@@ -150,16 +150,20 @@
 .si-change { font: 800 14px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.92) !important; }
 .si.night .si-inbox { justify-content: center; gap: 22px; } .si.night .si-resend, .si.night .si-change { font-size: 13.5px; }
 
-/* welcome aboard: a new captain chooses where to sail right here */
+/* welcome aboard: a new captain chooses where to sail right here. Naked HUD pills, the same by day
+   and night: the main choice filled white with navy type, the other an outline, "Do this later" plain text */
 .si-done-msg.bad { color: #FFD9D2; }
 .si-done .si-go[hidden] { display: none; }
-.si-where { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 14px; animation: si-blurIn 0.8s ease-out 0.5s backwards; } .si-where[hidden] { display: none; }
-.si-done .si-where button { margin: 0; animation: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 52px; padding: 0 26px; border-radius: 26px; cursor: pointer; font: 900 16px/1 'Nunito', sans-serif; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, box-shadow 0.25s; }
-.si-done .si-where button:active { transform: scale(0.96); } .si-done .si-where button:disabled { opacity: 0.8; cursor: progress; }
-.si-done .si-loc { border: 0; background: #FF7A45; color: #fff; text-shadow: none; box-shadow: 0 12px 30px rgba(255, 110, 50, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-.si-done .si-loc svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
-.si-done .si-pick { border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; }
-.si-done .si-pick:hover { background: rgba(255, 255, 255, 0.24); }
-.si.night .si-done .si-loc { border-radius: 16px; background: linear-gradient(180deg, #FFD36B, #FFB21A); color: #172443; box-shadow: 0 0 0 1px rgba(255, 210, 120, 0.5), 0 10px 34px rgba(255, 190, 60, 0.35); }
-.si.night .si-done .si-pick { border-color: rgba(255, 255, 255, 0.2); border-radius: 16px; background: rgba(8, 18, 42, 0.5); }
+.si-where { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 14px; margin-top: 16px; animation: si-blurIn 0.8s ease-out 0.5s backwards; } .si-where[hidden] { display: none; }
+.si-done .si-where button { margin: 0; animation: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 24px; border-radius: 999px; cursor: pointer;
+  font: 900 15.5px/1 'Nunito', sans-serif; -webkit-backdrop-filter: none; backdrop-filter: none; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, border-color 0.2s; }
+.si-done .si-where button:hover { transform: scale(1.04); } .si-done .si-where button:active { transform: scale(0.95); } .si-done .si-where button:disabled { opacity: 0.8; cursor: progress; transform: none; }
+.si.day .si-done .si-loc, .si.night .si-done .si-loc { border: 2px solid #fff; background: #fff; color: #172443; text-shadow: none; box-shadow: 0 4px 14px rgba(0, 20, 50, 0.35); animation: si-glow 2.2s ease-out infinite; }
+.si-done .si-loc svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.si.day .si-done .si-pick, .si.night .si-done .si-pick { border: 2px solid rgba(255, 255, 255, 0.85); background: none; color: #fff; }
+.si-done .si-pick:hover { border-color: #fff; }
+.si.day .si-done .si-later, .si.night .si-done .si-later { flex-basis: 100%; height: auto; padding: 6px 0 0; border: 0; border-radius: 0; background: none; color: rgba(255, 255, 255, 0.85); font: 800 14px/1 'Nunito', sans-serif; }
+.si-done .si-later:hover { color: #FFD36B; transform: none; }
+@keyframes si-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55), 0 4px 14px rgba(0, 20, 50, 0.35); } 50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0), 0 4px 14px rgba(0, 20, 50, 0.35); } }
 .si.lay-m .si-where { flex-direction: column; align-self: stretch; } .si.lay-m .si-done .si-where button { width: 100%; }
+.si.lay-m .si-done .si-where .si-later { width: auto; flex-basis: auto; align-self: center; padding-top: 4px; }
