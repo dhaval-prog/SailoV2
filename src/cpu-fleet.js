@@ -31,7 +31,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     scene.add(g); return g;
   }
   function makeTag(m) {
-    const t = document.createElement('button'); t.type = 'button'; t.className = m.c.live ? 'cpu-tag live' : 'cpu-tag'; t.innerHTML = `<em class="cpu-say" hidden></em><b></b><small></small>`; t.querySelector('b').textContent = m.c.name.split(' ')[0];
+    const t = document.createElement('button'); t.type = 'button'; t.className = m.c.live ? 'cpu-tag live' : 'cpu-tag'; t.innerHTML = `<em class="cpu-say" hidden></em><b></b><small></small>`; t.querySelector('b').textContent = m.c.name.split(' ')[0]; t.dataset.id = m.c.id;
     t.addEventListener('click', e => { e.stopPropagation(); onOpen(m.c); }); ['pointerdown', 'pointerup'].forEach(ev => t.addEventListener(ev, e => e.stopPropagation()));
     tagLayer.appendChild(t); return t;
   }
@@ -49,7 +49,17 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       if (m.tag) m.tag.querySelector('b').textContent = p.name.split(' ')[0]; });
     live.forEach((m, id) => { if (!ids.has(id)) { drop(m); live.delete(id); } });
   }
-  function drop(m) { if (!m) return; if (m.g) { scene.remove(m.g); m.g = null; } if (m.tag) { m.tag.remove(); m.tag = null; } }
+  function drop(m) { if (!m) return; if (m.ring) { scene.remove(m.ring); m.ring = null; } if (m.g) { scene.remove(m.g); m.g = null; } if (m.tag) { m.tag.remove(); m.tag = null; } }
+
+  // captains asking for help (radio-help.js): a red ring pulses round their boat
+  let alerts = new Set(); const setAlert = ids => { alerts = ids; };
+  const ringGeo = new THREE.RingGeometry(7, 8.2, 48), ringMat = new THREE.MeshBasicMaterial({ color: '#ff3b30', transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide });
+  function ringFor(m, on, t) {
+    if (on && !m.ring) { m.ring = new THREE.Group(); [0, 1].forEach(i => { const r = new THREE.Mesh(ringGeo, ringMat.clone()); r.rotation.x = -Math.PI / 2; r.userData.k = i * 0.5; m.ring.add(r); }); scene.add(m.ring); }
+    if (!m.ring) return; m.ring.visible = on && !!m.g?.visible; if (!m.ring.visible) return;
+    m.ring.position.set(m.g.position.x, WL + 0.25, m.g.position.z);
+    m.ring.children.forEach(r => { const f = (t * 0.55 + r.userData.k) % 1; r.scale.setScalar(0.6 + f * 1.6); r.material.opacity = 0.85 * (1 - f); });
+  }
 
   const tmp = new THREE.Vector3();
   function update(t, dt) {
@@ -62,7 +72,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     const drawn = new Set([...people, ...crew.filter(m => m.d < NEAR).sort((a, b) => a.d - b.d).slice(0, Math.max(2, MAX_DRAWN - people.length))]);
     [...live.values(), ...crew].forEach(m => {
       const show = drawn.has(m);
-      if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; m.lastEv = now; return; }
+      if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; if (m.ring) m.ring.visible = false; m.lastEv = now; return; }
       if (m.sayT && now > m.sayT) { m.sayT = 0; const e = m.tag.querySelector('.cpu-say'); e.classList.remove('on'); setTimeout(() => { if (!m.sayT) e.hidden = true; }, 300); }
       if (!m.g) { m.g = build(m); m.yaw = m.st.yaw ?? Math.random() * 6.28; m.tag = makeTag(m); }
       const s = m.st, g = m.g; g.visible = true;
@@ -79,6 +89,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       if (s.kind === 'fish' && Math.random() < dt * 0.25) { const px = x + sx * 4, pz = z + sz * 4; splash(px, pz, 4, 0.35); }
       if (!m.c.live) recentEvents(m.c, now, m.lastEv).forEach(e => { if (e.kind === 'catch') { const px = x + sx * 3.5, pz = z + sz * 3.5; splash(px, pz, 16, 0.7); for (let i = 0; i < 8; i++) emit(px, WL + 0.2, pz, (Math.random() - 0.5) * 1.5, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5); } });
       m.lastEv = now;
+      ringFor(m, alerts.has(m.c.id), t);
       // name tag
       const tg = m.tag; tmp.set(x, g.position.y + 12.5, z); const [px, py, pz] = toScreen(tmp);
       const on = m.d < TAG && pz < 1 && px > -60 && px < innerWidth + 60 && py > -40 && py < innerHeight + 40;
@@ -99,5 +110,5 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
   }
   /** Everyone out on the water, near or far (the map): [{ c, x, z, yaw, status }]. */
   const everyone = () => all().filter(m => m.st).map(m => ({ c: m.c, x: m.c.live ? m.x : m.st.x, z: m.c.live ? m.z : m.st.z, yaw: m.st.yaw ?? m.yaw, status: status(m, m.st) }));
-  return { update, hit, out, near, say, setLive, everyone };
+  return { update, hit, out, near, say, setLive, everyone, setAlert };
 }

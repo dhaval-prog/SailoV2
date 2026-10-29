@@ -119,3 +119,93 @@ body.radio-open #dock, body.radio-open #helm, body.radio-open #status, body.radi
   #radio .rd-vol input { max-width: 80px; }
 }
 @media (prefers-reduced-motion: reduce) { #radio *, #radio-fab, #radio-fab * { animation: none !important; transition: none !important; } }
+
+/* ---------- phase 2: SOS, messages, writing a message (radio-help.js) ---------- */
+@keyframes rd-sosPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.6); } 50% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); } }
+#radio .rd-sos { width: auto !important; padding: 0 13px !important; border-color: #ff5a4f !important; color: #ff8a80; font: 900 12.5px/1 'Nunito', sans-serif !important; letter-spacing: 0.08em; }
+#radio .rd-sos:hover { background: #ff3b30; border-color: #ff3b30 !important; color: #fff; }
+#radio .rd-modes button em { margin-left: 6px; padding: 2px 6px; border-radius: 999px; background: #FFC531; color: #172443; text-shadow: none; font: 900 10px/1 'Nunito', sans-serif; font-style: normal; }
+#radio .rd-modes button em[hidden] { display: none; }
+#radio[data-mode="inbox"] .rd-ctrl, #radio[data-mode="inbox"] .rd-wave, #radio[data-mode="inbox"] .rd-dial, #radio[data-mode="music"] .rd-ctrl { display: none; }
+#radio[data-mode="inbox"] .rd-feed { max-height: 300px; }
+
+/* a view over the set: the SOS screen, writing a message */
+#radio .rd-view { display: flex; flex-direction: column; gap: 14px; animation: rd-rise 0.35s ease-out both; }
+#radio .rd-view[hidden] { display: none; }
+#radio.viewing .rd-display, #radio.viewing .rd-wave, #radio.viewing .rd-dial, #radio.viewing .rd-gate, #radio.viewing .rd-feed, #radio.viewing .rd-ctrl { display: none; }
+#radio .rd-view h3 { margin: 4px 0 0; font: 900 24px/1.15 'Nunito', sans-serif; }
+#radio .rd-view h3.sos { color: #ff8a80; }
+#radio .rd-v-sub { margin: 0; font: 700 14.5px/1.45 'Nunito', sans-serif; text-wrap: pretty; }
+#radio .rd-fine { margin: 0; padding: 10px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font: 700 12px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.7); }
+#radio .rd-err { margin: 0; font: 800 13px/1.4 'Nunito', sans-serif; color: #FFD36B; }
+#radio .rd-err[hidden] { display: none; }
+#radio .rd-rec { display: flex; align-items: center; gap: 16px; }
+#radio .rd-rec .rd-ptt { width: 64px; height: 64px; }
+#radio .rd-text { display: flex; flex-direction: column; gap: 6px; }
+#radio .rd-text textarea { width: 100%; box-sizing: border-box; padding: 10px 0; border: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.7); background: none; color: #fff; resize: none; outline: none; font: 800 16px/1.4 'Nunito', sans-serif; text-shadow: inherit; }
+#radio .rd-text textarea:focus { border-color: #6EE7C5; }
+#radio .rd-text textarea::placeholder { color: rgba(255, 255, 255, 0.5); }
+#radio .rd-text small { align-self: flex-end; font: 500 10.5px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.65); }
+#radio .rd-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+#radio .rd-acts button { height: 42px; padding: 0 20px; border-radius: 999px; font: 900 14px/1 'Nunito', sans-serif !important; }
+#radio .rd-primary { border: 0; background: #fff; color: #172443 !important; text-shadow: none !important; }
+#radio .rd-danger { border: 0; background: #ff3b30; color: #fff !important; animation: rd-sosPulse 1.6s ease-in-out infinite; }
+#radio .rd-ghost { border: 2px solid rgba(255, 255, 255, 0.75); background: none; }
+#radio .rd-ghost[hidden] { display: none; }
+#radio .rd-acts button:disabled { opacity: 0.45; animation: none; }
+
+/* the Messages tab */
+#radio .rd-msg { border-bottom: 1px solid rgba(255, 255, 255, 0.14); animation: rd-rise 0.35s ease-out both; }
+#radio .rd-msg-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 0; border: 0; background: none; text-align: left; }
+#radio .rd-msg-row > i { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.7); }
+#radio .rd-msg.new .rd-msg-row > i { border-color: #FFC531; background: #FFC531; }
+#radio .rd-msg-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+#radio .rd-msg-row b { font: 900 14px/1.2 'Nunito', sans-serif; }
+#radio .rd-msg-row b em { font: 500 9.5px/1 'JetBrains Mono', monospace; font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.65); }
+#radio .rd-msg-row span { font: 700 13.5px/1.35 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.9); }
+#radio .rd-msg-row time { flex: none; font: 500 10px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.6); }
+#radio .rd-msg-acts { display: none; flex-wrap: wrap; gap: 8px; padding: 0 0 12px 19px; }
+#radio .rd-msg.open .rd-msg-acts, #radio .rd-msg.new .rd-msg-acts { display: flex; }
+#radio .rd-msg-acts button, #radio .rd-why button { height: 30px; padding: 0 12px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 999px; background: none; font: 800 12px/1 'Nunito', sans-serif !important; }
+#radio .rd-msg-acts button[data-a="play"], #radio .rd-msg-acts button[data-a="sail"] { background: #fff; border-color: #fff; color: #172443 !important; text-shadow: none !important; }
+.rd-why { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 0 12px 19px; }
+.rd-why span { font: 700 12.5px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); }
+
+/* a voice message flying to their boat */
+.rd-fly { position: fixed; left: -7px; top: -7px; z-index: 30; width: 14px; height: 14px; border-radius: 50%; background: #FFC531; box-shadow: 0 0 14px 4px rgba(255, 197, 49, 0.7); pointer-events: none; }
+
+/* an SOS from another captain: a Naked alert card under the top bar */
+@keyframes sos-in { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes sos-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 50% { box-shadow: 0 0 0 9px rgba(255, 59, 48, 0); } }
+#sos-card { position: fixed; z-index: 34; left: 50%; top: calc(96px + var(--safe-t, 0px)); width: min(460px, calc(100vw - 32px)); transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; padding: 16px 0 14px;
+  border-top: 2px solid #ff3b30; color: #fff; font-family: 'Nunito', system-ui, sans-serif; text-shadow: 0 1px 2px rgba(0, 20, 50, 0.7), 0 0 14px rgba(60, 0, 0, 0.5);
+  background: linear-gradient(180deg, rgba(60, 6, 12, 0.55), rgba(60, 6, 12, 0) 100%); }
+#sos-card[hidden] { display: none; }
+#sos-card.in { animation: sos-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+#sos-card .sos-head { display: flex; align-items: center; gap: 10px; }
+#sos-card .sos-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; animation: sos-dot 1.2s ease-out infinite; }
+#sos-card .sos-head b { flex: 1; font: 900 19px/1.1 'Nunito', sans-serif; }
+#sos-card time { font: 500 10.5px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.75); }
+#sos-card p { margin: 0; font: 700 14.5px/1.4 'Nunito', sans-serif; }
+#sos-card .sos-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+#sos-card .sos-acts button, #sos-card .rd-why button { height: 34px; padding: 0 14px; border: 1.5px solid rgba(255, 255, 255, 0.75); border-radius: 999px; background: none; color: #fff; cursor: pointer; font: 800 13px/1 'Nunito', sans-serif; text-shadow: inherit; }
+#sos-card .sos-acts button.on { border-color: #fff; background: #fff; color: #7a0d12; text-shadow: none; }
+#sos-card .rd-why { padding: 0; }
+#sos-card .sos-fine { font: 700 11px/1.3 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.65); }
+body.boat-sel #sos-card, body.map-open #sos-card { display: none; }
+@media (max-width: 720px), (max-height: 520px) {
+  #sos-card { top: calc(150px + var(--safe-t, 0px)); }
+  #radio .rd-tools { gap: 6px; }
+  #radio .rd-modes { gap: 14px; }
+  #radio .rd-modes button { font-size: 10.5px; letter-spacing: 0.1em; }
+  #radio .rd-view h3 { font-size: 21px; }
+}
+/* while the radio is open, notes show at the top so they don't cover it */
+body.radio-open #nk-note { top: calc(112px + var(--safe-t, 0px)); bottom: auto; }
+@media (max-width: 720px), (max-height: 520px) {
+  /* phones: the SOS, power and close buttons sit in a row above the tabs */
+  #radio .rd-top { flex-direction: column-reverse; align-items: stretch; gap: 8px; border-bottom: 0; }
+  #radio .rd-tools { justify-content: flex-end; }
+  #radio .rd-modes { justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
+  body.radio-open #nk-note { top: calc(150px + var(--safe-t, 0px)); }
+}
