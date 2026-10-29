@@ -11,7 +11,7 @@ import { currentSession, captainName } from './auth.js';
 
 const META = 'sailo:sync'; // { owner: user id, syncedAt: server time of the last pull / push, localT: last local change }
 const FIXED = ['sailo:economy', 'sailo:fishlog', 'sailo:boat', 'sailo:chart', 'sailo:charts', 'sailo:home', 'sailo:pos', 'sailo:settings',
-  'sailo:garage-seen', 'sailo:inbox-seen', 'sailo-hint-seen', 'sailboat.sail', 'daysailer.sail', 'motoryacht.flag'];
+  'sailo:garage-seen', 'sailo:inbox-seen', 'sailo:voyage', 'sailo-hint-seen', 'sailboat.sail', 'daysailer.sail', 'motoryacht.flag'];
 const isProgress = k => FIXED.includes(k) || k.startsWith('sailo:pos@'); // (positions per city)
 
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* storage blocked */ } },
@@ -42,8 +42,10 @@ async function push({ keepalive = false } = {}) {
   catch { /* offline: tried again on the next tick */ }
 }
 
-/** At start-up, before the game reads its saves: bring this device up to date with the account. */
-export async function syncOnStart() {
+let started = null;
+/** At start-up, before the game reads its saves: bring this device up to date with the account (once). */
+export const syncOnStart = () => started || (started = syncNow());
+async function syncNow() {
   const s = await currentSession(); user = s?.user?.id ? s.user : null; if (!user) return;
   const m = meta(); let remote = null;
   try { remote = await pull(); } catch { if (m.owner && m.owner !== user.id) apply(null); setMeta({ ...m, owner: user.id }); return; } // offline: play on (but never on someone else's save)

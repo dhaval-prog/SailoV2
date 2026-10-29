@@ -430,7 +430,8 @@ export function initStation(ctx) {
     if (a === 'dec') { crate[id] = Math.max(0, (crate[id] || 0) - 1); crateRemove(id); }
     if (a === 'addall') { let k = 0; FISH.forEach(f => { const more = (S.hold[f.id] || 0) - (crate[f.id] || 0); for (let j = 0; j < more; j++) crateAdd(f.id, 0.1 * k++); crate[f.id] = S.hold[f.id] || 0; }); }
     if (a === 'sell') { let n = 0, tot = 0; FISH.forEach(f => { const q = crate[f.id] || 0; n += q; tot += q * f.price; S.hold[f.id] = (S.hold[f.id] || 0) - q; });
-      S.coins += tot; crate = {}; save(); crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot; }
+      S.coins += tot; crate = {}; save(); crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot;
+      if (n) dispatchEvent(new CustomEvent('sailo:sold', { detail: { n, coins: tot } })); } // (the first voyage listens for this)
     if (panel === 'market') updateMarket(); });
   $('stn-modal').addEventListener('click', e => { if (e.target.id === 'stn-modal') closePanel(); });
   addEventListener('keydown', e => { if (e.key === 'Escape') { if (panel) closePanel(); else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); } } });

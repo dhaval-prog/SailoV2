@@ -49,6 +49,8 @@ export async function signUp(email, password, captain) {
   if (j.identities && !j.identities.length) throw new AuthError('That email already has a tug. Sign in instead?', 'user_already_exists'); // (returned as a fake user when confirmation is on)
   return { confirm: true };
 }
+/** Send the sign-up confirmation email again. */
+export const resendConfirm = email => call(`resend?redirect_to=${encodeURIComponent(location.origin + location.pathname)}`, { body: { type: 'signup', email } });
 export const sendReset = email => call(`recover?redirect_to=${encodeURIComponent(location.origin + location.pathname)}`, { body: { email } });
 export async function setPassword(session, password) { await call('user', { method: 'PUT', token: session.access_token, body: { password } }); }
 /** Google (and later Apple) sign-in: leave for the provider; we come back with the tokens in the URL. */

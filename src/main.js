@@ -17,6 +17,10 @@ import './garage-friends.css';
 import './naked-panels.css';
 import './fishing-naked.css';
 import { initBoatQuick } from './boat-quick.js';
+import { initFirstVoyage } from './voyage.js';
+import './voyage.css';
+// a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
+const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
 const stage = document.querySelector('three-d-stage');
 const { THREE } = await stage.ready;
@@ -845,6 +849,9 @@ const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, 
   shake: () => stage.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-5px,3px)' }, { transform: 'translate(4px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260 }),
   landPoint: () => new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld),
   night: () => E.night, weather: () => state.w, yaw: () => yaw });
+// first voyage: set a course, catch a fish, sell it at Paradise Station (voyage.js)
+const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: n => station.addCoins(n), holdCount: () => station.holdInfo().n,
+  pinStation: () => setCourse(new THREE.Vector3(STATION.x + 70, WL, STATION.z + 80), true) });
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
 const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
@@ -941,7 +948,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t);
+  seaLabels.update(t); boatQuick.update(t); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 

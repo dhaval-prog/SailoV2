@@ -132,7 +132,7 @@
 .si-done[hidden] { display: none; }
 .si-done small { font: 500 13px/1 'JetBrains Mono', monospace; letter-spacing: 0.22em; text-transform: uppercase; animation: si-blurIn 0.8s ease-out both; } .si.night .si-done small { color: #FFD36B; }
 .si-done b { font: 900 68px/1 'Nunito', sans-serif; letter-spacing: -0.02em; animation: si-popIn 0.6s ease-out 0.1s backwards; text-wrap: balance; } .si.lay-m .si-done b { font-size: 48px; }
-.si-done span { font: 700 17px/1.4 'Nunito', sans-serif; animation: si-blurIn 0.8s ease-out 0.3s backwards; } .si.night .si-done span { color: rgba(255, 255, 255, 0.85); }
+.si-done > span { font: 700 17px/1.4 'Nunito', sans-serif; animation: si-blurIn 0.8s ease-out 0.3s backwards; } .si.night .si-done > span { color: rgba(255, 255, 255, 0.85); }
 .si-done button { margin-top: 14px; height: 48px; padding: 0 26px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 24px; background: rgba(255, 255, 255, 0.14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; cursor: pointer; font: 800 15px/1 'Nunito', sans-serif; animation: si-blurIn 0.8s ease-out 0.5s backwards; }
 .si-done button:hover { background: rgba(255, 255, 255, 0.24); }
 .si.night .si-done button { border-color: rgba(255, 255, 255, 0.2); border-radius: 16px; background: rgba(8, 18, 42, 0.5); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
@@ -140,3 +140,26 @@
 .si-loading { position: fixed; right: 20px; top: calc(24px + var(--safe-t, 0px)); font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.85); } .si-loading[hidden] { display: none; }
 .si.night .si-loading { color: rgba(255, 255, 255, 0.75); }
 @media (prefers-reduced-motion: reduce) { .si *, .si { animation-duration: 0.01ms !important; } }
+
+/* "Check your inbox": resend (with a countdown) and change email, under the button */
+.si.lay-m .si-title p.keep { display: block; }
+.si-fields[hidden] { display: none; }
+.si-inbox { display: flex; align-items: center; justify-content: space-between; gap: 14px; } .si-inbox[hidden] { display: none; }
+.si-resend { padding: 0; border: 0; background: none; cursor: pointer; color: #FFD36B; font: 800 14px/1 'Nunito', sans-serif; text-shadow: inherit; }
+.si-resend:disabled { color: rgba(255, 255, 255, 0.6); cursor: default; }
+.si-change { font: 800 14px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.92) !important; }
+.si.night .si-inbox { justify-content: center; gap: 22px; } .si.night .si-resend, .si.night .si-change { font-size: 13.5px; }
+
+/* welcome aboard: a new captain chooses where to sail right here */
+.si-done-msg.bad { color: #FFD9D2; }
+.si-done .si-go[hidden] { display: none; }
+.si-where { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 14px; animation: si-blurIn 0.8s ease-out 0.5s backwards; } .si-where[hidden] { display: none; }
+.si-done .si-where button { margin: 0; animation: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 52px; padding: 0 26px; border-radius: 26px; cursor: pointer; font: 900 16px/1 'Nunito', sans-serif; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, box-shadow 0.25s; }
+.si-done .si-where button:active { transform: scale(0.96); } .si-done .si-where button:disabled { opacity: 0.8; cursor: progress; }
+.si-done .si-loc { border: 0; background: #FF7A45; color: #fff; text-shadow: none; box-shadow: 0 12px 30px rgba(255, 110, 50, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.si-done .si-loc svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.si-done .si-pick { border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; }
+.si-done .si-pick:hover { background: rgba(255, 255, 255, 0.24); }
+.si.night .si-done .si-loc { border-radius: 16px; background: linear-gradient(180deg, #FFD36B, #FFB21A); color: #172443; box-shadow: 0 0 0 1px rgba(255, 210, 120, 0.5), 0 10px 34px rgba(255, 190, 60, 0.35); }
+.si.night .si-done .si-pick { border-color: rgba(255, 255, 255, 0.2); border-radius: 16px; background: rgba(8, 18, 42, 0.5); }
+.si.lay-m .si-where { flex-direction: column; align-self: stretch; } .si.lay-m .si-done .si-where button { width: 100%; }
