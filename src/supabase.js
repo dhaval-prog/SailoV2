@@ -1,7 +1,7 @@
 // Supabase access shared by the save system and start-up: the device id and RPC calls.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dfytxscebupuqwehsojc.supabase.co';
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dfytxscebupuqwehsojc.supabase.co';
 // publishable key: safe to ship in the client; the table itself is locked and only reachable via the RPCs
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_ZsAQV4mbCnCOiSwwZFRb4A_PeUgwGdO';
+export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_ZsAQV4mbCnCOiSwwZFRb4A_PeUgwGdO';
 const DEVICE_KEY = 'sailo:device';
 
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID()

@@ -1,0 +1,144 @@
+/* Sign in / Create account ("Sailo Sign In" design pack, v4). Two looks chosen by the time of day:
+   .day: naked, white type straight on the sunny scene, underline inputs, coral button;
+   .night: a frosted navy card over the lamp-lit tug, filled inputs, gold button.
+   Layouts follow the pack's breakpoints: .lay-m (< 640px), .lay-t (640-1023px or portrait), .lay-d (>= 1024px). */
+@keyframes si-blurIn { from { opacity: 0; filter: blur(10px); transform: translateY(-6px); } }
+@keyframes si-popIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes si-flow { from { background-position: 0 0; } to { background-position: 24px 0; } }
+@keyframes si-rise { from { opacity: 0; transform: translateY(18px) scale(0.98); } }
+
+.si { position: fixed; inset: 0; z-index: 200; overflow-y: auto; overscroll-behavior: contain; font-family: 'Nunito', system-ui, sans-serif; color: #fff; transition: opacity 0.6s ease; }
+.si.gone { opacity: 0; pointer-events: none; }
+.si * { box-sizing: border-box; }
+.si.day { background: #33a8e8; } .si.night { background: #0a1a33; }
+.si a { color: #fff; text-decoration: none; } .si a:hover { color: #FFD36B; }
+.si input::placeholder { color: rgba(255, 255, 255, 0.55); } .si.night input::placeholder { color: rgba(255, 255, 255, 0.42); }
+.si input:-webkit-autofill { -webkit-text-fill-color: #fff; transition: background-color 9999s; }
+.si button { font-family: inherit; }
+
+.si-sky { position: fixed; inset: 0; }
+.si.day .si-sky { background: linear-gradient(180deg, #33a8e8 0%, #8cd9f5 28%, #f0fcff 31%, #3dc1ee 32%, #1b8cd6 60%, #1164b4 100%); }
+.si.night .si-sky { background: linear-gradient(180deg, #050d24 0%, #0f2148 28%, #24406b 31%, #0e2f6a 32%, #0a2358 100%); }
+.si-sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: manipulation; }
+.si-scrim { position: absolute; inset: 0; pointer-events: none; }
+.si.day.lay-d .si-scrim { background: radial-gradient(ellipse 58% 95% at 0 55%, rgba(6, 24, 60, 0.42), transparent 75%); }
+.si.day:not(.lay-d) .si-scrim { background: linear-gradient(0deg, rgba(6, 24, 60, 0.6), rgba(6, 24, 60, 0.22) 50%, transparent 66%); }
+.si.night.lay-d .si-scrim { background: radial-gradient(ellipse 50% 90% at 100% 55%, rgba(0, 6, 20, 0.35), transparent 75%); }
+.si.night:not(.lay-d) .si-scrim { background: linear-gradient(0deg, rgba(0, 6, 20, 0.5), transparent 60%); }
+
+.si-page { position: relative; min-height: 100%; display: flex; flex-direction: column; padding: calc(28px + var(--safe-t, 0px)) 48px calc(22px + var(--safe-b, 0px)); pointer-events: none; }
+.si.day .si-page { text-shadow: 0 1px 2px rgba(0, 20, 50, 0.6), 0 0 14px rgba(0, 20, 50, 0.4); }
+.si.lay-t .si-page { padding: calc(30px + var(--safe-t, 0px)) 40px calc(24px + var(--safe-b, 0px)); }
+.si.day.lay-m .si-page { padding: calc(18px + var(--safe-t, 0px)) 22px calc(16px + var(--safe-b, 0px)); }
+.si.night.lay-m .si-page { padding: calc(18px + var(--safe-t, 0px)) 14px calc(14px + var(--safe-b, 0px)); }
+.si-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; animation: si-blurIn 0.8s ease-out both; }
+.si.night .si-head { text-shadow: 0 1px 2px rgba(0, 8, 24, 0.6), 0 0 20px rgba(0, 8, 24, 0.4); }
+.si-head b { font: 900 28px/1 'Nunito', sans-serif; letter-spacing: -0.01em; }
+.si-head span { font: 500 12px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.9); }
+
+.si-main { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 24px 0 24px 16px; }
+.si:not(.lay-d) .si-main { justify-content: flex-start; }
+.si.day.lay-t .si-main { align-items: center; padding: 42vh 0 28px; } .si.day.lay-m .si-main { padding: 29vh 0 12px; }
+.si.night.lay-d .si-main { align-items: flex-end; padding: 24px 5vw 24px 0; } .si.night:not(.lay-d) .si-main { align-items: center; }
+.si.night.lay-t .si-main { padding: 40vh 0 24px; } .si.night.lay-m .si-main { padding: 27vh 0 12px; }
+
+.si-form { pointer-events: auto; width: 100%; max-width: 390px; display: flex; flex-direction: column; gap: 24px; }
+.si.day.lay-t .si-form { max-width: 460px; } .si.lay-m .si-form { max-width: 100%; gap: 14px; }
+.si.night .si-form { max-width: 440px; padding: 34px 34px 30px; border-radius: 28px; gap: 22px; background: rgba(8, 18, 42, 0.5); -webkit-backdrop-filter: blur(26px) saturate(150%); backdrop-filter: blur(26px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 30px 80px rgba(0, 6, 20, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1); animation: si-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s backwards; }
+.si.night.lay-m .si-form { max-width: 100%; padding: 18px; gap: 12px; }
+.si.day .si-form > * { animation: si-blurIn 0.8s ease-out backwards; }
+.si.day .si-form > :nth-child(1) { animation-delay: 0.1s; } .si.day .si-form > :nth-child(2) { animation-delay: 0.15s; } .si.day .si-form > :nth-child(3) { animation-delay: 0.2s; } .si.day .si-form > :nth-child(n+4) { animation-delay: 0.25s; }
+
+/* tabs: underlined words by day, a segmented pill by night */
+.si-tabs { display: flex; gap: 28px; }
+.si-tabs button { padding: 0 0 9px; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; font: 800 15px/1 'Nunito', sans-serif; text-shadow: inherit; color: rgba(255, 255, 255, 0.62); transition: color 0.2s, border-color 0.2s; }
+.si-tabs button.on { color: #fff; border-bottom-color: #FF7A45; }
+.si.night .si-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); }
+.si.night .si-tabs button { height: 38px; padding: 0; border: 0; border-radius: 10px; font-size: 14px; color: rgba(255, 255, 255, 0.6); transition: background 0.25s, color 0.25s; }
+.si.night .si-tabs button.on { color: #fff; background: rgba(255, 255, 255, 0.14); }
+.si.night.lay-m .si-tabs button { height: 34px; }
+.si-tabs[hidden] { display: none !important; }
+
+.si-title { display: flex; flex-direction: column; gap: 10px; }
+.si-title h1 { margin: 0; font: 900 46px/1.04 'Nunito', sans-serif; letter-spacing: -0.02em; text-wrap: balance; }
+.si.lay-m .si-title h1 { font-size: 34px; }
+.si-title p { margin: 0; font: 700 16px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.92); text-wrap: pretty; }
+.si.lay-m .si-title p, .si.lay-m .si-or { display: none; }
+.si.night .si-title { gap: 8px; } .si.night .si-title h1 { font-size: 34px; line-height: 1.08; } .si.night.lay-m .si-title h1 { font-size: 28px; }
+.si.night .si-title p { font-size: 15px; color: rgba(255, 255, 255, 0.72); }
+
+.si-fields { display: flex; flex-direction: column; gap: 22px; } .si.lay-m .si-fields { gap: 16px; }
+.si.night .si-fields { gap: 14px; } .si.night.lay-m .si-fields { gap: 10px; }
+.si-field { display: flex; flex-direction: column; gap: 8px; } .si-field[hidden] { display: none; }
+.si-label { display: flex; justify-content: space-between; gap: 10px; font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); }
+.si-label em { font-style: normal; letter-spacing: 0.04em; text-transform: none; color: #FFD36B; }
+.si-field input { width: 100%; padding: 4px 0 10px; border: 0; border-bottom: 1.5px solid rgba(255, 255, 255, 0.55); border-radius: 0; background: transparent; outline: none; color: #fff; font: 800 19px/1.2 'Nunito', sans-serif; text-shadow: inherit; transition: border-color 0.2s; }
+.si-field input:focus { border-bottom-color: #FFD36B; }
+.si-pw { position: relative; display: block; } .si-pw input { padding-right: 64px; }
+.si-pw button { position: absolute; right: 0; top: 0; height: 34px; padding: 0 2px; border: 0; background: none; cursor: pointer; color: #fff; font: 500 12px/1 'JetBrains Mono', monospace; text-shadow: inherit; }
+.si.night .si-field { gap: 7px; } .si.night .si-label { font-size: 10.5px; color: rgba(255, 255, 255, 0.62); }
+.si.night .si-field input { height: 50px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px; background: rgba(255, 255, 255, 0.06); font: 700 16px/1 'Nunito', sans-serif; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
+.si.night.lay-m .si-field input { height: 44px; }
+.si.night .si-field input:focus { border-color: rgba(255, 211, 107, 0.8); box-shadow: 0 0 0 4px rgba(255, 197, 49, 0.14); background: rgba(255, 255, 255, 0.09); }
+.si.night .si-pw input { padding-right: 64px; }
+.si.night .si-pw button { right: 8px; top: 8px; padding: 0 10px; border-radius: 9px; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); font-size: 11.5px; }
+.si.night.lay-m .si-pw button { top: 5px; }
+
+/* the fuel gauge: password strength */
+.si-fuel { display: flex; align-items: center; gap: 12px; font: 800 13px/1 'Nunito', sans-serif; } .si-fuel[hidden] { display: none; }
+.si-fuel > span:first-child { font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.85); }
+.si-fuel .bar { flex: 1; height: 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.28); overflow: hidden; }
+.si-fuel .bar i { display: block; height: 100%; width: 0; border-radius: 5px; background-color: #FF6B5B; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.35) 0 6px, transparent 6px 12px); animation: si-flow 0.9s linear infinite; transition: width 0.35s ease, background-color 0.3s; }
+.si-fuel .lbl { min-width: 104px; text-align: right; }
+.si.night .si-fuel { font-size: 12.5px; color: rgba(255, 255, 255, 0.85); } .si.night .si-fuel > span:first-child { font-size: 10.5px; color: rgba(255, 255, 255, 0.62); } .si.night .si-fuel .bar { background: rgba(255, 255, 255, 0.12); }
+
+.si-err, .si-note { align-self: flex-start; margin: -6px 0 0; padding: 9px 14px; border-radius: 12px; font: 800 14px/1.3 'Nunito', sans-serif; animation: si-popIn 0.3s ease-out; }
+.si-err { background: rgba(40, 12, 8, 0.38); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(255, 170, 150, 0.45); color: #FFE1D8; }
+.si-note { background: rgba(6, 40, 34, 0.38); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(110, 231, 197, 0.5); color: #DFFFF4; }
+.si.night .si-err { align-self: stretch; margin-top: -4px; padding: 10px 14px; background: rgba(255, 90, 78, 0.14); border-color: rgba(255, 120, 100, 0.4); color: #FFD9D2; font-size: 13.5px; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.si.night .si-note { align-self: stretch; margin-top: -4px; background: rgba(52, 209, 182, 0.12); -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 13.5px; }
+.si-err[hidden], .si-note[hidden] { display: none; }
+
+.si-actions { display: flex; flex-direction: column; gap: 16px; } .si.night .si-actions { gap: 14px; }
+.si-cta { height: 56px; border: 0; border-radius: 28px; background: #FF7A45; color: #fff; cursor: pointer; font: 900 17px/1 'Nunito', sans-serif; text-shadow: none; box-shadow: 0 12px 30px rgba(255, 110, 50, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.3); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s, opacity 0.2s; }
+.si-cta:hover { transform: translateY(-1px); box-shadow: 0 16px 36px rgba(255, 110, 50, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.3); } .si-cta:active { transform: scale(0.97); }
+.si-cta:disabled { opacity: 0.75; cursor: progress; }
+.si.lay-m .si-cta { height: 50px; }
+.si.night .si-cta { height: 54px; border-radius: 16px; background: linear-gradient(180deg, #FFD36B, #FFB21A); color: #172443; font-size: 16.5px; box-shadow: 0 0 0 1px rgba(255, 210, 120, 0.5), 0 10px 34px rgba(255, 190, 60, 0.35); }
+.si.night .si-cta:hover { box-shadow: 0 0 0 1px rgba(255, 210, 120, 0.6), 0 14px 44px rgba(255, 190, 60, 0.5); } .si.night.lay-m .si-cta { height: 50px; }
+.si-forgot { align-self: flex-start; font: 800 14px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.92) !important; } .si-forgot[hidden] { display: none; }
+.si.night .si-forgot { align-self: center; font-size: 13.5px; color: rgba(255, 255, 255, 0.78) !important; }
+
+.si-or { display: flex; align-items: center; gap: 12px; font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.75); }
+.si-or i { flex: 1; height: 1px; background: rgba(255, 255, 255, 0.35); }
+.si.night .si-or { font-size: 10.5px; color: rgba(255, 255, 255, 0.5); } .si.night .si-or i { background: rgba(255, 255, 255, 0.14); }
+.si-social { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.si-social button { height: 48px; border: 1px solid rgba(255, 255, 255, 0.42); border-radius: 24px; background: rgba(255, 255, 255, 0.12); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; cursor: pointer; font: 800 15px/1 'Nunito', sans-serif; text-shadow: inherit; transition: background 0.2s, transform 0.2s; }
+.si-social button:hover { background: rgba(255, 255, 255, 0.22); } .si-social button:active { transform: scale(0.96); }
+.si.lay-m .si-social button { height: 42px; }
+.si.night .si-social { gap: 10px; } .si.night .si-social button { height: 46px; border-color: rgba(255, 255, 255, 0.16); border-radius: 14px; background: rgba(255, 255, 255, 0.05); -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 14.5px; }
+.si.night .si-social button:hover { background: rgba(255, 255, 255, 0.12); } .si.night.lay-m .si-social button { height: 42px; }
+.si-guest { align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; color: #fff; font: 800 14px/1 'Nunito', sans-serif; text-shadow: inherit; }
+.si-guest span { color: #FFD36B; } .si.night .si-guest { align-self: center; color: rgba(255, 255, 255, 0.82); font-size: 13.5px; }
+.si-social[hidden], .si-or[hidden], .si-guest[hidden] { display: none; }
+
+.si-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; font: 700 13px/1.3 'Nunito', sans-serif; }
+.si-foot small { font: 700 10.5px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); }
+.si-foot span { animation: si-blurIn 0.8s ease-out 0.5s backwards; }
+.si.night .si-foot { text-shadow: 0 1px 2px rgba(0, 8, 24, 0.6); } .si.night .si-foot small { color: rgba(255, 255, 255, 0.7); } .si.night .si-foot span { color: rgba(255, 255, 255, 0.9); }
+
+/* welcome aboard */
+.si-done { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; background: radial-gradient(ellipse at 50% 45%, rgba(20, 10, 30, 0.35), transparent 65%); text-shadow: 0 1px 2px rgba(10, 10, 30, 0.5), 0 0 22px rgba(10, 10, 30, 0.35); }
+.si.night .si-done { background: radial-gradient(ellipse at 50% 45%, rgba(0, 6, 20, 0.4), transparent 65%); text-shadow: 0 1px 2px rgba(0, 8, 24, 0.6), 0 0 22px rgba(0, 8, 24, 0.4); }
+.si-done[hidden] { display: none; }
+.si-done small { font: 500 13px/1 'JetBrains Mono', monospace; letter-spacing: 0.22em; text-transform: uppercase; animation: si-blurIn 0.8s ease-out both; } .si.night .si-done small { color: #FFD36B; }
+.si-done b { font: 900 68px/1 'Nunito', sans-serif; letter-spacing: -0.02em; animation: si-popIn 0.6s ease-out 0.1s backwards; text-wrap: balance; } .si.lay-m .si-done b { font-size: 48px; }
+.si-done span { font: 700 17px/1.4 'Nunito', sans-serif; animation: si-blurIn 0.8s ease-out 0.3s backwards; } .si.night .si-done span { color: rgba(255, 255, 255, 0.85); }
+.si-done button { margin-top: 14px; height: 48px; padding: 0 26px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 24px; background: rgba(255, 255, 255, 0.14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; cursor: pointer; font: 800 15px/1 'Nunito', sans-serif; animation: si-blurIn 0.8s ease-out 0.5s backwards; }
+.si-done button:hover { background: rgba(255, 255, 255, 0.24); }
+.si.night .si-done button { border-color: rgba(255, 255, 255, 0.2); border-radius: 16px; background: rgba(8, 18, 42, 0.5); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.si.night .si-done button:hover { background: rgba(20, 34, 70, 0.6); }
+.si-loading { position: fixed; right: 20px; top: calc(24px + var(--safe-t, 0px)); font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.85); } .si-loading[hidden] { display: none; }
+.si.night .si-loading { color: rgba(255, 255, 255, 0.75); }
+@media (prefers-reduced-motion: reduce) { .si *, .si { animation-duration: 0.01ms !important; } }

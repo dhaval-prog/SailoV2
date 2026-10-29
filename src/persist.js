@@ -7,6 +7,7 @@
 import { CHART, chartRecord } from './chart.js';
 import { project, unproject } from './world.js';
 import { rpc, deviceId } from './supabase.js';
+import { isAccount } from './cloud.js';
 
 const LOCAL_KEY = 'sailo:pos'; // the last save anywhere; each chart also keeps its own (sailo:pos@<chart>)
 const chartKey = id => `${LOCAL_KEY}@${id}`;
@@ -32,7 +33,7 @@ export const localPosition = () => here(readLocal(chartKey(CHART.id))) || here(r
 export async function lastSave(timeout = 2500) {
   const local = readLocal();
   let remote = null;
-  try {
+  if (!isAccount()) try { // (a signed-in captain's position comes with their account's progress, cloud.js)
     const rows = await rpc('get_boat_position_v2', { p_device: deviceId() }, { timeout });
     const r = rows && rows[0]; if (r) remote = norm(r, Date.parse(r.updated_at) || 0);
   } catch { /* offline or blocked: fall back to the local copy */ }
