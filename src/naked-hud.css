@@ -316,6 +316,16 @@ body #joy #helm-anchor { left: auto; right: calc(100% + 16px); }
   html body.stn-bar-on #helm, body.stn-bar-on #radio-fab { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
   body #joy #helm-anchor { left: auto; right: calc(100% + 12px); }
 }
+@media (max-width: 720px) and (orientation: portrait) {
+  /* upright phones: the wheel and the icons round it a size bigger again (the anchor grows with the helm) */
+  html body #helm { scale: 1.5; }
+  html body #helm #speedo { scale: 0.7; } /* (the speed line stays its size) */
+  body #helm-orbit .dk { width: 50px; height: 50px; }
+  body #helm-orbit .dk .hi { width: 32px; height: 32px; }
+  body #helm-orbit .dk-helm { width: 64px; height: 64px; }
+  body #helm-orbit .dk-helm .hi { width: 30px; height: 30px; }
+  body #radio-fab img { width: 62px; height: 62px; padding: 15px; } /* (body: over radio.css, loaded later) */
+}
 @media (max-width: 720px), (max-height: 520px) {
   /* phones: as the game opens the place name and time show for a moment, then fade; the rest moves up (hud.js) */
   body #hud-tl #loc, body #hud-tl #clock { transition: opacity 0.45s ease; }

@@ -1,0 +1,95 @@
+/* Tablets (tablet.js sets body.tablet; body.lefty swaps the sides): both thumbs drive. The throttle lever is bottom-left
+   and the wheel (steering only) bottom-right, beside a column of outlined buttons; left-handed, it's all mirrored.
+   Loaded after every other stylesheet (html body.tablet: over the "html body" helm rules in naked-hud.css). */
+body:not(.tablet) .tablet-only { display: none; }
+
+/* ---------- the throttle lever: ahead at the top, idle in the middle, astern at the bottom ---------- */
+#throttle { display: none; }
+body.tablet #throttle { position: fixed; z-index: 30; left: calc(44px + var(--safe-l, 0px)); bottom: calc(40px + var(--safe-b, 0px)); display: flex; flex-direction: column; align-items: center; gap: 10px;
+  touch-action: none; -webkit-user-select: none; user-select: none; outline: none; color: #fff; font-family: var(--nh-font); text-shadow: var(--nh-ts);
+  transition: opacity 0.35s ease, transform 0.35s ease; animation: nh-blurIn 0.8s ease-out 0.45s backwards; }
+body.tablet.lefty #throttle { left: auto; right: calc(44px + var(--safe-r, 0px)); }
+/* it steps aside whenever the wheel does (at anchor, fishing, moored, top view, the boat menu, the radio, the map) */
+body.tablet:is(.fishing, .anchored, .stn-docked, .stn-bar-on, .view-top, .boat-sel, .radio-open, .map-open) #throttle { opacity: 0; transform: translateY(16px); pointer-events: none; visibility: hidden;
+  transition: opacity 0.3s ease, transform 0.35s ease, visibility 0s linear 0.35s; }
+#throttle .th-lbl { font: 900 11px/1 var(--nh-font); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); transition: color 0.2s; }
+#throttle.fwd .th-ahead { color: #6EE7C5; }
+#throttle.rev .th-astern { color: #FF9A6B; }
+#throttle .th-track { position: relative; width: 66px; height: 232px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 33px; background: rgba(10, 30, 70, 0.32);
+  box-shadow: 0 2px 10px rgba(0, 20, 50, 0.3), inset 0 0 10px rgba(0, 20, 50, 0.25); cursor: grab; transition: border-color 0.2s; }
+#throttle.fwd .th-track { border-color: rgba(110, 231, 197, 0.9); }
+#throttle.rev .th-track { border-color: rgba(255, 160, 120, 0.9); }
+#throttle .th-mid { position: absolute; left: 12px; right: 12px; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: rgba(255, 255, 255, 0.5); }
+#throttle .th-fill { position: absolute; left: 50%; width: 10px; margin-left: -5px; border-radius: 5px; background: rgba(52, 209, 182, 0.85); }
+#throttle.rev .th-fill { background: rgba(255, 122, 69, 0.85); }
+#throttle .th-thumb { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; box-sizing: border-box; display: grid; place-items: center; border-radius: 50%;
+  border: 3px solid rgba(10, 30, 70, 0.35); background: radial-gradient(circle at 35% 30%, #fff 0, #C9D3E2 45%, #7F8DA6 100%); box-shadow: 0 3px 12px rgba(0, 20, 50, 0.45); transition: transform 0.12s ease-out, border-color 0.2s; }
+#throttle.active .th-thumb { transition: border-color 0.2s; }
+#throttle.active .th-track { cursor: grabbing; }
+#throttle.fwd .th-thumb { border-color: #34D1B6; }
+#throttle.rev .th-thumb { border-color: #FF7A45; }
+#throttle .th-thumb svg { width: 24px; height: 24px; fill: none; stroke: #172443; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+/* "Idle" beside the middle (on the wheel's side): a tap stops the boat */
+#throttle .th-idle { position: absolute; top: 50%; left: calc(100% + 6px); transform: translateY(-50%); padding: 10px 8px; border: 0; background: none; color: rgba(255, 255, 255, 0.85); cursor: pointer;
+  font: 500 10.5px/1 var(--nh-mono); letter-spacing: 0.08em; text-transform: uppercase; text-shadow: var(--nh-ts); }
+body.tablet.lefty #throttle .th-idle { left: auto; right: calc(100% + 6px); }
+#throttle:not(.fwd):not(.rev) .th-idle { color: #FFC531; }
+#throttle:focus-visible .th-track { outline: 2px solid #6EE7C5; outline-offset: 3px; }
+
+/* ---------- the wheel: steering only (no lever slot), with room round it ---------- */
+html body.tablet #helm { right: calc(116px + var(--safe-r, 0px)); bottom: calc(26px + var(--safe-b, 0px)); }
+html body.tablet.lefty #helm { right: auto; left: calc(116px + var(--safe-l, 0px)); transform-origin: left bottom; }
+body.tablet #joy #joy-dir { display: none; }
+body.tablet.lefty #helm #hint { right: auto; left: 0; text-align: left; }
+
+/* ---------- the side column: one set of outlined, labelled circles ---------- */
+body.tablet #dock { right: calc(22px + var(--safe-r, 0px)); bottom: calc(26px + var(--safe-b, 0px)); gap: 10px; }
+body.tablet.lefty #dock { right: auto; left: calc(22px + var(--safe-l, 0px)); }
+body.tablet #dock .dk, body.tablet #dock .dk.on { width: 52px; height: 52px; margin-bottom: 15px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); background: rgba(10, 30, 70, 0.3); }
+body.tablet #dock .dk { box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3), inset 0 0 8px rgba(0, 20, 50, 0.15); }
+body.tablet #dock .dk.on { border: 2.5px solid #fff; box-shadow: 0 0 0 4px rgba(255, 122, 69, 0.7), 0 2px 10px rgba(0, 20, 50, 0.4); }
+body.tablet #dock .dk .hi { width: 24px; height: 24px; }
+body.tablet #dock .dk::after { display: block; content: attr(data-lbl); inset: auto; top: calc(100% + 5px); left: 50%; width: max-content; height: auto; transform: translateX(-50%); border-radius: 0; background: none; opacity: 1;
+  font: 500 10px/1 var(--nh-mono); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); text-shadow: var(--nh-ts); }
+/* "Follow" (the chase camera): the same size as the rest, and it pulses only while the camera isn't following the boat */
+body.tablet #dock .dk-helm .hi { width: 26px; height: 26px; animation: none; }
+body.tablet #dock .dk-helm .ring { display: block; inset: -2px; animation: tb-ping 2.4s ease-out infinite; }
+body.tablet #dock .dk-helm.on .ring { display: none; }
+@keyframes tb-ping { 0% { transform: scale(1); opacity: 0.75; } 100% { transform: scale(1.45); opacity: 0; } }
+/* the compass opens the map; its N turns with the needle, so north is plain to see */
+#dk-compass .dk-north { display: none; }
+body.tablet #dock #dk-compass .dk-north { display: block; position: absolute; inset: 0; pointer-events: none; transition: transform 0.12s linear; }
+body.tablet #dock #dk-compass .dk-north b { position: absolute; left: 50%; top: -9px; width: 16px; height: 16px; margin-left: -8px; display: grid; place-items: center; border-radius: 50%;
+  background: #FF5A4E; color: #fff; font: 900 9.5px/1 var(--nh-font); text-shadow: none; box-shadow: 0 1px 4px rgba(0, 20, 50, 0.45); }
+/* zoom folds into "⋯" (pinch zooms too): tap it and the +/− pill opens above it */
+body.tablet #dock .dk-moreg { flex-direction: column-reverse; }
+body.tablet #dock #dk-more { display: grid; }
+body.tablet #dock #dk-more svg { width: 22px; height: 22px; fill: #fff; filter: var(--nh-ds); }
+body.tablet #dock #dk-tray, body.tablet #dock #dk-tray[hidden] { gap: 10px; }
+body.tablet #dock #dk-tray[hidden] .dk-zoom { display: none; }
+body.tablet #dock .dk-zoom { width: 52px; margin-bottom: 15px; box-sizing: border-box; border: 2px solid rgba(255, 255, 255, 0.82); border-radius: 26px; background: rgba(10, 30, 70, 0.3); box-shadow: 0 2px 8px rgba(0, 20, 50, 0.3); animation: nh-blurIn 0.3s ease-out both; }
+body.tablet #dock .dk-zoom button { width: 48px; height: 48px; }
+/* while a thumb is on the wheel or the throttle, the buttons round them ignore stray touches */
+body.tablet.steering :is(#dock, #radio-fab, #helm-anchor, #topbar) { pointer-events: none; }
+
+/* ---------- the top bar's inbox: one badge for every message (the radio's too) ---------- */
+#tb-inbox { position: relative; }
+#tb-inbox .tb-n { position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center; border-radius: 9px;
+  background: #FF5A4E; color: #fff; font: 900 11px/1 var(--nh-font); text-shadow: none; box-shadow: 0 0 0 2px rgba(10, 30, 70, 0.45); }
+#tb-inbox .tb-n[hidden] { display: none; }
+/* the harbour's notes, under the captains' messages in the radio's inbox */
+#radio .rd-notes { margin: 14px 0 6px; font: 500 10.5px/1 var(--nh-mono); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+#radio .rd-note { margin-bottom: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); font: 600 13.5px/1.4 var(--nh-font); color: rgba(255, 255, 255, 0.85); }
+#radio .rd-note b { color: #fff; } #radio .rd-note time { float: right; font: 500 10.5px/1.6 var(--nh-mono); color: rgba(255, 255, 255, 0.5); }
+
+/* ---------- upright tablets: the wheel a little higher, the compass tucked under the top bar ---------- */
+@media (orientation: portrait) {
+  html body.tablet #helm { bottom: calc(56px + var(--safe-b, 0px)); }
+  body.tablet #throttle { bottom: calc(70px + var(--safe-b, 0px)); }
+  body.tablet #dock { bottom: calc(40px + var(--safe-b, 0px)); }
+  body.tablet #compass-strip { top: calc(84px + var(--safe-t, 0px)); left: auto; right: calc(20px + var(--safe-r, 0px)); width: min(400px, calc(100vw - 404px)); }
+}
+
+/* ---------- the game fills the whole screen, under the home indicator too ----------
+   (on iPad the fixed stage could stop short of the bottom safe area, leaving a dark band: it now reaches past it) */
+html body.tablet three-d-stage { bottom: auto !important; height: calc(100vh + env(safe-area-inset-bottom, 0px)) !important; height: calc(100lvh + env(safe-area-inset-bottom, 0px)) !important; }

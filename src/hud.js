@@ -10,6 +10,7 @@ import { beforeSignOut, lastSaved } from './cloud.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
+import { isTablet, isLefty, setLefty } from './tablet.js';
 
 const RANKS = [[0, 'Deckhand'], [3, 'Bosun'], [8, 'First mate'], [15, 'Captain'], [30, 'Sea legend']];
 const KEY = 'sailo:settings';
@@ -115,6 +116,9 @@ export function initHud(api) {
     if (on) applyLive();
   }
   liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setWeather(prefs.w); paint(); } });
+  // tablets: left-handed captains swap the wheel and the throttle (tablet.js)
+  { const sw = $('lefty-sw'), show = () => sw.setAttribute('aria-checked', String(isLefty()));
+    sw.addEventListener('click', () => { setLefty(!isLefty()); show(); }); addEventListener('sailo:controls', show); show(); }
   const escT = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const tick = () => {
     const c = clock(), key = c.time + c.date;
@@ -406,9 +410,16 @@ export function initHud(api) {
   $('tb-search').addEventListener('click', openSearch);
   // inbox
   const INBOX_SEEN = 'sailo:inbox-seen'; let inboxSeen = false; try { inboxSeen = localStorage.getItem(INBOX_SEEN) === '1'; } catch { /* storage blocked */ }
-  const openInbox = () => { inboxSeen = true; try { localStorage.setItem(INBOX_SEEN, '1'); } catch { /* storage blocked */ } paintMenu(); openSheet('Inbox', 'Messages from the harbour', `
-    <div class="sh-msg"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
-    <div class="sh-msg"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`); };
+  const harbourNotes = cls => `
+    <div class="${cls}"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
+    <div class="${cls}"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`;
+  const markInboxSeen = () => { if (inboxSeen) return; inboxSeen = true; try { localStorage.setItem(INBOX_SEEN, '1'); } catch { /* storage blocked */ } paintMenu(); paintInboxN(); };
+  // tablets: one inbox, the radio's (captains' messages, then these notes from the harbour), with one badge on the top bar
+  let radioInbox = null, radioUnread = 0;
+  const paintInboxN = () => { const n = isTablet() ? radioUnread + (inboxSeen ? 0 : 2) : 0, b = $('tb-inbox-n'); b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); };
+  const openInbox = () => { if (radioInbox && isTablet()) { radioInbox(); return; }
+    markInboxSeen(); openSheet('Inbox', 'Messages from the harbour', harbourNotes('sh-msg')); };
+  paintInboxN(); addEventListener('sailo:controls', paintInboxN);
   $('tb-inbox').addEventListener('click', openInbox);
   // phones: the grid button under the avatar holds fleet, search, inbox, map, photo and zoom;
   // its badge counts what is new (an unseen garage, unread inbox messages)
@@ -429,7 +440,7 @@ export function initHud(api) {
   const openFriends = gf.openFriends;
 
   // ---- per-frame readouts ----
-  const needle = document.querySelector('#dk-compass .needle');
+  const needle = document.querySelector('#dk-compass .needle'), north = document.querySelector('#dk-compass .dk-north');
   const spd = $('spd'), gear = $('gear'), arc = $('joy-speed'), hdgEl = $('hdg');
   // a one-off note on the scene (Naked HUD): fallbacks, "your progress followed you"; a Settings shortcut when it mentions them
   const noteEl = document.createElement('div'); noteEl.id = 'nk-note'; noteEl.setAttribute('role', 'status'); noteEl.innerHTML = '<p></p><button type="button" hidden>Open Settings</button>'; document.body.appendChild(noteEl);
@@ -460,6 +471,11 @@ export function initHud(api) {
   let last = { kn: -1, gear: '', c: -1, d: '', top: -1, az: 1e9, pos: '', warn: '' };
   return {
     paint,
+    /** Tablets: the top bar's inbox opens the radio's (open()); its badge counts the radio's unread messages too. */
+    routeInbox: open => { radioInbox = open; },
+    inboxUnread: n => { if (n !== radioUnread) { radioUnread = n; paintInboxN(); } },
+    /** The harbour's notes, for the radio's inbox (seen once shown). */
+    harbourNotes: () => { markInboxSeen(); return harbourNotes('rd-note'); },
     openGarage, openFriends, openProfile: () => setOpen(true), openWelcome, note,
     /** Any full-screen Naked sheet (a local sailor's card, ...). */
     openPanel: (title, sub, html, kind = 'panel') => openSheet(title, sub, html, kind),
@@ -476,7 +492,7 @@ export function initHud(api) {
       const w = edge < 1 ? `You've reached the edge of ${WORLD.name}` : edge < WORLD.warn ? `Leaving ${WORLD.name} · ${Math.round(edge)} m to the edge` : '';
       if (w !== last.warn) { warn.textContent = w || warn.textContent; warn.classList.toggle('show', !!w); last.warn = w; }
       const deg = Math.round(az * 180 / Math.PI);
-      if (deg !== last.az) { needle.style.transform = `rotate(${deg}deg)`; last.az = deg; }
+      if (deg !== last.az) { needle.style.transform = north.style.transform = `rotate(${deg}deg)`; last.az = deg; }
       const k = Math.round(Math.abs(kn) * 10) / 10;
       if (k !== last.kn) { spd.textContent = k.toFixed(1); arc.style.strokeDasharray = `${Math.min(100, Math.abs(kn) / 12 * 100)} 100`; last.kn = k; }
       { const b = ((90 - heading * 180 / Math.PI) % 360 + 360) % 360, h = `${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / 45) % 8]} ${Math.round(b) % 360}°`; if (h !== last.hdg) { hdgEl.textContent = h; last.hdg = h; } }
