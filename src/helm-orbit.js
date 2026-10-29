@@ -26,7 +26,7 @@ export function initHelmOrbit() {
   function wheel() { const r = joy.getBoundingClientRect(); if (!r.width) return null; return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, R: r.width / 2, k: r.width / joy.offsetWidth }; }
   function place() {
     home(); const b = document.body.classList;
-    if (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel') || b.contains('stn-docked')) return; // (the helm is away: keep the last layout)
+    if (api.radioAt && (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel') || b.contains('stn-docked'))) return; // (the helm is away: keep the last layout)
     const w = wheel(); if (!w) return;
     const A = phone.matches ? ORBIT.phone : ORBIT.wide;
     // the anchor lives inside the wheel's box (it scales with the helm): place it in that box's own units

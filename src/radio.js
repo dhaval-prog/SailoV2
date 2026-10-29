@@ -39,7 +39,9 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   const live = () => (st.mode === 'direct' ? null : chan().global ? glob : online);
 
   // ---------- markup ----------
-  const fab = document.createElement('button'); fab.type = 'button'; fab.id = 'radio-fab'; fab.setAttribute('aria-label', 'Radio'); // (there from the start, dimmed until the radio is on)
+  // the floating button is there from the start, dimmed and disabled until the radio comes on (you start sailing, or pick
+  // Radio in the boat menu); it waits, invisible, for its first place round the wheel so it never jumps
+  const fab = document.createElement('button'); fab.type = 'button'; fab.id = 'radio-fab'; fab.setAttribute('aria-label', 'Radio'); fab.disabled = true; fab.style.visibility = 'hidden';
   fab.innerHTML = '<img src="./boat/white/radio.svg" alt="" draggable="false"><span class="rf-ch"></span><i class="rf-rx" aria-hidden="true"></i>';
   document.body.appendChild(fab);
   const root = document.createElement('div'); root.id = 'radio'; root.hidden = true; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Marine radio');
@@ -122,7 +124,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     return ROSTER.map(c => ({ c, s: stateAt(c, now) })).filter(q => q.s && Math.hypot(q.s.x - me.x, q.s.z - me.z) <= r); };
   function paint() { paintTop(); paintDial(); paintGate(); paintFeed(); paintCtrl(); }
   function paintTop() {
-    root.classList.toggle('off', !st.power); fab.classList.toggle('on', st.power);
+    root.classList.toggle('off', !st.power); fab.classList.toggle('on', st.power); fab.disabled = !st.power; fab.setAttribute('aria-label', st.power ? 'Radio' : 'Radio (off: starts when you set sail)');
     root.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
     const c = chan(), me = playerPos();
     root.dataset.mode = st.mode;
@@ -320,10 +322,17 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   $('.rd-sos').addEventListener('click', () => hooks.sos?.());
 
   // ---------- the floating button sits on the circle round the steering wheel (helm-orbit.js) ----------
+  let lastSpot = null, steady = 0;
   function placeFab() {
-    const b = document.body.classList; if (fab.hidden || b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel')) return; // (the helm is away: stay put)
+    const b = document.body.classList, placed = fab.style.visibility !== 'hidden';
+    if (fab.hidden || placed && (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel'))) return; // (the helm is away: stay put)
     const img = fab.querySelector('img'), p = orbit?.radioAt?.(img.offsetWidth); if (!p) return;
-    fab.style.left = `${Math.round(p[0] - fab.offsetWidth / 2)}px`; fab.style.top = `${Math.round(p[1] - img.offsetHeight / 2)}px`; fab.style.bottom = 'auto'; fab.style.transform = 'none';
+    const x = Math.round(p[0] - fab.offsetWidth / 2), y = Math.round(p[1] - img.offsetHeight / 2);
+    // first time: wait until the wheel has settled (it eases in), so the button appears once, in its place
+    if (!placed) { steady = lastSpot && Math.abs(lastSpot[0] - x) < 1 && Math.abs(lastSpot[1] - y) < 1 ? steady + 1 : 0; lastSpot = [x, y];
+      const easing = document.getElementById('helm')?.getAnimations?.({ subtree: true }).some(a => a.animationName === 'nh-blurIn' && a.playState === 'running');
+      if (steady < 2 || easing) return; }
+    fab.style.left = `${x}px`; fab.style.top = `${y}px`; fab.style.bottom = 'auto'; fab.style.transform = 'none'; fab.style.visibility = '';
   }
   addEventListener('resize', () => setTimeout(placeFab, 400));
 

@@ -303,7 +303,7 @@ body #joy #helm-anchor.on img.n { opacity: 1; }
 html body #helm { left: auto; right: calc(106px + var(--safe-r, 0px)); align-items: center; scale: 1.25; transform-origin: right bottom; } /* (html: over fishing-naked.css, loaded later); the helm a size larger */
 /* at anchor the helm steps aside (Raise anchor by the boat brings it back) */
 html body.anchored #helm { opacity: 0; transform: translateY(16px); pointer-events: none; }
-body #helm #hint { text-align: right; align-self: flex-end; }
+body #helm #hint { position: absolute; right: 0; bottom: calc(100% + 10px); width: max-content; max-width: 300px; text-align: right; } /* (floats above the wheel: its fading out never moves the helm) */
 body #joy #helm-anchor { left: auto; right: calc(100% + 16px); }
 @media (max-width: 720px), (max-height: 520px) {
   /* phones: left of the big helm ring, the speed line right-aligned under the wheel so it clears the ring */
