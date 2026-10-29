@@ -116,7 +116,7 @@ export function dayPlan(c, day) {
       segs.push({ kind: 'sail', t0, t1: t0 + dt, a: l.from, b: l.p, s: si }); t0 += dt;
       if (l.kind === 'fish') { const f = fishN ? fishT * weights[fi++] / wsum : 0; segs.push({ kind: 'fish', t0, t1: t0 + f, a: l.p, b: l.p, s: si });
         const n = Math.max(1, Math.round(f / 60 * c.rate * (0.7 + r() * 0.6))); // catches, spread over the stay
-        for (let i = 0; i < n; i++) { const fish = pickFish(c, r); events.push({ t: t0 + f * (i + 0.5 + (r() - 0.5) * 0.8) / n, kind: 'catch', fish, kg: kgOf(fish, r) }); hold++; }
+        for (let i = 0; i < n; i++) { const fish = pickFish(c, r); events.push({ t: t0 + f * (i + 0.5 + (r() - 0.5) * 0.8) / n, kind: 'catch', fish, kg: kgOf(fish, r), p: l.p }); hold++; }
         t0 += f; }
       else if (l.kind === 'sell') { segs.push({ kind: 'sell', t0, t1: t0 + 12, a: l.p, b: l.p, s: si });
         const sold = events.filter(e => e.kind === 'catch' && !e.sold); sold.forEach(e => { e.sold = true; });
@@ -124,7 +124,7 @@ export function dayPlan(c, day) {
         hold = 0; t0 += 12; } });
   });
   const plan = { segs, events: events.sort((a, b) => a.t - b.t) };
-  cache.set(key, plan); if (cache.size > 120) cache.delete(cache.keys().next().value);
+  cache.set(key, plan); if (cache.size > 400) cache.delete(cache.keys().next().value);
   return plan;
 }
 // Riya: 2–4 sessions a day, 8 hours in all, at random times
@@ -181,4 +181,36 @@ export function recentEvents(c, ms, sinceMs) {
   const now = puneNow(ms), from = puneNow(sinceMs);
   if (now.day !== from.day) return [];
   return dayPlan(c, now.day).events.filter(e => e.t > from.min && e.t <= now.min);
+}
+
+// ---------- the harbour board (harbour.js) ----------
+const PLACES = Object.entries(HOME);
+/** The nearest neighbourhood to a point ("near Kharadi"). */
+export const placeNear = (x, z) => { let best = null, bd = Infinity; PLACES.forEach(([n, [px, pz]]) => { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < bd) { bd = d; best = n; } }); return best; };
+export const fishNameOf = id => fishName[id] || id;
+/** A Pune day's happenings for one captain, in minutes of that day: setting out, catches, sales, heading home
+ *  (a night session's small hours come from the day before). */
+export function dayLog(c, day) {
+  const one = (d, off) => { const { segs, events } = dayPlan(c, d), out = [];
+    const bySession = new Map(); segs.forEach(s => { const b = bySession.get(s.s) || []; b.push(s); bySession.set(s.s, b); });
+    bySession.forEach(b => { out.push({ t: b[0].t0 - off, kind: 'out', p: b[0].a }); out.push({ t: b[b.length - 1].t1 - off, kind: 'home', p: b[b.length - 1].b }); });
+    events.forEach(e => out.push({ ...e, t: e.t - off, p: e.p || APPROACH }));
+    return out; };
+  return [...one(dayBefore(day), 1440), ...one(day, 0)].filter(e => e.t >= 0 && e.t < 1440).sort((a, b) => a.t - b.t);
+}
+/** Everything that has happened at the harbour today (Pune time), newest first: { ms, c, kind, ... }. */
+export function harbourFeed(ms = Date.now(), limit = 60) {
+  const now = puneNow(ms), out = [];
+  ROSTER.forEach(c => dayLog(c, now.day).forEach(e => { if (e.t <= now.min) out.push({ ...e, c, ms: ms - (now.min - e.t) * 60000 }); }));
+  return out.sort((a, b) => b.ms - a.ms).slice(0, limit);
+}
+/** Records over the last `days` Pune days (today so far included): biggest fish (one per captain), most fish, most coins. */
+export function harbourRecords(ms = Date.now(), days = 7) {
+  const now = puneNow(ms), tally = new Map(), big = [];
+  let day = now.day;
+  for (let i = 0; i < days; i++, day = dayBefore(day)) ROSTER.forEach(c => { const t = tally.get(c) || { c, n: 0, coins: 0 }; tally.set(c, t);
+    dayLog(c, day).forEach(e => { if (i === 0 && e.t > now.min) return;
+      if (e.kind === 'catch') { t.n++; big.push({ c, fish: e.fish, kg: e.kg, day }); } else if (e.kind === 'sell') t.coins += e.coins; }); });
+  const all = [...tally.values()];
+  return { biggest: big.sort((a, b) => b.kg - a.kg).filter((r, i, a) => a.findIndex(q => q.c === r.c) === i).slice(0, 3), most: all.sort((a, b) => b.n - a.n).slice(0, 3), richest: all.slice().sort((a, b) => b.coins - a.coins).slice(0, 3) };
 }

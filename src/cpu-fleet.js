@@ -14,7 +14,7 @@ const PAINT = {
 };
 
 export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen }) {
-  const crew = ROSTER.map(c => ({ c, g: null, tag: null, st: null, yaw: 0, nextCheck: 0, lastEv: Date.now() }));
+  const crew = ROSTER.map(c => ({ c, g: null, tag: null, st: null, yaw: 0, nextCheck: 0, lastEv: Date.now(), sayT: 0 }));
   const tagLayer = document.createElement('div'); tagLayer.id = 'cpu-tags'; document.body.appendChild(tagLayer);
 
   // a captain's boat: a clone of the game's model with their colours on their own materials
@@ -29,7 +29,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     scene.add(g); return g;
   }
   function makeTag(m) {
-    const t = document.createElement('button'); t.type = 'button'; t.className = 'cpu-tag'; t.innerHTML = `<b></b><small></small>`; t.querySelector('b').textContent = m.c.name.split(' ')[0];
+    const t = document.createElement('button'); t.type = 'button'; t.className = 'cpu-tag'; t.innerHTML = `<em class="cpu-say" hidden></em><b></b><small></small>`; t.querySelector('b').textContent = m.c.name.split(' ')[0];
     t.addEventListener('click', e => { e.stopPropagation(); onOpen(m.c); }); ['pointerdown', 'pointerup'].forEach(ev => t.addEventListener(ev, e => e.stopPropagation()));
     tagLayer.appendChild(t); return t;
   }
@@ -45,6 +45,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     crew.forEach(m => {
       const show = drawn.has(m);
       if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; m.lastEv = now; return; }
+      if (m.sayT && now > m.sayT) { m.sayT = 0; const e = m.tag.querySelector('.cpu-say'); e.classList.remove('on'); setTimeout(() => { if (!m.sayT) e.hidden = true; }, 300); }
       if (!m.g) { m.g = build(m); m.yaw = m.st.yaw ?? Math.random() * 6.28; m.tag = makeTag(m); }
       const s = m.st, g = m.g; g.visible = true;
       // heading: turn toward the course; at anchor, swing gently with the wind
@@ -63,12 +64,19 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       // name tag
       const tg = m.tag; tmp.set(x, g.position.y + 12.5, z); const [px, py, pz] = toScreen(tmp);
       const on = m.d < TAG && pz < 1 && px > -60 && px < innerWidth + 60 && py > -40 && py < innerHeight + 40;
-      tg.hidden = !on; if (on) { tg.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -100%)`; const st = status(m, s); if (tg.dataset.s !== st) { tg.dataset.s = st; tg.querySelector('small').textContent = st; } }
+      tg.hidden = !on; if (on) { const cx = Math.min(innerWidth - 64, Math.max(64, px)); tg.style.transform = `translate(${cx.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -100%)`; const st = status(m, s); if (tg.dataset.s !== st) { tg.dataset.s = st; tg.querySelector('small').textContent = st; } }
     });
   }
   /** The captain whose boat the ray hits, if any. */
   function hit(ray) { const gs = crew.filter(m => m.g?.visible).map(m => m.g); if (!gs.length) return null; const h = ray.intersectObjects(gs, true)[0]; return h ? ROSTER.find(c => c.id === h.object.userData.cpu) : null; }
   /** How many local sailors are out right now (anywhere on the ocean). */
   const out = () => crew.filter(m => m.st).length;
-  return { update, hit, out };
+  /** The captains drawn near you, nearest first: [{ c, d (metres), st }]. */
+  const near = () => crew.filter(m => m.g?.visible).sort((a, b) => a.d - b.d).map(m => ({ c: m.c, d: m.d, st: m.st }));
+  /** A speech bubble over a captain's name tag (only when their boat is drawn). */
+  function say(id, text, ms = 5500) {
+    const m = crew.find(q => q.c.id === id); if (!m?.g?.visible || !m.tag) return false;
+    const e = m.tag.querySelector('.cpu-say'); e.textContent = text; e.hidden = false; e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); m.sayT = Date.now() + ms; return true;
+  }
+  return { update, hit, out, near, say };
 }

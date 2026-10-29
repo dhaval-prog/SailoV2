@@ -5,7 +5,6 @@
 .cpu-tag[hidden] { display: none; }
 .cpu-tag b { font: 900 13.5px/1 var(--nh-font, 'Nunito', sans-serif); }
 .cpu-tag small { font: 500 10px/1 'JetBrains Mono', monospace; letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.85); }
-.cpu-tag:hover b { color: #6EE7C5; }
 body.boat-sel #cpu-tags, body.stn-docked #cpu-tags, body.view-top #cpu-tags { opacity: 0; pointer-events: none; }
 body.boat-sel .cpu-tag, body.stn-docked .cpu-tag { pointer-events: none; }
 
@@ -23,3 +22,44 @@ body.boat-sel .cpu-tag, body.stn-docked .cpu-tag { pointer-events: none; }
 #sheet.nk .cp-dim { color: var(--gf-dim); font-weight: 700 !important; font-size: 13.5px !important; }
 #sheet.nk .cp-note { margin: 12px 0 0; padding-top: 14px; border-top: 1px solid var(--gf-line); font: 700 12px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.55); }
 @media (max-width: 720px) { .cpu-tag b { font-size: 12.5px; } .cpu-tag small { font-size: 9.5px; } }
+
+/* a captain's speech bubble over their name */
+.cpu-say { order: -1; max-width: 220px; margin-bottom: 4px; padding: 7px 12px; border-radius: 14px 14px 14px 4px; background: rgba(255, 255, 255, 0.95); color: #172443; text-shadow: none;
+  font: 800 12.5px/1.3 'Nunito', sans-serif; font-style: normal; white-space: normal; text-align: left; box-shadow: 0 4px 14px rgba(0, 20, 50, 0.25); opacity: 0; transform: translateY(6px) scale(0.9); transform-origin: bottom left; transition: opacity 0.3s, transform 0.3s; }
+.cpu-say[hidden] { display: none; }
+.cpu-say.on { opacity: 1; transform: none; }
+
+/* the captain's card: Wave */
+#sheet.nk .cp-wave { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 16px 0; animation: gf-riseIn 0.6s var(--gf-rise) 0.12s both; }
+#sheet.nk .cp-wave button { height: 40px; padding: 0 20px; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 999px; background: none; color: #fff; cursor: pointer; font: 900 14px/1 'Nunito', sans-serif; text-shadow: inherit; transition: border-color 0.2s, color 0.2s; }
+#sheet.nk .cp-wave button:hover:not(:disabled) { border-color: #6EE7C5; color: #6EE7C5; }
+#sheet.nk .cp-wave button:disabled { opacity: 0.55; cursor: default; }
+#sheet.nk .cp-reply { margin: 0; font: 700 15px/1.45 'Nunito', sans-serif; animation: gf-riseIn 0.5s var(--gf-rise) both; }
+#sheet.nk .cp-reply[hidden] { display: none; }
+
+/* the Harbour board */
+#sheet.nk[data-kind="board"] .hb-tabs { margin-bottom: 4px; animation: gf-riseIn 0.6s var(--gf-rise) 0.08s both; }
+#sheet.nk .hb-pane[hidden] { display: none; }
+#sheet.nk .hb-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 0; border: 0; border-bottom: 1px solid var(--gf-line); background: none; color: #fff; text-align: left; cursor: pointer; font: 800 14.5px/1.35 'Nunito', sans-serif; text-shadow: inherit;
+  animation: gf-riseIn 0.5s var(--gf-rise) calc(0.1s + var(--n, 0) * 0.03s) both; }
+#sheet.nk .hb-row span { flex: 1; min-width: 0; }
+#sheet.nk .hb-row time { flex: none; font: 500 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.04em; color: var(--gf-dim); }
+#sheet.nk .hb-row.k-out span, #sheet.nk .hb-row.k-home span { color: var(--gf-dim); font-weight: 700; }
+#sheet.nk .hb-empty { margin: 18px 0; font: 700 15px/1.45 'Nunito', sans-serif; color: var(--gf-dim); }
+#sheet.nk .hb-rec { display: flex; align-items: center; gap: 14px; width: 100%; padding: 8px 0; border: 0; background: none; color: #fff; text-align: left; cursor: pointer; text-shadow: inherit; }
+#sheet.nk .hb-rec em { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 1.5px solid rgba(255, 255, 255, 0.5); border-radius: 50%; font: 900 13px/1 'Nunito', sans-serif; font-style: normal; }
+#sheet.nk .hb-rec:first-of-type em { border-color: #FFC531; background: #FFC531; color: #172443; text-shadow: none; }
+#sheet.nk .hb-rec span { display: flex; flex-direction: column; gap: 4px; }
+#sheet.nk .hb-rec b { font: 900 15px/1.2 'Nunito', sans-serif; }
+#sheet.nk .hb-rec small { font: 700 13px/1.2 'Nunito', sans-serif; color: var(--gf-dim); }
+#sheet.nk .cp-sec .cp-dim { margin-top: 8px; }
+
+/* the ticker: one Naked line on the scene, under the top-left readouts */
+#hb-ticker { position: fixed; z-index: 15; left: 20px; top: calc(122px + var(--safe-t, 0px)); max-width: min(420px, calc(100vw - 40px)); display: none; align-items: center; gap: 10px; padding: 4px 0; border: 0; background: none; color: #fff; cursor: pointer; text-align: left;
+  font: 800 13.5px/1.35 'Nunito', sans-serif; text-shadow: 0 1px 2px rgba(0, 20, 50, 0.6), 0 0 14px rgba(0, 20, 50, 0.4); }
+#hb-ticker.show { display: flex; animation: hb-in 7s ease both; }
+#hb-ticker i { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.8); }
+@keyframes hb-in { 0% { opacity: 0; transform: translateX(-10px); } 6%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
+@media (max-width: 720px), (max-height: 520px) { #hb-ticker { left: 16px; top: calc(146px + var(--safe-t, 0px)); font-size: 12.5px; max-width: calc(100vw - 90px); } }
+@media (hover: hover) { #sheet.nk .hb-row:hover span, #sheet.nk .hb-rec:hover b, #hb-ticker:hover span, .cpu-tag:hover b { color: #6EE7C5; } }
