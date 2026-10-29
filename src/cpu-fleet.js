@@ -4,7 +4,8 @@
 // drawn (the nearest few in full), so phones stay smooth. Tap a boat or its tag for the captain's card.
 // Real captains online (online.js, via setLive) are drawn the same way and come first: when they're
 // near, the local sailors quietly step back so the water never gets crowded.
-import { ROSTER, stateAt, recentEvents } from './cpu-captains.js';
+import { ROSTER, stateAt, recentEvents, statusText } from './cpu-captains.js';
+import { PORT } from './station.js';
 import { follower } from './boat-motion.js';
 
 const NEAR = 2600, TAG = 1500, MAX_DRAWN = 8; // metres: drawn within NEAR, tagged within TAG; at most 8 boats at once
@@ -37,8 +38,33 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     tagLayer.appendChild(t); return t;
   }
   const status = (m, s) => m.c.live ? { fish: 'Fishing', anchor: 'At anchor', dock: 'At Paradise Station' }[s.kind] || (s.speed > 0.5 ? 'Sailing' : 'Drifting')
-    : s.kind === 'fish' ? 'Fishing' : s.kind === 'sell' ? 'Selling at Paradise Station'
-    : s.next === 'sell' ? 'Heading to Paradise Station' : s.next === 'fish' ? 'Heading out to fish' : `Heading home to ${m.c.home}`;
+    : m.waiting ? 'Waiting for a berth' : statusText(m.c, s);
+
+  // berths real captains hold (berths.js): a local sailor due at one waits offshore instead
+  let booked = new Map(); const setBooked = b => { booked = b; };
+  // the anchor chain and the fishing line (built the first time a boat anchors)
+  const chainMat = new THREE.MeshBasicMaterial({ color: '#3a3f47' }), lineMat = new THREE.LineBasicMaterial({ color: '#f4f1e8', transparent: true, opacity: 0.8 });
+  const bobMat = new THREE.MeshBasicMaterial({ color: '#ff4a3a' });
+  function gear(m) {
+    if (m.gear) return m.gear;
+    const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1, 5), chainMat); chain.visible = false;
+    const lg = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3)), line = new THREE.Line(lg, lineMat); line.visible = false; line.frustumCulled = false;
+    const bob = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), bobMat); bob.visible = false;
+    scene.add(chain, line, bob); m.gear = { chain, line, bob }; return m.gear;
+  }
+  function drawGear(m, s, x, z, fx, fz, sx, sz, gy, t) {
+    const on = s && ['anchor', 'fish', 'weigh'].includes(s.kind); if (!on && !m.gear) return;
+    const G = gear(m), u = s?.u ?? 0;
+    // chain: from the bow down to the seabed; pays out while dropping, comes in while weighing
+    const k = !on ? 0 : s.kind === 'anchor' ? u : s.kind === 'weigh' ? 1 - u : 1, len = 0.4 + k * 4.5, bx = x + fx * 4.2, bz = z + fz * 4.2;
+    G.chain.visible = on && k > 0.02; if (G.chain.visible) { G.chain.scale.set(1, len, 1); G.chain.position.set(bx, gy + 1.4 - len / 2, bz); }
+    if (on && s.kind === 'anchor' && u > 0.92 && !m.splashA) { m.splashA = true; splash(bx, bz, 8, 0.45); } if (s?.kind !== 'anchor') m.splashA = false;
+    if (on && s.kind === 'weigh' && u > 0.85 && !m.splashW) { m.splashW = true; splash(bx, bz, 6, 0.35); } if (s?.kind !== 'weigh') m.splashW = false;
+    // fishing line: from the stern quarter out to a float bobbing on the water
+    const fishing = on && s.kind === 'fish'; G.line.visible = G.bob.visible = fishing;
+    if (fishing) { const tx = x - fx * 2.5 + sx * 2, tz = z - fz * 2.5 + sz * 2, ox = x - fx * 3 + sx * 11, oz = z - fz * 3 + sz * 11, oy = WL + waveJS(ox, oz, t) + Math.sin(t * 3 + x) * 0.08;
+      G.bob.position.set(ox, oy + 0.1, oz); const a = G.line.geometry.attributes.position; a.setXYZ(0, tx, gy + 3.2, tz); a.setXYZ(1, ox, oy + 0.15, oz); a.needsUpdate = true; }
+  }
 
   // real captains online: { id, name, boat, colours, rank, catches, st } from online.js, every frame
   const live = new Map();
@@ -75,13 +101,15 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     const drawn = new Set([...people, ...crew.filter(m => m.d < NEAR).sort((a, b) => a.d - b.d).slice(0, Math.max(2, MAX_DRAWN - people.length))]);
     [...live.values(), ...crew].forEach(m => {
       const show = drawn.has(m);
-      if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; if (m.ring) m.ring.visible = false; m.mo = null; m.lastEv = now; return; }
+      if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; if (m.ring) m.ring.visible = false; if (m.gear) { m.gear.chain.visible = m.gear.line.visible = m.gear.bob.visible = false; } m.mo = null; m.lastEv = now; return; }
       if (m.sayT && now > m.sayT) { m.sayT = 0; const e = m.tag.querySelector('.cpu-say'); e.classList.remove('on'); setTimeout(() => { if (!m.sayT) e.hidden = true; }, 300); }
       if (!m.g) { m.g = build(m); m.tag = makeTag(m); }
       const s = m.st, g = m.g; g.visible = true;
       // motion (boat-motion.js): the boat chases where it should be, with momentum, and always bow first
       if (!m.mo) m.mo = follower(s.x, s.z, s.yaw ?? m.yaw ?? Math.random() * 6.28);
-      const pose = m.mo.update(mdt, s.x, s.z, s.speed || 0, s.yaw ?? null);
+      m.waiting = !m.c.live && s.berth != null && ['dock', 'berth', 'undock'].includes(s.kind) && booked.has(s.berth);
+      const wq = m.waiting ? PORT.queue[m.c.name.length % PORT.queue.length] : null;
+      const pose = wq ? m.mo.update(mdt, wq[0], wq[1], 0, null) : m.mo.update(mdt, s.x, s.z, s.speed || 0, s.yaw ?? null);
       // at rest it swings a little on its anchor
       const still = Math.max(0, 1 - pose.v / 0.6); m.swing = (m.swing || 0) + mdt; m.yaw = pose.yaw + still * Math.sin(m.swing * 0.15 + m.c.name.length) * 0.12; m.x = pose.x; m.z = pose.z; m.v = pose.v;
       const fx = Math.cos(m.yaw), fz = -Math.sin(m.yaw), sx = Math.sin(m.yaw), sz = Math.cos(m.yaw), x = pose.x, z = pose.z;
@@ -91,10 +119,11 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       // wake while under way (from the boat's real speed); a splash now and then while fishing, and a big one when they land a fish
       if (pose.v > 0.6 && Math.random() < dt * 14 * Math.min(1, pose.v / 3)) { const side = (Math.random() - 0.5) * 2.2, bx = x - fx * 5.4 + sx * side, bz = z - fz * 5.4 + sz * side;
         emit(bx, WL + waveJS(bx, bz, t), bz, -fx * 1.5 + (Math.random() - 0.5), 1 + Math.random(), -fz * 1.5 + (Math.random() - 0.5)); }
-      if (s.kind === 'fish' && Math.random() < dt * 0.25) { const px = x + sx * 4, pz = z + sz * 4; splash(px, pz, 4, 0.35); }
-      if (!m.c.live) recentEvents(m.c, now, m.lastEv).forEach(e => { if (e.kind === 'catch') { const px = x + sx * 3.5, pz = z + sz * 3.5; splash(px, pz, 16, 0.7); for (let i = 0; i < 8; i++) emit(px, WL + 0.2, pz, (Math.random() - 0.5) * 1.5, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5); } });
+      if (s.kind === 'fish' && !m.waiting && Math.random() < dt * 0.25) { const px = x - fx * 3 + sx * 11, pz = z - fz * 3 + sz * 11; splash(px, pz, 3, 0.25); } // (nibbles at the float)
+      if (!m.c.live) recentEvents(m.c, now, m.lastEv).forEach(e => { if (e.kind === 'catch') { const px = x - fx * 3 + sx * 11, pz = z - fz * 3 + sz * 11; splash(px, pz, 16, 0.7); for (let i = 0; i < 8; i++) emit(px, WL + 0.2, pz, (Math.random() - 0.5) * 1.5, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5); } });
       m.lastEv = now;
       ringFor(m, alerts.has(m.c.id), t);
+      if (!m.c.live) drawGear(m, m.waiting ? null : s, x, z, fx, fz, sx, sz, g.position.y, t);
       // name tag
       const tg = m.tag; tmp.set(x, g.position.y + 12.5, z); const [px, py, pz] = toScreen(tmp);
       const on = m.d < TAG && pz < 1 && px > -60 && px < innerWidth + 60 && py > -40 && py < innerHeight + 40;
@@ -115,5 +144,5 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
   }
   /** Everyone out on the water, near or far (the map): [{ c, x, z, yaw, status }]. */
   const everyone = () => all().filter(m => m.st).map(m => ({ c: m.c, x: m.mo ? m.x : m.st.x, z: m.mo ? m.z : m.st.z, yaw: m.mo ? m.yaw : m.st.yaw ?? m.yaw ?? 0, status: status(m, m.st) }));
-  return { update, hit, out, near, say, setLive, everyone, setAlert };
+  return { update, hit, out, near, say, setLive, everyone, setAlert, setBooked };
 }

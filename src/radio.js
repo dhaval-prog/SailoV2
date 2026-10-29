@@ -262,8 +262,11 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     const near = cpuInRange(); if (!near.length) return;
     const { c, s } = pick(near), at = placeNear(s.x, s.z), fish = fishNameOf(pick(c.fav));
     const text = s.kind === 'fish' ? pick([`${first(c.name)} here, ${fish} biting near ${at}. Plenty to go round.`, `Anchored off ${at}, the ${fish} are coming up nicely.`, `Birds working the water near ${at}. Over.`])
-      : s.kind === 'sell' ? pick(['At Paradise Station selling the catch. Fair prices today.', 'Hold’s empty again, prices are good at the market.'])
-      : s.next === 'sell' ? pick([`Heading in to Paradise Station, hold’s full. Over.`, `Inbound to the station from ${at}.`])
+      : s.kind === 'berth' ? pick(['At Paradise Station selling the catch and topping up. Fair prices today.', 'Hold’s empty again, prices are good at the market.'])
+      : s.kind === 'queue' ? 'All four berths are taken. Holding off the harbour mouth. Over.'
+      : s.kind === 'adrift' ? `Mayday-ish: ran my tank dry near ${at}. Anyone with spare fuel? Over.`
+      : ['anchor', 'weigh', 'dock', 'undock', 'rescue'].includes(s.kind) ? `${first(c.name)} here, busy near ${at}. Over.`
+      : s.next === 'port' ? pick([`Heading in to Paradise Station, hold’s full. Over.`, `Inbound to the station from ${at}.`])
       : s.next === 'home' ? `Heading home to ${c.home}. Good sailing, everyone.` : pick([`Radio check on ${String(chan().n).padStart(2, '0')}. Lovely breeze out by ${at}.`, `Off to try my luck near ${at}.`]);
     sfx.static(0.3); post({ who: c.name, colour: colourOf(c), tag: 'Local sailor', ch: chan().n, text }); if (st.open) sfx.beep();
     fleet?.say(c.id, '📻 ' + text.slice(0, 60) + (text.length > 60 ? '…' : ''), 6000);

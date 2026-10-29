@@ -73,7 +73,10 @@ export const localOdds = f => { const r = REGION.id; if (f.where) return f.where
   return f.odds; };
 /** Where a species can be caught, for the collection. */
 export const fishWhere = f => f.where ? regionName(f.where) : 'All seas';
-const SAVE = 'sailo:economy', FUEL_PRICE = 2;
+const SAVE = 'sailo:economy';
+export const FUEL_PRICE = 2; // coins a litre, at the Boathouse (players and local sailors alike)
+/** Litres a boat burns over some metres at a throttle (0..1): the same rule for players and local sailors. */
+export const burnFor = (boat, metres, thr) => metres * (0.35 + 0.65 * thr) / 150 * (BOAT_SPECS[boat]?.burn ?? 1);
 // each boat has its own tank, hold and top speed; burn = engine use per metre relative to the tug
 export const BOAT_SPECS = {
   tug: { fuel: 120, hold: 30, kn: 12, burn: 1 },
@@ -108,6 +111,25 @@ const islandOutline = () => {
 };
 const inPoly = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, zi] = pts[i], [xj, zj] = pts[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
 
+// The pier and its four berths, shared by the station (3D, docking), the local sailors (cpu-captains.js)
+// and berth booking (berths.js). `local` is in station units; the rest in world metres.
+export const PORT = (() => {
+  const { IC, pts: isl } = islandOutline(), PZ = 1, W = 3.4, hw = W / 2, BZ = PZ + 13;
+  let edgeX = IC.x; while (inPoly(isl, edgeX + 0.1, PZ)) edgeX += 0.1;
+  const xa1 = edgeX + 14, SEA0 = [edgeX + 30, PZ + 30];
+  const BERTHS = [
+    { name: 'Berth 1', pos: [edgeX + 3.9, PZ + 3.6], yaw: Math.PI, side: 1, via: [[edgeX + 17, PZ + 21], [edgeX + 5.5, PZ + 14], [edgeX + 3.6, PZ + 8]] },
+    { name: 'Berth 2', pos: [xa1 + 1.95, PZ + 2.2], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 20], [xa1 + 3, PZ + 12], [xa1 + 2.2, PZ + 7]] },
+    { name: 'Berth 3', pos: [xa1 + 1.95, PZ + 9.4], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 22], [xa1 + 2.6, PZ + 15]] },
+    { name: 'Berth 4', pos: [xa1 - hw, BZ + 1.95], yaw: Math.PI, side: 1, via: [[edgeX + 26, PZ + 21], [xa1 + 5, BZ + 2.4]] },
+  ];
+  const w = ([x, z]) => [STATION.x + x * K, STATION.z + z * K];
+  // where boats wait offshore for a berth: a loose arc beyond the harbour mouth
+  const queue = [0, 1, 2, 3, 4, 5].map(i => w([edgeX + 44 + (i % 3) * 9, PZ + 44 + Math.floor(i / 3) * 10 - (i % 3) * 4]));
+  return { local: { IC, isl, PZ, W, hw, BZ, edgeX, xa1, SEA0, BERTHS }, sea0: w(SEA0), queue,
+    berths: BERTHS.map(b => ({ name: b.name, yaw: b.yaw, pos: w(b.pos), via: b.via.map(w) })) };
+})();
+
 export function initStation(ctx) {
   const { THREE, stage, M, WL, waveJS, toScreen } = ctx;
   const V3 = THREE.Vector3;
@@ -116,10 +138,8 @@ export function initStation(ctx) {
   const toL = (x, z) => [(x - O.x) / K, (z - O.z) / K];                  // world -> station-local
 
   // ---------- collisions (station-local units) ----------
-  const { IC, pts: isl } = islandOutline();
-  const PZ = 1, W = 3.4, hw = W / 2, BZ = PZ + 13;
-  let edgeX = IC.x; while (inPoly(isl, edgeX + 0.1, PZ)) edgeX += 0.1;
-  const xa0 = edgeX - 3, xa1 = edgeX + 14, hx0 = edgeX - 2.4, hx1 = edgeX + 2.4, hzN = PZ - 5.4;
+  const { IC, isl, PZ, W, hw, BZ, edgeX, xa1 } = PORT.local;
+  const xa0 = edgeX - 3, hx0 = edgeX - 2.4, hx1 = edgeX + 2.4, hzN = PZ - 5.4;
   const grow = (p, d) => { const dx = p[0] - IC.x, dz = p[1] - IC.z, l = Math.hypot(dx, dz); return [p[0] + dx / l * d, p[1] + dz / l * d]; };
   const BOAT_R = 4.2 / K; // boat half-length-ish clearance, in local units
   const shore = isl.map(p => grow(p, 2.6 + BOAT_R));
@@ -132,13 +152,7 @@ export function initStation(ctx) {
   const blocked = (x, z) => { if (Math.abs(x - O.x) > 140 || Math.abs(z - O.z) > 140) return false; const [lx, lz] = toL(x, z); return blockedL(lx, lz); };
 
   // ---------- berths (from the station file, in local units) ----------
-  const SEA0 = [edgeX + 30, PZ + 30];
-  const BERTHS = [
-    { name: 'Berth 1', pos: [edgeX + 3.9, PZ + 3.6], yaw: Math.PI, side: 1, via: [[edgeX + 17, PZ + 21], [edgeX + 5.5, PZ + 14], [edgeX + 3.6, PZ + 8]] },
-    { name: 'Berth 2', pos: [xa1 + 1.95, PZ + 2.2], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 20], [xa1 + 3, PZ + 12], [xa1 + 2.2, PZ + 7]] },
-    { name: 'Berth 3', pos: [xa1 + 1.95, PZ + 9.4], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 22], [xa1 + 2.6, PZ + 15]] },
-    { name: 'Berth 4', pos: [xa1 - hw, BZ + 1.95], yaw: Math.PI, side: 1, via: [[edgeX + 26, PZ + 21], [xa1 + 5, BZ + 2.4]] },
-  ];
+  const { SEA0 } = PORT.local, BERTHS = PORT.local.BERTHS.map(b => ({ ...b }));
 
   // ---------- island model ----------
   const root = new THREE.Group(); root.name = 'paradise_station'; root.position.copy(O); root.scale.setScalar(K); root.visible = false; stage._scene.add(root);
@@ -181,7 +195,7 @@ export function initStation(ctx) {
     else if (mode === 'docking') { b.textContent = 'Mooring…'; b.disabled = true; sub.textContent = `Approaching ${berth.name}`; }
     else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = `Moored at ${berth.name} · shops open`; }
     else { b.textContent = 'Heading out…'; b.disabled = true; sub.textContent = 'Leaving the harbour'; }
-    BERTHS.forEach(x => { x.el.hidden = mode !== 'picking'; });
+    BERTHS.forEach(x => { x.el.hidden = mode !== 'picking'; }); if (mode === 'picking') paintBerths();
     ['market', 'boathouse'].forEach(id => { $('mk-' + id).hidden = mode !== 'docked'; $('mk-' + id).classList.toggle('locked', mode !== 'docked'); });
   };
   // a path from where the boat is to a berth, swinging round the island if the island is in the way
@@ -194,12 +208,21 @@ export function initStation(ctx) {
     pts.push(SEA0, ...b.via, b.pos);
     return new THREE.CatmullRomCurve3(pts.map(([x, z]) => toW(x, z)));
   };
-  function startDocking(i) {
+  // who holds each berth (berths.js: real captains' bookings and the local sailors), on the markers while picking
+  const paintBerths = () => BERTHS.forEach((b, i) => { const h = ctx.berthInfo?.(i), taken = !!h && h.by !== 'you';
+    b.el.classList.toggle('taken', taken); b.el.disabled = taken || booking;
+    b.el.querySelector('.mk-sub').textContent = !h || h.by === 'you' ? 'Moor here' : h.by === 'local' ? `${h.name.split(' ')[0]} · local sailor` : `Taken · ${h.name}`; });
+  let booking = false, berthPaintT = 0;
+  async function startDocking(i) {
+    if (mode !== 'picking' || booking) return;
+    // book it first: two boats can't take the same berth
+    booking = true; paintBerths(); const r = ctx.bookBerth ? await ctx.bookBerth(i) : { ok: true }; booking = false;
     if (mode !== 'picking') return;
+    if (!r.ok) { toast(r.msg || 'That berth is taken. Pick another?'); paintBerths(); return; }
     berth = BERTHS[i]; route = routeTo(i, ctx.boatPos()); dur = THREE.MathUtils.clamp(route.getLength() / 5, 6, 30); prog = 0; mode = 'docking';
     ctx.onDockStart?.(); renderBar(); frame(ctx.boatPos().clone(), 40, 22, 1.6);
   }
-  const castOff = () => { closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); const pts = [...berth.via].reverse(); route = new THREE.CatmullRomCurve3([berth.pos, ...pts, SEA0].map(([x, z]) => toW(x, z))); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 20); prog = 0; mode = 'leaving'; renderBar(); };
+  const castOff = () => { ctx.berthState?.('releasing'); closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); const pts = [...berth.via].reverse(); route = new THREE.CatmullRomCurve3([berth.pos, ...pts, SEA0].map(([x, z]) => toW(x, z))); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 20); prog = 0; mode = 'leaving'; renderBar(); };
   $('sailBtn').onclick = () => {
     if (mode === 'sea') { if (!ctx.canDock || ctx.canDock()) { mode = 'picking'; renderBar(); const pier = toW(xa1 - 4, PZ + 6); frame(new V3(pier.x, WL + 2, pier.z), 75, 55); } }
     else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); }
@@ -454,6 +477,7 @@ export function initStation(ctx) {
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function tick(t, dt) {
     const bp = ctx.boatPos(), dist = Math.hypot(bp.x - O.x, bp.z - O.z);
+    if (mode === 'picking' && (berthPaintT -= dt) < 0) { berthPaintT = 1; paintBerths(); } // (boats come and go while you choose)
     if (!island && dist < 3500) build();
     root.visible = ready && dist < SHOW;
     const wasNear = near; near = dist < NEAR; if (near !== wasNear && mode === 'sea') renderBar();
@@ -467,12 +491,12 @@ export function initStation(ctx) {
       const targetYaw = mode === 'docking' ? yawT + wrapA(berth.yaw - yawT) * ss(0.6, 0.97, e) : yawT;
       ctx.moveBoat(P.x, P.z, ctx.boatYaw() + wrapA(targetYaw - ctx.boatYaw()) * Math.min(1, dt * 4), Math.sin(prog * Math.PI));
       if (prog >= 1) {
-        if (mode === 'docking') { mode = 'docked'; const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`);
+        if (mode === 'docking') { mode = 'docked'; ctx.berthState?.('occupied'); const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`);
           const mid = toW(xa0 + 4, PZ - 4); frame(new V3((end.x + mid.x) / 2, WL + 2, (end.z + mid.z) / 2), 62, 40, 1.6);
           const b = ctx.boat; b.updateMatrixWorld(true);
           berth.tie = [new V3(3.7, 2.25, 2.1 * berth.side), new V3(-3.9, 2.4, 2.1 * berth.side)].map(local => { const w = b.localToWorld(local.clone()); let best = null, bd = 1e9;
             (island ? island.posts : []).forEach(p => { const pw = new V3(O.x + p.x * K, WL + (p.top - 0.25) * K, O.z + p.z * K), d = pw.distanceTo(w); if (d < bd) { bd = d; best = pw; } }); return { local, post: best }; });
-        } else { mode = 'sea'; ctx.onDockEnd?.(); }
+        } else { mode = 'sea'; ctx.berthState?.('free'); ctx.onDockEnd?.(); }
         renderBar();
       }
     }
@@ -498,7 +522,7 @@ export function initStation(ctx) {
     tick, blocked,
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
-    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - metres * (0.35 + 0.65 * thr) / 150 * BOAT_SPECS[S.active].burn);
+    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr));
       if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast(`Fuel is low. Refuel at Paradise Station (${STATION.where}).`); }
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },

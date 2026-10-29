@@ -216,3 +216,7 @@ body.stn-docked #helm { opacity: 0; visibility: hidden; pointer-events: none; }
 .stn .stn-wallet .fuelbar i { border-radius: 4px; background: #7ff0c8; transition: width 0.6s, background 0.4s; }
 .stn .stn-wallet .fuelbar i.mid { background: #ffb21a; }
 .stn .stn-wallet .fuelbar i.low { background: #ff5a4a; }
+/* a berth someone already holds (berths.js): dimmed, and it can't be picked */
+.stn .marker.berth.taken { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.6); }
+.stn .marker.berth.taken .mk-sub { color: #9a4a0e; }
+.stn .marker.berth:disabled:not(.taken) { opacity: 0.8; cursor: progress; }

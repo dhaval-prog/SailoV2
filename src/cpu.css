@@ -68,3 +68,15 @@ body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
 .cpu-tag.live b { display: inline-flex; align-items: center; gap: 6px; }
 .cpu-tag.live b::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #6EE7C5; box-shadow: 0 0 0 2px rgba(110, 231, 197, 0.3), 0 1px 2px rgba(0, 20, 50, 0.6); }
 #sheet.nk .cp-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* a local sailor's card: what's on board */
+#sheet.nk .cp-ops { display: flex; flex-direction: column; gap: 10px; }
+#sheet.nk .cp-ops h4 { margin-bottom: 2px; }
+#sheet.nk .cp-fuel, #sheet.nk .cp-row { display: flex; align-items: center; gap: 12px; font: 800 14.5px/1.2 'Nunito', sans-serif; }
+#sheet.nk .cp-fuel > span, #sheet.nk .cp-row > span { width: 56px; flex: none; color: var(--gf-dim); font-weight: 700; }
+#sheet.nk .cp-fuel i { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+#sheet.nk .cp-fuel i b { display: block; height: 100%; border-radius: 3px; background: #6EE7C5; }
+#sheet.nk .cp-fuel.low i b { background: #FFC531; }
+#sheet.nk .cp-fuel.crit i b, #sheet.nk .cp-fuel.empty i b { background: #ff6b5e; }
+#sheet.nk .cp-fuel em, #sheet.nk .cp-row em { font-style: normal; font: 500 12.5px/1 'JetBrains Mono', monospace; color: #fff; }
+#sheet.nk .cp-fuel.crit em, #sheet.nk .cp-fuel.empty em { color: #ff8a80; }
