@@ -252,7 +252,7 @@ export function createFishing(ctx) {
   // ---------- catch card ----------
   function showCard() {
     const f = fishOf(), kg = Math.round(f.kg * (0.75 + Math.random() * 0.6) * 100) / 100, rec = fishLog[f.id], isNew = !rec, record = !rec || kg > rec.best;
-    G.kg = kg;
+    G.kg = kg; G.isNew = isNew; G.record = record;
     fishLog[f.id] = { n: (rec?.n || 0) + 1, best: Math.max(rec?.best || 0, kg) }; saveLog();
     $('fg-img').src = station.fishImage(f.id) || ''; $('fg-name').textContent = f.name;
     $('fg-stars').innerHTML = '★'.repeat(stars(f)) + '<span>' + '★'.repeat(5 - stars(f)) + '</span>';
@@ -265,9 +265,10 @@ export function createFishing(ctx) {
     $('fg-card').hidden = false; ACT.fish = 'card'; if (record) sfx.record(); else sfx.fanfare(); buzz([40, 30, 60]);
     status(f.name + '!'); ctx.paintStatus();
   }
+  const caught = () => dispatchEvent(new CustomEvent('sailo:caught', { detail: { fish: G.fishId, kg: G.kg, isNew: G.isNew, record: G.record } })); // (the local sailors cheer)
   const closeCard = () => { $('fg-card').hidden = true; ACT.fish = 'aim'; status('Hold on the sea to cast'); ctx.paintStatus(); };
-  $('fg-keep').addEventListener('click', () => { const f = station.addCatch(G.fishId); if (f) { ACT.catch++; ctx.floatText(ctx.landPoint().setY(ctx.landPoint().y + 1.5), `+1 ${f.name}`, '#7ff0c8'); } closeCard(); });
-  $('fg-rel').addEventListener('click', () => { const b = +$('fg-rel').dataset.bonus; station.addCoins(b); ACT.catch++; ctx.splash(bobber.position.x, bobber.position.z, 12, 0.6);
+  $('fg-keep').addEventListener('click', () => { const f = station.addCatch(G.fishId); if (f) { ACT.catch++; caught(); ctx.floatText(ctx.landPoint().setY(ctx.landPoint().y + 1.5), `+1 ${f.name}`, '#7ff0c8'); } closeCard(); });
+  $('fg-rel').addEventListener('click', () => { const b = +$('fg-rel').dataset.bonus; station.addCoins(b); ACT.catch++; caught(); ctx.splash(bobber.position.x, bobber.position.z, 12, 0.6);
     ctx.floatText(ctx.landPoint().setY(ctx.landPoint().y + 1.5), `Released · +${b}c`, '#bfefff'); closeCard(); });
 
   // ---------- per frame ----------
