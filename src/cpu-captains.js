@@ -183,7 +183,7 @@ export function recentEvents(c, ms, sinceMs) {
   return dayPlan(c, now.day).events.filter(e => e.t > from.min && e.t <= now.min);
 }
 
-// ---------- the harbour board (harbour.js) ----------
+// ---------- the harbour board (harbour-board.js) ----------
 const PLACES = Object.entries(HOME);
 /** The nearest neighbourhood to a point ("near Kharadi"). */
 export const placeNear = (x, z) => { let best = null, bd = Infinity; PLACES.forEach(([n, [px, pz]]) => { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < bd) { bd = d; best = n; } }); return best; };
