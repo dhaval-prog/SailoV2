@@ -56,3 +56,20 @@ export const MARKET = {
   high: 1.25, low: 0.8, // a price this far from its base is news…
   notifyEvery: 600,    // …told at most once every 10 minutes
 };
+
+// the economy's numbers, as the server applies them (econ_cfg() in supabase/migrations/…_sailov2_economy.sql: keep the
+// two in step). NOS: a permanent upgrade per boat, bought once, then refilled at the Boathouse like fuel.
+export const ECONOMY = {
+  fuelPrice: 2,          // coins a litre
+  catchGap: 3,           // seconds: at most one fish kept (or released) this often
+  release: 0.2,          // releasing a fish pays this share of its base price
+  nos: {
+    price: 200,          // coins, once per boat
+    capacity: 12,        // seconds of boost in a full tank
+    burst: 4,            // seconds per firing
+    cooldown: 6,         // seconds after a burst before the next
+    refillPerSec: 5,     // coins per second of boost refilled
+    speed: 1.6,          // top speed while boosting (× the boat's)
+    accel: 2.4,          // acceleration while boosting (×)
+  },
+};

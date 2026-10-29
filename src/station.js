@@ -13,6 +13,9 @@ import { MORE_FISH, buildSpecies } from './fish-species.js';
 import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
 import './station.css';
 import { priceOf, trendOf, headline, ticker } from './market.js';
+import { econ, econBeacon, serverEconomy } from './econ.js';
+import { ECONOMY } from './world-config.js';
+import { PLACE } from './live.js';
 
 const MILE = 1609.344;
 // Where the station sits: Pune Paradise keeps its original spot (3.7 mi W, 1.1 mi S of the harbour);
@@ -89,8 +92,8 @@ export const BOAT_SPECS = {
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; } catch { return {}; } };
 const saved = load();
 // coins are shared; fuel and the fish hold belong to each boat (older saves move onto the tug)
-export const S = { coins: saved.coins ?? 60, active: saved.active || 'tug', boats: saved.boats || { tug: { fuel: saved.fuel ?? 120, hold: saved.hold || {} } } };
-Object.keys(BOAT_SPECS).forEach(id => { S.boats[id] = Object.assign({ fuel: BOAT_SPECS[id].fuel, hold: {} }, S.boats[id]); S.boats[id].fuel = Math.min(BOAT_SPECS[id].fuel, S.boats[id].fuel); });
+export const S = { coins: saved.coins ?? 60, planks: saved.planks ?? 0, active: saved.active || 'tug', boats: saved.boats || { tug: { fuel: saved.fuel ?? 120, hold: saved.hold || {} } } };
+Object.keys(BOAT_SPECS).forEach(id => { S.boats[id] = Object.assign({ fuel: BOAT_SPECS[id].fuel, hold: {}, nos: { owned: false, charge: 0 } }, S.boats[id]); S.boats[id].fuel = Math.min(BOAT_SPECS[id].fuel, S.boats[id].fuel); });
 if (!BOAT_SPECS[S.active]) S.active = 'tug';
 // S.fuel, S.cap and S.hold always mean the active boat's
 Object.defineProperties(S, {
@@ -99,7 +102,7 @@ Object.defineProperties(S, {
   hold: { get: () => S.boats[S.active].hold, enumerable: false },
   holdCap: { get: () => BOAT_SPECS[S.active].hold, enumerable: false },
 });
-const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ coins: S.coins, active: S.active, boats: S.boats })); } catch { /* storage blocked */ } };
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ coins: S.coins, planks: S.planks, active: S.active, boats: S.boats })); } catch { /* storage blocked */ } };
 const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
 /** Fuel and hold for any boat, for the Garage. */
 export const boatStatus = id => { const b = S.boats[id], sp = BOAT_SPECS[id]; return { fuel: b.fuel, cap: sp.fuel, fish: FISH.reduce((a, f) => a + (b.hold[f.id] || 0), 0), holdCap: sp.hold, kn: sp.kn }; };
@@ -179,6 +182,29 @@ export function initStation(ctx) {
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
   const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} L`; $('fuelPill').title = `Fuel ${Math.round(S.fuel)} of ${S.cap} L`;
     $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15); };
+
+  // ---------- the economy: on the server for a signed-in captain (econ.js), on this device otherwise ----------
+  // The server's answer is the truth: after every change the coins, holds, tanks and NOS are what it says. The tank of
+  // the boat you're sailing only ever drops between syncs (fuel burnt on the way is reported as you go), so its answer
+  // never refills a tank unless you just paid for fuel.
+  let server = false, pending = Promise.resolve(), boostReady = 0, burnSent = null, burnT = 0;
+  const applyEcon = (st, { refuelled = false } = {}) => {
+    S.coins = st.coins; S.planks = st.planks || 0;
+    Object.keys(BOAT_SPECS).forEach(id => { const b = st.boats?.[id]; if (!b) return; const local = S.boats[id].fuel;
+      S.boats[id] = { fuel: id === S.active && !refuelled ? Math.min(local, +b.fuel) : +b.fuel, hold: { ...b.hold }, nos: { owned: !!b.nos?.owned, charge: +b.nos?.charge || 0 } }; });
+    if (st.boostReady) boostReady = Date.now() + (Date.parse(st.boostReady) - Date.parse(st.now)); // (on this device's clock)
+    save(); renderWallet(); dispatchEvent(new Event('sailo:econ'));
+    if (panel === 'market') updateMarket(); else if (panel === 'boathouse') updateBoathouse();
+    return st; };
+  const call = (fn, args, opts) => { const p = econ(fn, args).then(st => applyEcon(st, opts)); pending = p.catch(() => {}); return p; };
+  // (signed in, changes made while the economy is still loading wait for it, then go to the server)
+  const loading = serverEconomy().then(on => on && call('econ_get').then(() => { server = true; burnSent = S.fuel; econ('econ_set_active', { p_boat: S.active }).catch(() => {}); return true; }).catch(() => false));
+  const onServer = fn => { if (server) fn(); else loading.then(ok => { if (ok) fn(); }); };
+  // fuel burnt at sea, told to the server every couple of litres (and when the page closes)
+  const reportBurn = (force = false) => { if (!server || burnSent == null) return; const now = Date.now();
+    if (force || burnSent - S.fuel >= 2 || (burnSent - S.fuel > 0.05 && now - burnT > 30000)) { burnSent = S.fuel; burnT = now; const a = { p_boat: S.active, p_fuel: +S.fuel.toFixed(2) };
+      if (force) econBeacon('econ_burn', a); else econ('econ_burn', a).catch(() => {}); } };
+  addEventListener('pagehide', () => reportBurn(true));
 
   // ---------- camera framing from the sea side, so the island never sits between camera and boat ----------
   const ICw = () => toW(IC.x, IC.z);
@@ -417,6 +443,7 @@ export function initStation(ctx) {
     <div class="counters"><div class="ctr"><label>Litres</label><output id="ctrL">000.0</output></div><div class="ctr"><label>Coins</label><output id="ctrC">000</output></div></div>
     <div class="pump-ctrl"><button class="nozzle" id="nozzle">Hold to pump</button><div class="quick"><button class="qb" data-act="q10">+10 L</button><button class="qb" data-act="qfull">Fill up</button></div></div>
     <div class="pump-note" id="pumpNote"></div></section>
+    <section class="nos-shop" id="nosShop"></section>
     <section><div class="rp-h"><h3>On board</h3><span class="rp-note" id="holdTxt"></span></div><div class="holdbar"><i id="holdFill"></i></div><div class="view" id="tugViewHost" style="height:150px;margin-bottom:10px"></div><div class="slots" id="slots"></div></section></div>`;
   let pumping = false, pumpTarget = 0, sessL = 0, showL = 0, bubbleT = 0;
   function updatePumpUI() {
@@ -427,7 +454,26 @@ export function initStation(ctx) {
     $('nozzle').classList.toggle('on', pumping || pumpTarget > 0); $('nozzle').textContent = pumping || pumpTarget > 0 ? 'Pumping…' : 'Hold to pump';
     renderWallet();
   }
-  function updateBoathouse() {
+  // NOS: a permanent upgrade per boat; bought once, refilled here (moored), fired at sea from the helm
+  const N = ECONOMY.nos, nosOf = () => S.boats[S.active].nos || { owned: false, charge: 0 };
+  function renderNos() {
+    const el = $('nosShop'); if (!el) return; const n = nosOf(), cost = Math.ceil((N.capacity - n.charge) * N.refillPerSec);
+    el.innerHTML = n.owned
+      ? `<div class="rp-h"><h3>NOS boost</h3><span class="rp-note">${n.charge.toFixed(1)} / ${N.capacity} s · ${N.burst} s a burst</span></div>
+        <div class="holdbar nosbar"><i style="width:${(n.charge / N.capacity * 100).toFixed(1)}%"></i></div>
+        <div class="nos-row"><span class="rp-note">${N.refillPerSec}c a second of boost</span><button class="qb" data-act="nosfill" ${cost < 1 ? 'disabled' : ''}>${cost < 1 ? 'Full' : `Refill · ${cost}c`}</button></div>`
+      : `<div class="rp-h"><h3>NOS boost</h3><span class="rp-note">for the ${S.active === 'tug' ? 'tug' : 'boat you’re sailing'}</span></div>
+        <p class="nos-pitch">A nitrous kick at sea: ${Math.round((N.speed - 1) * 100)}% more top speed and a hard shove forward for ${N.burst} s at a time, ${N.capacity} s to a tank. Yours to keep; refill it here.</p>
+        <div class="nos-row"><span class="rp-note">${S.coins >= N.price ? 'Fires from the helm' : `You have ${S.coins}c`}</span><button class="qb nos-buy" data-act="nosbuy" ${S.coins < N.price ? 'disabled' : ''}>Buy NOS · ${N.price}c</button></div>`;
+  }
+  function buyNos() { const n = nosOf(); if (n.owned) return; if (S.coins < N.price) return toast(`NOS costs ${N.price} coins. Sell some fish first.`);
+    if (server) return call('econ_nos_buy', { p_boat: S.active }).then(st => { toast(`NOS fitted · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message));
+    S.coins -= N.price; S.boats[S.active].nos = { owned: true, charge: N.capacity }; save(); renderWallet(); renderNos(); toast(`NOS fitted · −${N.price}c`); dispatchEvent(new Event('sailo:econ')); }
+  function refillNos() { const n = nosOf(), add = N.capacity - n.charge, cost = Math.ceil(add * N.refillPerSec); if (!n.owned || add <= 0) return;
+    if (S.coins < cost) return toast(`A full refill is ${cost} coins. Sell some fish first.`);
+    if (server) return call('econ_nos_refill', { p_boat: S.active, p_seconds: +add.toFixed(2) }).then(st => { toast(`NOS refilled · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message));
+    S.coins -= cost; n.charge = N.capacity; save(); renderWallet(); renderNos(); toast(`NOS refilled · −${cost}c`); dispatchEvent(new Event('sailo:econ')); }
+  function updateBoathouse() { renderNos();
     const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${S.holdCap}`; $('holdFill').style.width = (n / S.holdCap * 100) + '%';
     // only what's on board (there are too many species to list them all)
     const held = FISH.filter(f => S.hold[f.id]);
@@ -443,9 +489,12 @@ export function initStation(ctx) {
     updatePumpUI();
   }
   function startPump(target = 0) { if (S.cap - S.fuel < 0.05) return toast('The tank is already full.'); if (S.coins < FUEL_PRICE) return toast('Not enough coins for fuel. Sell some fish first.'); sessL = 0; showL = 0; pumping = !target; pumpTarget = target; updatePumpUI(); }
-  function stopPump(reason) { if (!pumping && pumpTarget <= 0) return;
+  function stopPump(reason) { if (!pumping && pumpTarget <= 0 && sessL <= 0) return; // (a quick fill ends with its target used up: still charged)
     pumping = false; pumpTarget = 0;
-    if (sessL > 0) { const cost = Math.round(sessL * FUEL_PRICE); S.coins -= cost; S.fuel = Math.min(S.cap, Math.round(S.fuel * 10) / 10); save(); toast(`Pumped ${sessL.toFixed(1)} L for ${cost}c${reason ? ' · ' + reason : ''}`); bump('coins'); }
+    if (sessL > 0 && server) { const l = sessL; // the server fills the tank and charges for it (or says why not)
+      call('econ_refuel', { p_boat: S.active, p_litres: +l.toFixed(2) }, { refuelled: true }).then(st => { toast(`Pumped ${(+st.litres).toFixed(1)} L for ${st.paid}c${reason ? ' · ' + reason : ''}`); bump('coins'); burnSent = S.fuel; })
+        .catch(e => { S.fuel = Math.max(0, S.fuel - l); renderWallet(); updatePumpUI(); toast(e.message); }); }
+    else if (sessL > 0) { const cost = Math.round(sessL * FUEL_PRICE); S.coins -= cost; S.fuel = Math.min(S.cap, Math.round(S.fuel * 10) / 10); save(); toast(`Pumped ${sessL.toFixed(1)} L for ${cost}c${reason ? ' · ' + reason : ''}`); bump('coins'); }
     sessL = 0; renderWallet(); updatePumpUI(); }
   addEventListener('pointerup', () => { if (pumping) stopPump(); }); addEventListener('pointercancel', () => { if (pumping) stopPump(); });
   function fly(img, toEl) { const a = img.getBoundingClientRect(), b = toEl.getBoundingClientRect(), c = img.cloneNode(); c.className = 'flyer'; c.style.animation = 'none';
@@ -468,6 +517,8 @@ export function initStation(ctx) {
   function closePanel() { stopPump(); panel = null; miniHost = null; $('stn-modal').hidden = true; stage._controls.enabled = true; }
   $('card').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return; const a = b.dataset.act, id = b.dataset.id;
     if (a === 'close') return closePanel();
+    if (a === 'nosbuy') return buyNos();
+    if (a === 'nosfill') return refillNos();
     if (a === 'q10') return startPump(Math.min(10, S.cap - S.fuel));
     if (a === 'qfull') return startPump(S.cap - S.fuel);
     if (a === 'add') { const img = b.closest('.fishrow')?.querySelector('img'); crate[id] = Math.min(S.hold[id], (crate[id] || 0) + 1); if (img) fly(img, $('crateView')); crateAdd(id, 0.38); }
@@ -475,9 +526,12 @@ export function initStation(ctx) {
     if (a === 'addall') { let k = 0; FISH.forEach(f => { const more = (S.hold[f.id] || 0) - (crate[f.id] || 0); for (let j = 0; j < more; j++) crateAdd(f.id, 0.1 * k++); crate[f.id] = S.hold[f.id] || 0; }); }
     if (a === 'sell') { // at the prices on screen; if they're more than a minute old, the new ones are shown first
       if (!quote || Date.now() - quote.at > 60000) { updateMarket(); toast('Prices just moved. Check the new total, then sell.'); return; }
-      let n = 0, tot = 0; FISH.forEach(f => { const q = crate[f.id] || 0; n += q; tot += q * quote.p[f.id]; S.hold[f.id] = (S.hold[f.id] || 0) - q; });
-      S.coins += tot; crate = {}; save(); crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot;
-      if (n) dispatchEvent(new CustomEvent('sailo:sold', { detail: { n, coins: tot } })); } // (the first voyage listens for this)
+      const items = Object.fromEntries(FISH.filter(f => crate[f.id] > 0).map(f => [f.id, crate[f.id]])), n = Object.values(items).reduce((x, y) => x + y, 0), shown = FISH.reduce((t, f) => t + (crate[f.id] || 0) * quote.p[f.id], 0);
+      const done = tot => { crate = {}; crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins${tot !== shown ? ' (prices moved a little)' : ''}`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot;
+        if (n) dispatchEvent(new CustomEvent('sailo:sold', { detail: { n, coins: tot } })); }; // (the first voyage listens for this)
+      if (server) { b.disabled = true; b.textContent = 'Selling…'; // the server pays at its own price for that moment (the same formula)
+        call('econ_sell', { p_boat: S.active, p_items: items, p_tz: PLACE.tz }).then(st => done(st.paid)).catch(e => { toast(e.message); updateMarket(); }); return; }
+      FISH.forEach(f => { S.hold[f.id] = (S.hold[f.id] || 0) - (crate[f.id] || 0); }); S.coins += shown; save(); done(shown); }
     if (panel === 'market') updateMarket(); });
   $('stn-modal').addEventListener('click', e => { if (e.target.id === 'stn-modal') closePanel(); });
   addEventListener('keydown', e => { if (e.key === 'Escape') { if (panel) closePanel(); else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); } } });
@@ -531,10 +585,10 @@ export function initStation(ctx) {
 
   renderWallet(); renderBar();
   return {
-    tick, blocked, ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
+    tick, blocked, ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _sea: () => { closePanel(); mode = 'sea'; renderBar(); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
-    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr));
+    burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr)); reportBurn();
       if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast(`Fuel is low. Refuel at Paradise Station (${STATION.where}).`); }
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },
@@ -546,11 +600,32 @@ export function initStation(ctx) {
     addCatch(id) { if (holdCount() >= S.holdCap) { toast(`Hold full (${S.holdCap} fish). Sell your catch at Paradise Station, or switch boats.`); return null; }
       let f = FISH.find(x => x.id === id);
       if (!f) { let r = Math.random() * FISH.reduce((a, x) => a + localOdds(x), 0); f = FISH[0]; for (const x of FISH) { r -= localOdds(x); if (r <= 0) { f = x; break; } } }
-      S.hold[f.id] = (S.hold[f.id] || 0) + 1; save(); return f; },
-    /** Coins for releasing a fish. */
-    addCoins(n) { S.coins += n; save(); renderWallet(); },
-    /** Pay for something (a sea-plane fare): false when there aren't enough coins. */
-    spend(n) { if (S.coins < n) return false; S.coins -= n; save(); renderWallet(); return true; },
+      S.hold[f.id] = (S.hold[f.id] || 0) + 1; save();
+      { const boat = S.active; onServer(() => call('econ_catch', { p_boat: boat, p_fish: f.id }).catch(e => { // (the server keeps the hold: if it says no, the fish goes back)
+        S.boats[boat].hold[f.id] = Math.max(0, (S.boats[boat].hold[f.id] || 1) - 1); save(); renderWallet(); toast(e.message); })); }
+      return f; },
+    /** A fish released: a small reward (a fifth of its base price). */
+    release(id) { const f = FISH.find(x => x.id === id), bonus = Math.max(1, Math.round((f?.price || 5) * ECONOMY.release)); S.coins += bonus; save(); renderWallet();
+      if (f) onServer(() => call('econ_release', { p_fish: f.id }).catch(e => { S.coins = Math.max(0, S.coins - bonus); renderWallet(); toast(e.message); }));
+      return bonus; },
+    /** A one-off reward (the first voyage's steps: 'voyage1' …), of n coins. */
+    reward(key, n) { S.coins += n; save(); renderWallet(); onServer(() => call('econ_reward', { p_key: key }).catch(() => {})); },
+    /** Coins from somewhere else (guests only: signed in, coins only ever come from the server). */
+    addCoins(n) { if (server) return; S.coins += n; save(); renderWallet(); },
+    /** Pay for something (a sea-plane fare): false when there aren't enough coins. Signed in, the server takes it (settled() waits for that). */
+    spend(n, why = '') { if (S.coins < n) return false; S.coins -= n; save(); renderWallet();
+      if (server) call('econ_spend', { p_amount: Math.round(n), p_reason: why }).catch(e => { S.coins += n; renderWallet(); toast(e.message); });
+      return true; },
+    /** Resolves once the last economy change has been answered. */
+    settled: () => pending,
+    /** NOS on the boat you're sailing: { owned, charge (s), cap, readyIn (ms until it can fire again) }. */
+    nos: () => { const n = nosOf(); return { owned: n.owned, charge: n.charge, cap: N.capacity, readyIn: Math.max(0, boostReady - Date.now()) }; },
+    /** Fire NOS: resolves with the seconds of boost granted (the server's say when signed in), or 0. */
+    fireNos() { const n = nosOf(); if (!n.owned) return Promise.resolve(0);
+      if (Date.now() < boostReady) { toast('NOS is cooling down.'); return Promise.resolve(0); }
+      if (n.charge <= 0.05) { toast('NOS is empty: refill it at the Boathouse.'); return Promise.resolve(0); }
+      if (server) return call('econ_nos_fire', { p_boat: S.active }).then(st => +st.boost || 0).catch(e => { toast(e.message); return 0; });
+      const dur = Math.min(N.burst, n.charge); n.charge -= dur; boostReady = Date.now() + (dur + N.cooldown) * 1000; save(); dispatchEvent(new Event('sailo:econ')); return Promise.resolve(dur); },
     coins: () => S.coins,
     /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
     fishModel: id => kit().fishModels[id].clone(),
@@ -558,7 +633,8 @@ export function initStation(ctx) {
     /** A picture if it's ready, else null; with cb, it's rendered soon (a few per frame) and handed to cb. */
     fishImageSoon: (id, cb) => { const f = FISH.find(q => q.id === id); if (!f) return null; if (f.img) return f.img; if (cb) { later.push([f, cb]); if (!laterOn) { laterOn = true; requestAnimationFrame(pump); } } return null; },
     /** Make another boat the active one (its own tank and hold). */
-    setActive(id) { if (!BOAT_SPECS[id]) return; S.active = id; save(); renderWallet(); },
+    setActive(id) { if (!BOAT_SPECS[id]) return; reportBurn(true); S.active = id; burnSent = server ? S.fuel : burnSent; save(); renderWallet(); dispatchEvent(new Event('sailo:econ'));
+      if (server) econ('econ_set_active', { p_boat: id }).catch(() => {}); },
     shoreWarn() { const now = performance.now(); if (now - lastWarn > 3000) { lastWarn = now; toast('Too shallow! Steer around the island.'); } },
   };
 }

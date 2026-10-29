@@ -173,7 +173,7 @@ export function initHud(api) {
   // the world map: every city chart; fly to one (coins) to sail it. Your spot in each city is remembered.
   let worldOpen = false;
   const openWorld = async () => { if (worldOpen) return; worldOpen = true; setMap(false); const { openWorldMap } = await import('./worldmap.js');
-    const wm = openWorldMap({ current: CHART, coins: () => api.coins(), travel: (c, fare) => { if (!api.spend(fare)) return false; setChart(c); return true; } });
+    const wm = openWorldMap({ current: CHART, coins: () => api.coins(), settled: () => api.settled?.(), travel: (c, fare) => { if (!api.spend(fare, 'sea-plane')) return false; setChart(c); return true; } });
     const t = setInterval(() => { if (!document.querySelector('.wm')) { clearInterval(t); worldOpen = false; } }, 500); void wm; };
   $('map-change').addEventListener('click', openWorld);
   $('tb-world')?.addEventListener('click', openWorld);
