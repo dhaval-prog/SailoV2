@@ -15,7 +15,10 @@
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon-512.png">
   <link rel="manifest" href="./manifest.webmanifest">
-  <style>html,body{margin:0;height:100%;overflow:hidden;background:#0d2347}three-d-stage{position:fixed;inset:0;width:auto!important;height:auto!important}three-d-stage:not(:defined){visibility:hidden}</style>
+  <style>html,body{margin:0;height:100%;overflow:hidden;background:#0d2347}three-d-stage{position:fixed;inset:0;width:auto!important;height:auto!important}three-d-stage:not(:defined){visibility:hidden}
+    /* installed on the Home Screen (iOS, see-through status bar), the page is given a height short by the status bar's,
+       which left a strip at the bottom: the page and the game reach the real bottom of the screen */
+    @media (display-mode: standalone), (display-mode: fullscreen) { html, body { height: calc(100% + env(safe-area-inset-top, 0px)); } three-d-stage { bottom: auto !important; height: calc(100lvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important; } }</style>
 </head>
 <body>
 <div id="splash"><svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
