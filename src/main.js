@@ -607,6 +607,18 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   const frame = () => { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
     if (upright.matches) cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
   new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }
+// installed on the Home Screen, iPad and iPhone can leave a strip under the game (by the home indicator) that the game
+// can't draw in: it shows the page's own background. That background takes the colour of the sea along the picture's
+// bottom edge (read twice a second, as the light and weather change), so the strip blends in.
+// (the whole bottom row is read and the pale foam left out: the darker 60% of it, averaged, is the sea's own colour)
+{ const root = document.documentElement; let next = 0, last = '', px = null;
+  stage._afterRender = r => { const now = performance.now(); if (now < next) return; next = now + 500;
+    const gl = r.getContext(), w = gl.drawingBufferWidth; if (!px || px.length !== w * 4) px = new Uint8Array(w * 4);
+    gl.readPixels(0, 0, w, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const s = []; for (let i = 0; i < w; i += 8) if (px[i * 4 + 3]) s.push([px[i * 4], px[i * 4 + 1], px[i * 4 + 2]]); if (!s.length) return;
+    s.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2])); const k = Math.max(1, Math.round(s.length * 0.6)), m = [0, 0, 0];
+    for (let i = 0; i < k; i++) for (let j = 0; j < 3; j++) m[j] += s[i][j] / k;
+    const c = `rgb(${m.map(Math.round).join(', ')})`; if (c !== last) { last = c; root.style.backgroundColor = document.body.style.backgroundColor = c; } }; }
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();

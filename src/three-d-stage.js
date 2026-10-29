@@ -218,6 +218,7 @@ class ThreeDStage extends HTMLElement {
     this._loop = () => {
       controls.update();
       renderer.render(scene, camera);
+      this._afterRender?.(renderer); // (main.js: reads the colour along the picture's bottom edge)
     };
     // Detached while three.js was fetching? Stay idle — the
     // connectedCallback resume starts the loop and observer on
