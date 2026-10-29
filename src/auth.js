@@ -1,9 +1,9 @@
 // Captain accounts: Supabase Auth over its REST API (no client library, like supabase.js).
-// Email + password sign-up / sign-in, password reset, Google sign-in (a redirect), and guests.
+// Email + password sign-up / sign-in, password reset and Google sign-in (a redirect).
 // The session (access + refresh token) is kept on this device and refreshed when it expires.
 import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 
-const KEY = 'sailo:session', GUEST = 'sailo:guest';
+const KEY = 'sailo:session', GUEST = 'sailo:guest'; // (GUEST: the old 'sail as a guest' flag, cleared when seen)
 const store = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked */ } } };
 
 /** A sign-in problem with a captain-friendly message. */
@@ -40,8 +40,6 @@ export async function currentSession() {
   try { return keep(await call('token?grant_type=refresh_token', { body: { refresh_token: s.refresh_token } })); }
   catch (e) { if (e.code === 'offline') return s; store.set(KEY, null); return null; } // offline: keep sailing on the old session
 }
-export const isGuest = () => !!store.get(GUEST);
-export const sailAsGuest = () => store.set(GUEST, true);
 
 export const signIn = async (email, password) => keep(await call('token?grant_type=password', { body: { email, password } }));
 /** Returns { session } when signed straight in, or { confirm: true } when the email must be confirmed first. */

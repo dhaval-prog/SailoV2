@@ -119,9 +119,7 @@
 .si.lay-m .si-social button { height: 42px; }
 .si.night .si-social { gap: 10px; } .si.night .si-social button { height: 46px; border-color: rgba(255, 255, 255, 0.16); border-radius: 14px; background: rgba(255, 255, 255, 0.05); -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 14.5px; }
 .si.night .si-social button:hover { background: rgba(255, 255, 255, 0.12); } .si.night.lay-m .si-social button { height: 42px; }
-.si-guest { align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; color: #fff; font: 800 14px/1 'Nunito', sans-serif; text-shadow: inherit; }
-.si-guest span { color: #FFD36B; } .si.night .si-guest { align-self: center; color: rgba(255, 255, 255, 0.82); font-size: 13.5px; }
-.si-social[hidden], .si-or[hidden], .si-guest[hidden] { display: none; }
+.si-social[hidden], .si-or[hidden] { display: none; }
 
 .si-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; font: 700 13px/1.3 'Nunito', sans-serif; }
 .si-foot small { font: 700 10.5px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); }

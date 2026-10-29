@@ -44,7 +44,7 @@ export function initHud(api) {
   addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
   addEventListener('pointerdown', e => { if (panel.classList.contains('open') && !panel.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
 
-  // account: who's signed in, and signing out (back to the sign-in page); guests can sign in from here
+  // account: who's signed in, and signing out (back to the sign-in page)
   currentSession().then(ses => { const who = $('acct-who'), out = $('acct-out');
     if (ses) { who.textContent = ses.user?.email ? `Signed in as ${ses.user.email}` : 'Signed in'; out.textContent = 'Sign out'; }
     out.addEventListener('click', async () => { out.disabled = true; out.textContent = 'Saving…'; await beforeSignOut(); await signOut(); location.reload(); }); });

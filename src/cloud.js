@@ -4,7 +4,7 @@
 // player_progress (Supabase, row-level security: only they can read or write it).
 //   - start-up (before anything reads them): pull the account's save into this device
 //   - while playing: push changes every few seconds, and when the page closes
-//   - newest save wins between devices; guest progress on this device carries into the account the
+//   - newest save wins between devices; progress from before accounts on this device carries into the account the
 //     first time it signs in here; another account's progress is never handed to the next captain
 import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 import { currentSession, captainName } from './auth.js';
@@ -51,7 +51,7 @@ export async function syncOnStart() {
   if (m.owner !== user.id) {
     if (remote) apply(remote.data);           // this account's own save
     else if (m.owner) apply(null);            // a fresh account after someone else's: start afresh
-    // (else: guest progress on this device carries into the new account)
+    // (else: progress made here before accounts, or as a guest, carries into the new account)
   } else if (remote && remoteT > (Date.parse(m.syncedAt) || 0) && remoteT > (m.localT || 0)) apply(remote.data); // saved on another device since
   { let st = {}; try { st = JSON.parse(ls.get('sailo:settings')) || {}; } catch { /* unreadable: start a new one */ } // a fresh start still knows the captain's name
     if (!st.name) { st.name = captainName(user); ls.set('sailo:settings', JSON.stringify(st)); } }
