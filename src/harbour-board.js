@@ -38,6 +38,7 @@ const VOICE = {
   omkar: { hi: ['Arey {you}! Kaise ho?', 'Ahoy, friend!'], wave: ['Arey {you}! Arjun and I fish at dawn, come by.', 'Lazy afternoon, perfect for fishing.'], cheer: ['Waah, superb!', 'Arey wah, nice!'] },
   riya: { hi: ['Who knows where I’m going!', 'Hey {you}!'], wave: ['Hey {you}! No plan today, just vibes.', 'Somewhere new every day!'], cheer: ['Yesss!', 'Lucky!'] },
 };
+export const voiceLine = (c, k, you) => line(c, k, you);
 const line = (c, k, you) => pick((VOICE[c.id] || VOICE.priya)[k]).replace('{you}', you);
 
 /** A row of the feed, as text (the ticker) and as a board row. */
@@ -49,23 +50,24 @@ const text = e => {
   return `${n} is heading home to ${e.c.home}`;
 };
 
-export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playerName }) {
+export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playerName, onRadio }) {
+  const radioBtn = c => document.querySelector('#sheet-body .cp-call')?.addEventListener('click', () => { hud.closePanel(); onRadio?.(c); });
   const $ = id => document.getElementById(id);
   const you = () => (playerName() || 'Captain').split(' ')[0];
 
   // ---- the captain's card, with a Wave button ----
   function openCaptain(c) {
     if (c.live) return openLive(c);
-    const k = captainCard(c); hud.openPanel(k.title, k.sub, k.html, 'captain');
-    const b = document.querySelector('#sheet-body .cp-wave button'), reply = document.querySelector('#sheet-body .cp-reply');
+    const k = captainCard(c); hud.openPanel(k.title, k.sub, k.html, 'captain'); radioBtn(c);
+    const b = document.querySelector('#sheet-body .cp-wv'), reply = document.querySelector('#sheet-body .cp-reply');
     b?.addEventListener('click', () => { b.disabled = true; b.textContent = 'Waved'; setTimeout(() => {
       const said = line(c, 'wave', you()); reply.innerHTML = `<b>${esc(first(c))}</b> waves back: “${esc(said)}”`; reply.hidden = false; fleet.say(c.id, said, 7000); }, 900 + Math.random() * 900); });
   }
 
   // a real captain's card: a wave goes to them for real
   function openLive(c) {
-    const st = online?.list().find(p => 'u:' + p.id === c.id)?.st, k = liveCard(c, st); hud.openPanel(k.title, k.sub, k.html, 'captain');
-    const b = document.querySelector('#sheet-body .cp-wave button'), reply = document.querySelector('#sheet-body .cp-reply');
+    const st = online?.list().find(p => 'u:' + p.id === c.id)?.st, k = liveCard(c, st); hud.openPanel(k.title, k.sub, k.html, 'captain'); radioBtn(c);
+    const b = document.querySelector('#sheet-body .cp-wv'), reply = document.querySelector('#sheet-body .cp-reply');
     b?.addEventListener('click', () => { online?.wave(c.uid); b.disabled = true; b.textContent = 'Waved'; reply.textContent = `You waved at ${first(c)}. They’ll see it over your boat.`; reply.hidden = false; });
   }
 
