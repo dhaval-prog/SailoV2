@@ -447,7 +447,7 @@ export function initHud(api) {
     openGarage, openFriends, openProfile: () => setOpen(true), openWelcome, note,
     /** Any full-screen Naked sheet (a local sailor's card, ...). */
     openPanel: (title, sub, html, kind = 'panel') => openSheet(title, sub, html, kind),
-    captainName: () => prefs.name, rank: () => rankEl.textContent,
+    closePanel: () => closeSheet(), captainName: () => prefs.name, rank: () => rankEl.textContent,
     /** The other boats on the map: list() => [{ c, x, z, yaw, status }]; pick(c) when one is tapped. */
     setOthers: (list, pick) => { othersFn = list; othersPick = pick; },
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {

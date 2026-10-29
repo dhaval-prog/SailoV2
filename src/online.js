@@ -12,9 +12,10 @@ const STALE = 20000; // ms without news before a boat is dropped
 /**
  * @param chartId the chart everyone shares (one channel each)
  * @param me () => { x, z, yaw, kn, kind, boat, colours, name, rank, catches }
- * @param on { wave(p), caught(p, detail), change() }
+ * @param on { wave(p), caught(p, detail), radio(kind, p, payload), change() }
+ * @param positions false for a channel that only carries the radio (the worldwide one)
  */
-export function createOnline({ chartId, me, on = {} }) {
+export function createOnline({ chartId, me, on = {}, positions = true }) {
   const s0 = session(); if (!s0?.user?.id) return null; // (signed-in captains only)
   const uid = s0.user.id, topic = `realtime:sailo:${chartId}`, players = new Map(); // id -> { id, name, boat, colours, rank, catches, last: {x,z,yaw,kn,kind,t}, seen }
   let ws = null, ref = 0, joined = false, retry = 1000, hb = 0, tokenT = 0, posT = 0, sent = null, closed = false;
@@ -48,13 +49,14 @@ export function createOnline({ chartId, me, on = {} }) {
       p.last = { x: n(d.x), z: n(d.z), yaw: n(d.yaw), kn: n(d.kn), kind: ['sail', 'fish', 'anchor', 'dock'].includes(d.kind) ? d.kind : 'sail', t: Date.now() }; p.seen = Date.now(); }
     else if (event === 'wave' && d.to === uid && p) on.wave?.(p);
     else if (event === 'caught' && p) on.caught?.(p, { fish: String(d.fish || ''), kg: Math.max(0, +d.kg || 0) });
+    else if (String(event).startsWith('radio:') && (!d.to || d.to === uid)) on.radio?.(event.slice(6), p || { id, ...clean(d), last: null }, d); // (radio.js)
   }
   const track = () => send('presence', { type: 'presence', event: 'track', payload: profile() });
 
   /** Every frame: send my position when it changes (at most once a second), refresh the token now and then. */
   function update() {
     const now = Date.now(); if (!joined) return;
-    if (now > posT) { const m = me(), moved = !sent || Math.hypot(m.x - sent.x, m.z - sent.z) > 0.8 || Math.abs(m.yaw - sent.yaw) > 0.02 || m.kind !== sent.kind;
+    if (positions && now > posT) { const m = me(), moved = !sent || Math.hypot(m.x - sent.x, m.z - sent.z) > 0.8 || Math.abs(m.yaw - sent.yaw) > 0.02 || m.kind !== sent.kind;
       if (moved || now - sent.t > 5000) { sent = { x: m.x, z: m.z, yaw: m.yaw, kind: m.kind, t: now };
         send('broadcast', { type: 'broadcast', event: 'pos', payload: { ...profile(), x: +m.x.toFixed(2), z: +m.z.toFixed(2), yaw: +m.yaw.toFixed(3), kn: +m.kn.toFixed(1), kind: m.kind } }); }
       posT = now + 1000; }
@@ -71,8 +73,11 @@ export function createOnline({ chartId, me, on = {} }) {
   connect();
   addEventListener('pagehide', () => { closed = true; try { ws?.close(); } catch { /* closing */ } });
   return {
-    update, list, count: () => [...players.values()].filter(p => p.last).length,
+    update, list, count: () => [...players.values()].filter(p => p.last).length, people: () => players.size,
     wave: id => send('broadcast', { type: 'broadcast', event: 'wave', payload: { id: uid, to: id } }),
+    /** A radio message (radio.js): to everyone on this channel, or one captain (payload.to). */
+    radio: (kind, payload) => send('broadcast', { type: 'broadcast', event: 'radio:' + kind, payload: { ...payload, id: uid, name: me().name } }),
+    me: uid,
     caught: (fish, kg) => send('broadcast', { type: 'broadcast', event: 'caught', payload: { id: uid, fish, kg } }),
     track,
   };

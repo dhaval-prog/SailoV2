@@ -15,7 +15,7 @@ export function captainCard(c, ms = Date.now()) {
       <div class="cp-boat"><span class="gf-ring"><img class="gf-i" src="/gf/white/${icon}.svg" alt=""></span>
         <div class="cp-bi"><b>${esc(boatName)}</b><small><i class="cp-sw" style="background:${col}"></i>${esc(now)}</small></div>
         ${s ? '<span class="gf-sailing"><i></i>Out now</span>' : ''}</div>
-      <div class="cp-wave"><button type="button">👋 Wave</button><p class="cp-reply" hidden></p></div>
+      <div class="cp-wave"><div class="cp-acts"><button type="button" class="cp-wv">👋 Wave</button><button type="button" class="cp-call">📻 Radio</button></div><p class="cp-reply" hidden></p></div>
       <div class="gf-stats"><div><b>${d.catches}</b><span>Fish today</span></div><div><b>${d.sales}</b><span>Sales today</span></div><div><b>${d.coins}</b><span>Coins today</span></div></div>
       <section class="cp-sec"><h4>Best today</h4><p>${d.best ? `${esc(d.best.name)} · ${d.best.kg >= 10 ? d.best.kg.toFixed(1) : d.best.kg.toFixed(2)} kg` : 'Nothing landed yet today'}</p>
         ${d.recent.length ? `<p class="cp-dim">Latest: ${d.recent.map(esc).join(', ')}</p>` : ''}</section>
@@ -38,7 +38,7 @@ export function liveCard(c, st) {
       <div class="cp-boat"><span class="gf-ring"><img class="gf-i" src="/gf/white/${icon}.svg" alt=""></span>
         <div class="cp-bi"><b>${esc(boatName)}</b><small><i class="cp-sw" style="background:${col}"></i>${esc(now)}</small></div>
         <span class="gf-sailing"><i></i>Online</span></div>
-      <div class="cp-wave"><button type="button">👋 Wave</button><p class="cp-reply" hidden></p></div>
+      <div class="cp-wave"><div class="cp-acts"><button type="button" class="cp-wv">👋 Wave</button><button type="button" class="cp-call">📻 Radio</button></div><p class="cp-reply" hidden></p></div>
       <div class="gf-stats"><div><b>${c.catches || 0}</b><span>Fish caught</span></div><div><b>${esc(c.rank || 'Deckhand')}</b><span>Rank</span></div></div>
       <p class="cp-note">A real captain sailing these waters right now. Waves are all you can send: there’s no chat, so sail friendly.</p>`,
   };
