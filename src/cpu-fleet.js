@@ -129,6 +129,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       // wake while under way (from the boat's real speed); a splash now and then while fishing, and a big one when they land a fish
       if (pose.v > 0.6 && Math.random() < dt * 14 * Math.min(1, pose.v / 3)) { const side = (Math.random() - 0.5) * 2.2, bx = x - fx * 5.4 + sx * side, bz = z - fz * 5.4 + sz * side;
         emit(bx, WL + waveJS(bx, bz, t), bz, -fx * 1.5 + (Math.random() - 0.5), 1 + Math.random(), -fz * 1.5 + (Math.random() - 0.5)); }
+      if (s.kind === 'berth' && !m.waiting && Math.random() < dt * 0.35) { const sd = Math.random() < 0.5 ? -1 : 1, al = (Math.random() - 0.5) * 7; splash(x + fx * al + sx * sd * 2.4, z + fz * al + sz * sd * 2.4, 2, 0.15); } // (water lapping at a moored hull)
       if (s.kind === 'fish' && !m.waiting && Math.random() < dt * 0.25) { const px = x - fx * 3 + sx * 11, pz = z - fz * 3 + sz * 11; splash(px, pz, 3, 0.25); } // (nibbles at the float)
       if (!m.c.live) recentEvents(m.c, now, m.lastEv).forEach(e => { if (e.kind === 'catch') { const px = x - fx * 3 + sx * 11, pz = z - fz * 3 + sz * 11; splash(px, pz, 16, 0.7); for (let i = 0; i < 8; i++) emit(px, WL + 0.2, pz, (Math.random() - 0.5) * 1.5, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5); } });
       m.lastEv = now;

@@ -12,6 +12,7 @@ import { regionAt, regionName } from './regions.js';
 import { MORE_FISH, buildSpecies } from './fish-species.js';
 import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
 import './station.css';
+import { priceOf, trendOf, headline, ticker } from './market.js';
 
 const MILE = 1609.344;
 // Where the station sits: Pune Paradise keeps its original spot (3.7 mi W, 1.1 mi S of the harbour);
@@ -72,6 +73,7 @@ export const localOdds = f => { const r = REGION.id; if (f.where) return f.where
   if (COLD.has(f.id)) return f.odds * (r === 'north' ? 3 : r === 'arabian' || r === 'westpac' ? 0.5 : 1);
   return f.odds; };
 /** Where a species can be caught, for the collection. */
+export const LOCAL_FISH = FISH.filter(f => localOdds(f) > 0); // (the species that live here: the market's news and ticker)
 export const fishWhere = f => f.where ? regionName(f.where) : 'All seas';
 const SAVE = 'sailo:economy';
 export const FUEL_PRICE = 2; // coins a litre, at the Boathouse (players and local sailors alike)
@@ -190,7 +192,7 @@ export function initStation(ctx) {
   const renderBar = () => {
     const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near && !dismissed;
     bar.hidden = !show; document.body.classList.toggle('stn-bar-on', show); document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
-    if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = 'Moor at the pier to open the shops'; }
+    if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = headline(LOCAL_FISH) || 'Moor at the pier to open the shops'; }
     else if (mode === 'picking') { b.textContent = 'Cancel'; b.disabled = false; sub.textContent = 'Pick a berth along the pier'; }
     else if (mode === 'docking') { b.textContent = 'Mooring…'; b.disabled = true; sub.textContent = `Approaching ${berth.name}`; }
     else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = `Moored at ${berth.name} · shops open`; }
@@ -349,6 +351,8 @@ export function initStation(ctx) {
     shopKit = { fishModels, mini, thumb, crateSc, crateCam, tugSc, tugCam, tugView }; return shopKit;
   };
   const bounce = p => { const n = 7.5625, d = 2.75; if (p < 1 / d) return n * p * p; if (p < 2 / d) return n * (p -= 1.5 / d) * p + 0.75; if (p < 2.5 / d) return n * (p -= 2.25 / d) * p + 0.9375; return n * (p -= 2.625 / d) * p + 0.984375; };
+  let quote = null; // the market prices on screen: { at, p: { fishId: coins } }
+  setInterval(() => { if (panel === 'market' && quote && Date.now() - quote.at > 15000) updateMarket(); }, 5000); // (kept current while the market's open)
   let panel = null, crate = {}, crateFish = [], miniT = 0, miniHost = null, miniScene = null, miniCam = null, viewYaw = 0.6, drag = null;
   const attachMini = (host, sc, cam) => { const k = kit(); miniHost = host; miniScene = sc; miniCam = cam; host.prepend(k.mini.domElement); resizeMini(); };
   const resizeMini = () => { if (!miniHost) return; const w = miniHost.clientWidth, h = miniHost.clientHeight; if (!w || !h) return; shopKit.mini.setSize(w, h, false); miniCam.aspect = w / h; miniCam.updateProjectionMatrix(); };
@@ -382,6 +386,7 @@ export function initStation(ctx) {
     labels.forEach(([a, t]) => { const rad = (a - 90) * Math.PI / 180; h += `<b class="tlab" style="left:${50 + Math.cos(rad) * r}%;top:${50 + Math.sin(rad) * r}%">${t}</b>`; }); return h; };
   const marketShell = () => `<div class="awning"><div class="stripes"></div><div class="valance"></div></div>
     <div class="sign"><span>Fish Market</span></div><button class="rx" data-act="close" aria-label="Close">✕</button>
+    <div class="mk-ticker" aria-label="Today’s prices"><span id="mkTicker"></span></div>
     <div class="rp-body"><section><div class="rp-h"><h3>Today’s catch</h3><button class="tagbtn" data-act="addall">Add all</button></div><div class="ice" id="catchList"></div></section>
     <section><div class="rp-h"><h3>Selling crate</h3><span class="rp-note">Tap a fish in the crate to put it back</span></div>
     <div class="view crate" id="crateView"><div class="scale"><div class="face">${dialTicks(-135, 135, 20, 5, 31, [[-135, 0], [-67.5, 5], [0, 10], [67.5, 15], [135, 20]])}<div class="needle" id="needle"></div><div class="hub"></div><div class="kg" id="kgRead">0.0 kg</div></div></div></div>
@@ -392,9 +397,11 @@ export function initStation(ctx) {
   const countTo = (el, to, suf = '') => { const from = +(el.dataset.v || 0); el.dataset.v = to; const t0 = performance.now(); cancelAnimationFrame(countRAF); const step = now => { const p = Math.min(1, (now - t0) / 450), v = Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))); el.textContent = v + suf; if (p < 1) countRAF = requestAnimationFrame(step); }; countRAF = requestAnimationFrame(step); };
   function updateMarket() {
     const inHold = FISH.filter(f => (S.hold[f.id] || 0) > 0), inCrate = FISH.filter(f => crate[f.id] > 0);
-    const n = inCrate.reduce((a, f) => a + crate[f.id], 0), total = inCrate.reduce((a, f) => a + crate[f.id] * f.price, 0), kg = inCrate.reduce((a, f) => a + crate[f.id] * f.kg, 0);
+    quote = { at: Date.now(), p: Object.fromEntries(FISH.map(f => [f.id, priceOf(f)])) }; // (the prices shown are the prices paid)
+    const n = inCrate.reduce((a, f) => a + crate[f.id], 0), total = inCrate.reduce((a, f) => a + crate[f.id] * quote.p[f.id], 0), kg = inCrate.reduce((a, f) => a + crate[f.id] * f.kg, 0);
+    $('mkTicker').textContent = (headline(LOCAL_FISH) ? headline(LOCAL_FISH) + '   ·   ' : '') + ticker(LOCAL_FISH);
     $('catchList').innerHTML = inHold.length ? inHold.map((f, i) => { const left = S.hold[f.id] - (crate[f.id] || 0);
-      return `<div class="fishrow ${left ? '' : 'out'}"><img src="${picture(f)}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag">${f.price}c</span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
+      return `<div class="fishrow ${left ? '' : 'out'}"><img src="${picture(f)}" alt="${f.name}" style="animation-delay:${-i * 0.7}s"><div class="fr-main"><div class="fr-name">${f.name}</div><div class="fr-sub">${left} in hold · ~${f.kg} kg</div></div><span class="ptag ${trendOf(f)}" title="Base price ${f.price}c">${quote.p[f.id]}c<small>${{ up: '▲', down: '▼', flat: '' }[trendOf(f)]} base ${f.price}c</small></span><button class="addb" data-act="add" data-id="${f.id}" ${left ? '' : 'disabled'} aria-label="Add ${f.name} to the crate">+</button></div>`; }).join('')
       : '<div class="rp-empty">Your hold is empty. Go fishing out at sea, then come back to sell.</div>';
     $('crateItems').innerHTML = inCrate.map(f => `<button class="cchip" data-act="dec" data-id="${f.id}" title="Put one back"><img src="${picture(f)}" alt=""><span>${f.name} ×${crate[f.id]}</span><b>−</b></button>`).join('');
     const range = kg > 20 ? 200 : 20; // big fish (swordfish, sailfish) switch the scale to 0-200 kg
@@ -466,7 +473,9 @@ export function initStation(ctx) {
     if (a === 'add') { const img = b.closest('.fishrow')?.querySelector('img'); crate[id] = Math.min(S.hold[id], (crate[id] || 0) + 1); if (img) fly(img, $('crateView')); crateAdd(id, 0.38); }
     if (a === 'dec') { crate[id] = Math.max(0, (crate[id] || 0) - 1); crateRemove(id); }
     if (a === 'addall') { let k = 0; FISH.forEach(f => { const more = (S.hold[f.id] || 0) - (crate[f.id] || 0); for (let j = 0; j < more; j++) crateAdd(f.id, 0.1 * k++); crate[f.id] = S.hold[f.id] || 0; }); }
-    if (a === 'sell') { let n = 0, tot = 0; FISH.forEach(f => { const q = crate[f.id] || 0; n += q; tot += q * f.price; S.hold[f.id] = (S.hold[f.id] || 0) - q; });
+    if (a === 'sell') { // at the prices on screen; if they're more than a minute old, the new ones are shown first
+      if (!quote || Date.now() - quote.at > 60000) { updateMarket(); toast('Prices just moved. Check the new total, then sell.'); return; }
+      let n = 0, tot = 0; FISH.forEach(f => { const q = crate[f.id] || 0; n += q; tot += q * quote.p[f.id]; S.hold[f.id] = (S.hold[f.id] || 0) - q; });
       S.coins += tot; crate = {}; save(); crateFish.forEach((c, i) => { c.out = miniT + i * 0.04; }); toast(`Sold ${n} fish for ${tot} coins`); coinBurst(b, Math.min(16, 4 + n), tot); $('tillN').dataset.v = tot;
       if (n) dispatchEvent(new CustomEvent('sailo:sold', { detail: { n, coins: tot } })); } // (the first voyage listens for this)
     if (panel === 'market') updateMarket(); });
@@ -522,7 +531,7 @@ export function initStation(ctx) {
 
   renderWallet(); renderBar();
   return {
-    tick, blocked,
+    tick, blocked, ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
     burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr));

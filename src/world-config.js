@@ -43,3 +43,16 @@ export const WILDLIFE = {
     max: 6,
   },
 };
+
+// the Fish Market at Paradise Station: each species' price moves with the time of day and the day's demand, the same
+// for every captain (worked out from the clock, not stored); the price paid is the base price × this multiplier
+export const MARKET = {
+  period: 1800,        // demand drifts smoothly from one half-hour to the next (never jumps)
+  swing: 0.22,         // how far demand alone moves a price (±22%)
+  daily: 0.12,         // and the time of day (±12%: each species has its own busy hour)
+  min: 0.6, max: 1.6,  // a price never goes below 60% or above 160% of its base
+  trendOver: 1200,     // rising / falling: compared with 20 minutes ago…
+  trendStep: 0.03,     // …by more than 3%
+  high: 1.25, low: 0.8, // a price this far from its base is news…
+  notifyEvery: 600,    // …told at most once every 10 minutes
+};

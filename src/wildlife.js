@@ -312,5 +312,7 @@ export function createWildlife({ THREE, scene, WL, wave, getBoat, splash, statio
     if (kind === 'dolphins' && freeDolphins.length >= 3) { const x = b.x + fx * 40 - fz * 20, z = b.z + fz * 40 + fx * 20, key = 'test:' + now;
       pods.set(key, { key, x, z, head: b.yaw, v: D.speed, state: 'swimming', end: now + D.slot, fastT: now, slowT: now, turnT: now, until: 0, done: false,
         members: [0, 1, 2].map(k => ({ mesh: freeDolphins.pop(), along: (k - 1) * 3, side: (k % 2 ? 1 : -1) * (D.keepOff + 1 + k), ph: Math.random(), mode: 'under', mt: 0, dur: 0.3 + k * 0.4, y: WL - 2.2, x, z, hop: 1 })) }); } }
-  return { update, force, get counts() { return { pods: pods.size, dolphinsUp: dolphinPool.filter(m => m.visible).length, gulls: gulls.filter(g => g.on).length, whale: !!whale.ev, jumps: jumps.length, podStates: [...pods.values()].map(p => p.state) }; } };
+  /** Gulls within earshot of your boat (harbour-sounds.js). */
+  const nearGulls = () => { const b = getBoat(); return gulls.filter(g => g.on && Math.hypot(g.pos.x - b.x, g.pos.z - b.z) < 70).length; };
+  return { update, force, nearGulls, get counts() { return { pods: pods.size, dolphinsUp: dolphinPool.filter(m => m.visible).length, gulls: gulls.filter(g => g.on).length, whale: !!whale.ev, jumps: jumps.length, podStates: [...pods.values()].map(p => p.state) }; } };
 }

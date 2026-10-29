@@ -337,6 +337,109 @@ export function buildIsland(ctx) {
     const arr = new Float32Array(p.count * 3);
     for (let i = 0; i < p.count; i++) { let [x, y, z] = acc.get(keys[i]), l = Math.hypot(x, y, z); if (l < 1e-5) { x = n.getX(i); y = n.getY(i); z = n.getZ(i); l = 1; } arr[i * 3] = x / l; arr[i * 3 + 1] = y / l; arr[i * 3 + 2] = z / l; }
     const og = new THREE.BufferGeometry(); og.setAttribute('position', p); og.setAttribute('inkN', new THREE.BufferAttribute(arr, 3)); if (g.index) og.setIndex(g.index); inkCache.set(g, og); return og; };
+  // ===== the lighthouse, on the sea stack west of the island: its beam sweeps the water by night =====
+  const LH = { x: stacks[0][0], z: stacks[0][1], base: 1.9 };
+  { const m2 = (n, c) => M(n, c); const red = mat.red, white = mat.white;
+    add('lh_plinth', new THREE.CylinderGeometry(1.15, 1.35, 0.7, 14), mat.rock, LH.x, LH.base - 0.2, LH.z);
+    const H = 6.4, seg = 5; for (let i = 0; i < seg; i++) { const r0 = 0.82 - 0.2 * i / seg, r1 = 0.82 - 0.2 * (i + 1) / seg;
+      add('lh_tower_' + i, new THREE.CylinderGeometry(r1, r0, H / seg, 16), i % 2 ? white : red, LH.x, LH.base + 0.15 + H / seg * (i + 0.5), LH.z); }
+    LH.top = LH.base + 0.15 + H;
+    add('lh_gallery', new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16), mat.navy, LH.x, LH.top + 0.06, LH.z);
+    add('lh_rail', new THREE.TorusGeometry(0.92, 0.035, 6, 24), mat.metal, LH.x, LH.top + 0.42, LH.z).rotation.x = Math.PI / 2;
+    add('lh_lantern', new THREE.CylinderGeometry(0.5, 0.5, 0.8, 12), mat.glass, LH.x, LH.top + 0.52, LH.z);
+    add('lh_roof', new THREE.ConeGeometry(0.66, 0.6, 12), red, LH.x, LH.top + 1.22, LH.z);
+    add('lh_vane', new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), mat.metal, LH.x, LH.top + 1.7, LH.z); void m2; }
+  const beamFade = (() => { const c = document.createElement('canvas'); c.width = 4; c.height = 128; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, '#fff'); g.addColorStop(0.3, '#666'); g.addColorStop(0.62, '#141414'); g.addColorStop(0.8, '#000'); g.addColorStop(1, '#000'); /* (an alpha map reads the colour: white shows, black fades) */ x.fillStyle = g; x.fillRect(0, 0, 4, 128); return new THREE.CanvasTexture(c); })(); // (bright at the lantern, gone well before the far end)
+  const beamMat = new THREE.MeshBasicMaterial({ color: '#fff1c2', alphaMap: beamFade, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const beamPivot = new THREE.Group(); beamPivot.position.set(LH.x, LH.top + 0.52, LH.z); beamPivot.rotation.z = -0.07; root.add(beamPivot); // (aimed a touch down, to sweep the water)
+  [0, Math.PI].forEach((a, i) => { const g = new THREE.ConeGeometry(2.7, 30, 24, 1, true); g.translate(0, -15, 0); g.rotateZ(Math.PI / 2);
+    const b = new THREE.Mesh(g, beamMat); b.name = 'nav_lamp_beam_' + i; b.rotation.y = a; b.frustumCulled = false; b.renderOrder = 3; beamPivot.add(b); });
+  const lhGlowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const lhGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: lhGlowTex, color: '#ffe3a0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  lhGlow.scale.setScalar(4); lhGlow.position.copy(beamPivot.position); root.add(lhGlow);
+
+  // ===== dock workers (just people about the harbour): carrying crates out to the berths and fish baskets back to the
+  // market stall, a hand watching the boats from the end of the pier, two more chatting by the hut. They keep to the
+  // stone path and the deck, walk on their own side of it, and wait for each other rather than pass through. =====
+  const skin = M('skin', '#c48a5e'), skin2 = M('skin_dark', '#8a5a3c'), trousers = M('trousers', '#34405a'), capM = M('cap', '#fff7ea');
+  const shirts = ['#ff7414', '#2cc4a8', '#2343a0', '#ee3427', '#ffb21a'].map((c, i) => M('shirt_' + i, c));
+  const deckY = (x, z) => (x > xa0 - 0.1 && Math.abs(z - PZ) < hw + 0.3) || (Math.abs(x - (xa1 - hw)) < hw + 0.3 && z > PZ && z < BZ + 0.3) ? DY : SY;
+  function person(i) {
+    const g = new THREE.Group(); g.name = 'worker_' + i; root.add(g);
+    const hip = new THREE.Group(); hip.position.y = 0.5; g.add(hip);
+    const legs = [-1, 1].map(sd => { const l = new THREE.Group(); l.position.z = sd * 0.08; hip.add(l); add(`worker_${i}_leg${sd}`, new THREE.BoxGeometry(0.11, 0.5, 0.11), trousers, 0, -0.25, 0, l); return l; });
+    const torso = new THREE.Group(); hip.add(torso);
+    add(`worker_${i}_body`, new THREE.BoxGeometry(0.2, 0.44, 0.3), shirts[i % shirts.length], 0, 0.22, 0, torso);
+    const head = new THREE.Group(); head.position.y = 0.55; torso.add(head);
+    add(`worker_${i}_head`, new THREE.SphereGeometry(0.105, 12, 9), i % 3 === 1 ? skin2 : skin, 0, 0, 0, head);
+    add(`worker_${i}_cap`, new THREE.CylinderGeometry(0.108, 0.112, 0.07, 12), capM, 0, 0.075, 0, head);
+    add(`worker_${i}_brim`, new THREE.BoxGeometry(0.12, 0.016, 0.17), capM, 0.1, 0.05, 0, head);
+    const arms = [-1, 1].map(sd => { const a = new THREE.Group(); a.position.set(0, 0.42, sd * 0.19); torso.add(a); add(`worker_${i}_arm${sd}`, new THREE.BoxGeometry(0.075, 0.4, 0.075), shirts[i % shirts.length], 0, -0.2, 0, a); return a; });
+    const crate = add(`worker_${i}_crate`, new THREE.BoxGeometry(0.3, 0.22, 0.34), mat.wood, 0.25, 0.1, 0, torso);
+    const basket = new THREE.Group(); basket.position.set(0.25, 0.08, 0); torso.add(basket);
+    add(`worker_${i}_basket`, new THREE.CylinderGeometry(0.18, 0.13, 0.18, 10), mat.woodLight, 0, 0, 0, basket);
+    [-0.06, 0.05].forEach((dz, k) => { const f = add(`worker_${i}_catch${k}`, new THREE.SphereGeometry(0.06, 8, 6), k ? mat.orange : mat.metal, 0.02 * k, 0.1, dz, basket); f.scale.set(1.8, 0.7, 0.8); });
+    crate.visible = basket.visible = false;
+    return { g, hip, legs, torso, head, arms, crate, basket, x: 0, z: 0, y: SY, yaw: 0, ph: i * 1.7, carry: null, wait: 0, path: [], pose: 'idle', poseT: 0, blocked: 0 };
+  }
+  // the route from the stall to the pier: the stepping stones, then onto the deck
+  const stallPt = [-2, -8.6], stones = Array.from({ length: 9 }, (_, i) => { const u = i / 8; return [-2 + (edgeX - 3.5 + 2) * u, -7.4 + (PZ - 0.5 + 7.4) * u + Math.sin(u * 5) * 0.6]; });
+  const toPier = [stallPt, ...stones, [xa0 + 0.6, PZ]], laneOut = PZ + 0.45, laneBack = PZ - 0.35, branchX = xa1 - hw;
+  const dropSpots = [[edgeX + 3.9, PZ + hw - 0.35, 'main'], [xa1 - 0.35, PZ + 2.2, 'branch'], [xa1 - 0.35, PZ + 9.4, 'branch'], [branchX, BZ - 0.45, 'branch']];
+  const outTo = d => [...toPier, [d[2] === 'main' ? d[0] : branchX + 0.4, laneOut], ...(d[2] === 'branch' ? [[branchX + 0.4, d[1]]] : []), [d[0], d[1]]];
+  const backFrom = d => [[d[2] === 'main' ? d[0] : branchX - 0.4, d[2] === 'main' ? laneBack : d[1]], ...(d[2] === 'branch' ? [[branchX - 0.4, laneBack]] : []), [xa0 + 0.6, laneBack], ...[...toPier].reverse().slice(1)];
+  const crew = [0, 1, 2, 3, 4].map(person);
+  const chatA = [edgeX + 7, PZ + 1.25], chatB = [edgeX + 7.8, PZ + 1.3]; // (by the south rail, clear of both lanes and the berths)
+  crew.forEach((w, i) => { const at = i < 2 ? stallPt : i === 2 ? [branchX, PZ + 3] : i === 3 ? chatA : chatB; w.x = at[0]; w.z = at[1]; w.y = deckY(w.x, w.z);
+    w.role = i < 2 ? 'porter' : i === 2 ? 'watcher' : 'chat'; w.trip = i; w.wait = i * 6 + 1; w.yaw = i === 4 ? Math.PI : 0; if (w.role === 'chat') w.pose = 'talk'; });
+  function nextJob(w) {
+    if (w.role === 'porter') { const atStall = Math.hypot(w.x - stallPt[0], w.z - stallPt[1]) < 1;
+      if (atStall) { const d = dropSpots[w.trip++ % dropSpots.length]; w.dest = d; w.path = outTo(d); w.carry = 'crate'; w.pose = 'lift'; w.poseT = 1.2; } // supplies out to a boat
+      else { w.path = backFrom(w.dest); w.carry = 'basket'; w.pose = 'lift'; w.poseT = 1.6; } } // the catch back to the stall
+    else if (w.role === 'watcher') { const far = w.z > PZ + 6; w.path = [[branchX, far ? PZ + 3 : BZ - 1.2]]; }
+    else if (w === crew[4] && Math.random() < 0.35) { w.path = [[branchX - 0.3, laneBack], [branchX - 0.3, BZ - 1], [branchX - 0.3, laneBack], chatB]; } // a stroll to the end and back
+  }
+  const STEP = 0.95; // walking speed (island units a second)
+  function stepCrew(t, dt) {
+    crew.forEach((w, i) => {
+      let moving = false;
+      if (w.poseT > 0) w.poseT -= dt;
+      else if (w.wait > 0) { w.wait -= dt; if (w.wait <= 0 && !w.path.length) nextJob(w); }
+      else if (w.path.length) {
+        const [tx, tz] = w.path[0], dx = tx - w.x, dz = tz - w.z, d = Math.hypot(dx, dz);
+        if (d < 0.08) { w.path.shift(); if (!w.path.length) { // arrived
+            if (w.role === 'porter') { w.pose = w.carry === 'crate' ? 'drop' : 'drop'; w.poseT = 1.6; w.carryOff = true; w.wait = 1.8 + Math.random() * 1.5; }
+            else if (w.role === 'watcher') { w.pose = 'look'; w.poseT = 0; w.wait = 4 + Math.random() * 4; w.lookYaw = Math.random() < 0.5 ? 0 : Math.PI; }
+            else { w.pose = 'talk'; w.wait = 18 + Math.random() * 14; } } }
+        else { // others in the way: wait (and after a while, step round them)
+          const blocker = crew.find(o => o !== w && Math.hypot(o.x - w.x, o.z - w.z) < 0.55 && ((o.x - w.x) * dx + (o.z - w.z) * dz) > 0);
+          if (blocker && (w.blocked += dt) < 2) { /* wait */ }
+          else { if (blocker) { w.x += -dz / d * 0.3; w.z += dx / d * 0.3; w.blocked = 0; }
+            const sp = STEP * (w.carry ? 0.8 : 1), st = Math.min(d, sp * dt); w.x += dx / d * st; w.z += dz / d * st; moving = true; w.blocked = blocker ? w.blocked : 0;
+            const want = Math.atan2(-dz, dx); w.yaw += wrapA(want - w.yaw) * Math.min(1, dt * 8); }
+        }
+      } else if (w.role !== 'porter' || true) { if (w.wait <= 0) { w.wait = w.role === 'chat' ? 6 + Math.random() * 8 : 1; } }
+      if (w.carryOff && w.poseT < 0.8) { w.carry = null; w.carryOff = false; }
+      if (moving) w.pose = 'walk'; else if (w.pose === 'walk') w.pose = 'idle';
+      // the body: walking, lifting / putting down, watching the boats, talking
+      w.ph += dt * (moving ? 7 : 1.5);
+      const sw = moving ? Math.sin(w.ph) : 0, carrying = !!w.carry;
+      w.legs[0].rotation.z = sw * 0.55; w.legs[1].rotation.z = -sw * 0.55;
+      const bend = (w.pose === 'lift' || w.pose === 'drop') && w.poseT > 0 ? Math.sin(Math.min(1, w.poseT / 1.4) * Math.PI) * 0.75 : 0;
+      w.torso.rotation.z = -bend; w.hip.position.y = 0.5 + (moving ? Math.abs(Math.cos(w.ph)) * 0.025 : 0) - bend * 0.08;
+      const armSw = carrying ? -1.15 : -sw * 0.5;
+      w.arms[0].rotation.z = carrying ? armSw : armSw; w.arms[1].rotation.z = carrying ? armSw : -armSw;
+      if (w.pose === 'talk') { w.arms[1].rotation.z = -0.4 - Math.max(0, Math.sin(t * 2.2 + i)) * 0.9; w.head.rotation.z = Math.sin(t * 3 + i) * 0.08; w.head.rotation.y = Math.sin(t * 0.4 + i) * 0.3; }
+      else if (w.pose === 'look') { w.yaw += wrapA(w.lookYaw - w.yaw) * Math.min(1, dt * 2); w.head.rotation.y = Math.sin(t * 0.5 + i) * 0.5; w.head.rotation.z = 0; }
+      else { w.head.rotation.y *= 0.9; w.head.rotation.z *= 0.9; }
+      if (w.role === 'chat' && w.pose !== 'walk') { const o = w === crew[3] ? crew[4] : crew[3]; if (Math.hypot(o.x - w.x, o.z - w.z) < 2) w.yaw += wrapA(Math.atan2(-(o.z - w.z), o.x - w.x) - w.yaw) * Math.min(1, dt * 3); }
+      w.crate.visible = w.carry === 'crate'; w.basket.visible = w.carry === 'basket';
+      w.y += (deckY(w.x, w.z) - w.y) * Math.min(1, dt * 6);
+      w.g.position.set(w.x, w.y, w.z); w.g.rotation.y = w.yaw;
+    });
+  }
+
   const bold = /^(cliff|sand_top|boulder|stack_rock|hut_roof|hut_post|hut_ridge|pier_post|stall_(table|post|awning)|palm_\d+_trunk|rowboat_\d+_(hull|gunwale|keel)|crate|barrel|bush|stringer)/;
   const meshes = []; root.traverse(o => o.isMesh && meshes.push(o));
   meshes.forEach(o => { if (/^(pennant|flag_line|flag_\d|nav_lamp|grass_patch|path_stone|crab_)/.test(o.name)) return; const l = new THREE.Mesh(inkGeo(o.geometry), bold.test(o.name) ? inkThick : inkThin); l.name = o.name + '_outline'; l.userData.ink = true; o.add(l); });
@@ -408,7 +511,7 @@ export function buildIsland(ctx) {
 
   // ---------------- merge everything that never moves, per material ----------------
   {
-    const dynamic = new Set([...palms.map(p => p.joints[0].j.parent), ...crabs.map(c => c.g), ...flags.map(f => f.fg), ...boats.map(b => b.rb)]);
+    const dynamic = new Set([...palms.map(p => p.joints[0].j.parent), ...crabs.map(c => c.g), ...flags.map(f => f.fg), ...boats.map(b => b.rb), ...crew.map(w => w.g), beamPivot]);
     root.updateMatrixWorld(true);
     const isDynamic = o => { for (let p = o; p && p !== root; p = p.parent) if (dynamic.has(p)) return true; return false; };
     const statics = [], buckets = new Map(), nm = new THREE.Matrix3(), v = new V3();
@@ -451,6 +554,10 @@ export function buildIsland(ctx) {
         cl.arm.rotation.x = walk ? -0.1 : feed * 0.45 - 0.05; cl.dact.rotation.y = (i ? -1 : 1) * (0.04 + (walk ? 0 : Math.max(0, Math.sin(t * 5 + c.ph + i)) * 0.4)); }); });
     // flags swing on their poles and the cloth ripples
     windT.value = t; flags.forEach(f => { f.fg.rotation.y = 0.35 + Math.sin(t * 3 + f.ph) * 0.22; });
+    // the lighthouse turns; its beam shows by night (and at dusk, faintly)
+    beamPivot.rotation.y = t * 0.55; beamMat.opacity = 0.32 * Math.min(1, night * 1.2); beamPivot.visible = night > 0.04; lhGlow.material.opacity = 0.85 * night;
+    // the dock workers
+    stepCrew(t, dt);
     // end-of-pier beacon blinks
     const on = (t % 1.4) < 0.85 ? 1 : 0.12; mat.navRed.emissiveIntensity = on; beaconHalo.material.opacity = 0.5 * on; beaconPL.intensity = 4 * BK * on;
     // foam breathes along the shore and around the posts
@@ -467,5 +574,5 @@ export function buildIsland(ctx) {
     if (night > 0.01) { const a = ffGeo.attributes.position; ffBase.forEach(([x, y, z, ph], i) => a.setXYZ(i, x + Math.sin(t * 0.5 + ph) * 0.9, y + Math.sin(t * 0.9 + ph * 2) * 0.35, z + Math.cos(t * 0.4 + ph) * 0.9)); a.needsUpdate = true; }
   }
 
-  return { root, tick, isl, IC, edgeX, PZ, W, hw, BZ, xa0, xa1, hx0, hx1, hzN, posts, stacks, shopAt: { market: [-2, SY + 3.5, -10], boathouse: [(hx0 + hx1) / 2, DY + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] } };
+  return { root, tick, crew: () => crew.map(w => ({ x: w.x, z: w.z, pose: w.pose, carry: w.carry, poseT: w.poseT, wait: w.wait, path: w.path.length, blocked: w.blocked })), isl, IC, edgeX, PZ, W, hw, BZ, xa0, xa1, hx0, hx1, hzN, posts, stacks, shopAt: { market: [-2, SY + 3.5, -10], boathouse: [(hx0 + hx1) / 2, DY + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] } };
 }
