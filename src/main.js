@@ -873,6 +873,7 @@ let myCatches = { n: 0, at: 0 }; const caughtTotal = () => { if (Date.now() - my
 const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x, z: boat.position.z, yaw, kn: Math.abs(vel * 1.944), boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal(),
   kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail' }),
   on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d) } });
+hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
 const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName });
 if (firstVisit && !madeYours) setTimeout(() => hud.openWelcome(() => { try { localStorage.setItem('sailo:made-yours', '1'); } catch { /* storage blocked */ } voyage.start(); }), 2600);
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game

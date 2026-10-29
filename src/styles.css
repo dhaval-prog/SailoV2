@@ -669,12 +669,19 @@ body.view-top #you-tag { opacity: 1; }
 .map-pin-dot { fill: #fff; }
 .map-dest-ring { fill: none; stroke: #fff; opacity: 0.7; transform-box: fill-box; transform-origin: center; animation: map-pulse 1.6s ease-out infinite; }
 .map-boat { pointer-events: none; }
+.map-other { cursor: pointer; }
+.map-other path { stroke: var(--ink); stroke-linejoin: round; }
+.map-other-ring { fill: rgba(110, 231, 197, 0.18); stroke: #6EE7C5; }
+.map-other-t { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 20, 50, 0.55); stroke-width: 0.35em; stroke-linejoin: round; pointer-events: none; }
+.map-other.live .map-other-t { fill: #6EE7C5; }
+.map-other:hover path { stroke: #fff; }
 .map-boat path { fill: #ffb21a; stroke: var(--ink); stroke-linejoin: round; }
 .map-pulse { fill: rgba(255, 178, 26, 0.3); transform-box: fill-box; transform-origin: center; animation: map-pulse 1.8s ease-out infinite; }
 @keyframes map-pulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
 .map-foot { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font: 600 13px/1.2 system-ui, sans-serif; color: rgba(255, 255, 255, 0.8); }
 .map-row { display: flex; align-items: center; gap: 8px; }
 .map-row[hidden], .map-help[hidden] { display: none; }
+.map-dot.others { background: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3); }
 .map-dot.pin { background: #ee3427; box-shadow: 0 0 0 3px rgba(238, 52, 39, 0.3); }
 .map-unpin { margin-left: auto; padding: 6px 12px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font: 700 12px/1 system-ui, sans-serif; cursor: pointer; }
 .map-unpin:hover { background: rgba(255, 255, 255, 0.22); }
