@@ -19,7 +19,7 @@ import './fishing-naked.css';
 import { initBoatQuick } from './boat-quick.js';
 import { initFirstVoyage } from './voyage.js';
 import { createCpuFleet } from './cpu-fleet.js';
-import { createHarbour } from './harbour.js';
+import { createHarbour } from './harbour-board.js';
 import './cpu.css';
 import './voyage.css';
 // a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
