@@ -1,10 +1,12 @@
 // The harbour's social life with the local sailors (cpu-captains.js, drawn by cpu-fleet.js):
 // - the Harbour board (top bar): today's feed of catches, sales and comings and goings, and the week's records;
 // - a ticker on the scene for what happens near you (and the harbour's big catches);
-// - waves and replies: captains near you wave, cheer your catches, and wave back from their card.
+// - waves and replies: captains near you wave, cheer your catches, and wave back from their card;
+// - real captains online (online.js): their card, waves both ways, and their catches near you on the ticker.
+// Everything but the live captains is Pune Paradise only (cpu: false elsewhere).
 // The feed and records come from the same seeded schedules, so every account sees the same harbour.
 import { captain, harbourFeed, harbourRecords, placeNear, fishNameOf } from './cpu-captains.js';
-import { captainCard } from './cpu-card.js';
+import { captainCard, liveCard } from './cpu-card.js';
 
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const kgs = kg => kg >= 10 ? kg.toFixed(1) : kg.toFixed(2);
@@ -47,27 +49,35 @@ const text = e => {
   return `${n} is heading home to ${e.c.home}`;
 };
 
-export function createHarbour({ hud, fleet, playerPos, playerName }) {
+export function createHarbour({ hud, fleet, online, cpu = true, playerPos, playerName }) {
   const $ = id => document.getElementById(id);
   const you = () => (playerName() || 'Captain').split(' ')[0];
 
   // ---- the captain's card, with a Wave button ----
   function openCaptain(c) {
+    if (c.live) return openLive(c);
     const k = captainCard(c); hud.openPanel(k.title, k.sub, k.html, 'captain');
     const b = document.querySelector('#sheet-body .cp-wave button'), reply = document.querySelector('#sheet-body .cp-reply');
     b?.addEventListener('click', () => { b.disabled = true; b.textContent = 'Waved'; setTimeout(() => {
       const said = line(c, 'wave', you()); reply.innerHTML = `<b>${esc(first(c))}</b> waves back: “${esc(said)}”`; reply.hidden = false; fleet.say(c.id, said, 7000); }, 900 + Math.random() * 900); });
   }
 
+  // a real captain's card: a wave goes to them for real
+  function openLive(c) {
+    const st = online?.list().find(p => 'u:' + p.id === c.id)?.st, k = liveCard(c, st); hud.openPanel(k.title, k.sub, k.html, 'captain');
+    const b = document.querySelector('#sheet-body .cp-wave button'), reply = document.querySelector('#sheet-body .cp-reply');
+    b?.addEventListener('click', () => { online?.wave(c.uid); b.disabled = true; b.textContent = 'Waved'; reply.textContent = `You waved at ${first(c)}. They’ll see it over your boat.`; reply.hidden = false; });
+  }
+
   // ---- the Harbour board ----
-  const btn = $('tb-board'), mBtn = $('hm-board'); btn.hidden = false; if (mBtn) mBtn.hidden = false;
+  const btn = $('tb-board'), mBtn = $('hm-board'); btn.hidden = !cpu; if (mBtn) mBtn.hidden = !cpu;
   function openBoard(tab = 'live') {
-    const feed = harbourFeed(Date.now(), 40), rec = harbourRecords(Date.now(), 7), out = fleet.out();
+    const feed = harbourFeed(Date.now(), 40), rec = harbourRecords(Date.now(), 7), out = fleet.out(), people = online?.count() || 0;
     const rows = feed.map((e, i) => `<button type="button" class="hb-row k-${e.kind}" style="--n:${Math.min(i, 12)}" data-c="${e.c.id}"><i class="cp-sw" style="background:${e.c.colours.sail || e.c.colours.hull}"></i><span>${esc(text(e))}</span><time>${ago(e.ms)}</time></button>`).join('')
       || '<p class="hb-empty">The harbour is quiet. The first boats head out before dawn.</p>';
     let best = null; try { const log = JSON.parse(localStorage.getItem('sailo:fishlog') || '{}'); Object.entries(log).forEach(([id, r]) => { if (!best || r.best > best.kg) best = { id, kg: r.best }; }); } catch { /* storage blocked */ }
     const podium = (list, val) => list.map((r, i) => `<button type="button" class="hb-rec" data-c="${r.c.id}"><em>${i + 1}</em><span><b>${esc(r.c.name)}</b><small>${val(r)}</small></span></button>`).join('');
-    hud.openPanel('Harbour board', `${out} local sailor${out === 1 ? '' : 's'} out now · Pune Paradise`, `
+    hud.openPanel('Harbour board', `${people ? `${people} captain${people === 1 ? '' : 's'} online · ` : ''}${out} local sailor${out === 1 ? '' : 's'} out now · Pune Paradise`, `
       <div class="gf-tabs hb-tabs" role="tablist"><button type="button" role="tab" data-tab="live">Today</button><button type="button" role="tab" data-tab="rec">Records</button></div>
       <div class="hb-pane" data-pane="live">${rows}</div>
       <div class="hb-pane" data-pane="rec">
@@ -89,32 +99,42 @@ export function createHarbour({ hud, fleet, playerPos, playerName }) {
   const tk = document.createElement('button'); tk.type = 'button'; tk.id = 'hb-ticker'; tk.innerHTML = '<i></i><span></span>'; document.body.appendChild(tk);
   tk.addEventListener('click', () => { tk.classList.remove('show'); openBoard(); });
   let seen = Date.now(), tickT = 0, hideT = 0, lastShown = 0; const queue = [];
+  const flash = (txt, colour) => { tk.querySelector('i').style.background = colour; tk.querySelector('span').textContent = txt;
+    tk.classList.remove('show'); void tk.offsetWidth; tk.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => tk.classList.remove('show'), 7000); };
   function tick() {
+    if (!cpu) return;
     const now = Date.now(), me = playerPos();
     harbourFeed(now, 30).filter(e => e.ms > seen).reverse().forEach(e => {
       const d = Math.hypot(e.p[0] - me.x, e.p[1] - me.z), near = d < 3000;
       if ((e.kind === 'catch' && (near || e.kg >= BIG_KG)) || (e.kind === 'sell' && e.coins >= 150) || (near && e.kind !== 'sell')) queue.push(e); });
     seen = now; queue.splice(0, Math.max(0, queue.length - 3)); // (only the latest few are worth saying)
     if (queue.length && now - lastShown > 25000 && !document.querySelector('#sheet.open')) {
-      const e = queue.pop(); queue.length = 0; lastShown = now;
-      tk.querySelector('i').style.background = e.c.colours.sail || e.c.colours.hull; tk.querySelector('span').textContent = text(e);
-      tk.classList.remove('show'); void tk.offsetWidth; tk.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => tk.classList.remove('show'), 7000);
+      const e = queue.pop(); queue.length = 0; lastShown = now; flash(text(e), e.c.colours.sail || e.c.colours.hull);
     }
   }
 
   // ---- waves: a captain who comes near greets you (once in a while), and cheers your catches ----
   const greeted = new Map();
   function greet() {
-    const now = Date.now(); const n = fleet.near().find(q => q.d < 220 && now - (greeted.get(q.c.id) || 0) > 20 * 60000);
+    const now = Date.now(); const n = fleet.near().find(q => !q.c.live && q.d < 220 && now - (greeted.get(q.c.id) || 0) > 20 * 60000);
     if (n && fleet.say(n.c.id, '👋 ' + line(n.c, 'hi', you()))) greeted.set(n.c.id, now);
   }
   addEventListener('sailo:caught', e => {
-    const n = fleet.near().filter(q => q.d < 700); if (!n.length) return;
+    online?.caught(e.detail?.fish, e.detail?.kg);
+    const n = fleet.near().filter(q => q.d < 700 && !q.c.live); if (!n.length) return;
     const c = pick(n).c, big = e.detail?.record;
     setTimeout(() => fleet.say(c.id, big ? (e.detail.isNew ? 'A new species? Lucky you!' : 'A new record, well done!') : line(c, 'cheer', you())), 1400 + Math.random() * 1200);
   });
 
+  // a real captain waved at you, or landed a fish near you
+  function waved(p) { const said = fleet.say('u:' + p.id, '👋 Waving at you!', 7000); hud.note(`${p.name} waved at you${said ? '' : ' from across the water'}. Tap their boat to wave back.`, 6000); }
+  function caughtBy(p, d) {
+    const L = p.last, me = playerPos(); if (!L || Math.hypot(L.x - me.x, L.z - me.z) > 3000) return;
+    const what = `${d.kg ? kgs(d.kg) + ' kg ' : ''}${fishNameOf(d.fish)}`; fleet.say('u:' + p.id, `🎣 ${what}!`, 5000);
+    flash(`${p.name.split(' ')[0]} landed a ${what} nearby`, p.colours.sail || p.colours.hull || p.colours.flag || '#6EE7C5'); lastShown = Date.now();
+  }
+
   /** Called every frame; the checks run about once a second. */
   function update() { const now = Date.now(); if (now < tickT) return; tickT = now + 1000; tick(); greet(); }
-  return { update, openCaptain, openBoard, _rewind: min => { seen -= min * 60000; lastShown = 0; } }; // (_rewind: tests replay the last minutes)
+  return { update, openCaptain, openBoard, waved, caughtBy, _rewind: min => { seen -= min * 60000; lastShown = 0; } }; // (_rewind: tests replay the last minutes)
 }

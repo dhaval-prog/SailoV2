@@ -63,3 +63,7 @@ body.boat-sel .cpu-tag, body.stn-docked .cpu-tag { pointer-events: none; }
 body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
 @media (max-width: 720px), (max-height: 520px) { #hb-ticker { left: 16px; top: calc(146px + var(--safe-t, 0px)); font-size: 12.5px; max-width: calc(100vw - 90px); } }
 @media (hover: hover) { #sheet.nk .hb-row:hover span, #sheet.nk .hb-rec:hover b, #hb-ticker:hover span, .cpu-tag:hover b { color: #6EE7C5; } }
+
+/* a real captain online: a teal dot before the name */
+.cpu-tag.live b { display: inline-flex; align-items: center; gap: 6px; }
+.cpu-tag.live b::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #6EE7C5; box-shadow: 0 0 0 2px rgba(110, 231, 197, 0.3), 0 1px 2px rgba(0, 20, 50, 0.6); }

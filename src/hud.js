@@ -425,7 +425,7 @@ export function initHud(api) {
     openGarage, openFriends, openProfile: () => setOpen(true), openWelcome, note,
     /** Any full-screen Naked sheet (a local sailor's card, ...). */
     openPanel: (title, sub, html, kind = 'panel') => openSheet(title, sub, html, kind),
-    captainName: () => prefs.name,
+    captainName: () => prefs.name, rank: () => rankEl.textContent,
     update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
       lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);

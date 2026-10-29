@@ -25,3 +25,21 @@ export function captainCard(c, ms = Date.now()) {
       <p class="cp-note">Local sailors are Sailo’s harbour regulars: computer captains who sail Pune Paradise every day.</p>`,
   };
 }
+
+const LIVE_NOW = { fish: 'Fishing right now', anchor: 'At anchor', dock: 'At Paradise Station' };
+/** A real captain online (online.js): what they share, and a Wave button. */
+export function liveCard(c, st) {
+  const [boatName, icon] = BOAT[c.boat] || BOAT.tug, col = c.colours.sail || c.colours.hull || c.colours.flag || '#ffffff';
+  const now = LIVE_NOW[st?.kind] || (st?.speed > 0.5 ? 'Sailing now' : 'Drifting');
+  return {
+    title: c.name,
+    sub: `Captain · online now${c.rank ? ' · ' + c.rank : ''}`,
+    html: `
+      <div class="cp-boat"><span class="gf-ring"><img class="gf-i" src="/gf/white/${icon}.svg" alt=""></span>
+        <div class="cp-bi"><b>${esc(boatName)}</b><small><i class="cp-sw" style="background:${col}"></i>${esc(now)}</small></div>
+        <span class="gf-sailing"><i></i>Online</span></div>
+      <div class="cp-wave"><button type="button">👋 Wave</button><p class="cp-reply" hidden></p></div>
+      <div class="gf-stats"><div><b>${c.catches || 0}</b><span>Fish caught</span></div><div><b>${esc(c.rank || 'Deckhand')}</b><span>Rank</span></div></div>
+      <p class="cp-note">A real captain sailing these waters right now. Waves are all you can send: there’s no chat, so sail friendly.</p>`,
+  };
+}
