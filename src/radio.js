@@ -319,10 +319,20 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   function view(html) { const v = $('.rd-view'); root.classList.toggle('viewing', !!html); v.hidden = !html; v.innerHTML = html || ''; return v; }
   $('.rd-sos').addEventListener('click', () => hooks.sos?.());
 
+  // ---------- the floating button sits just above the helm's anchor icon (wherever the layout puts the helm) ----------
+  const anchorEl = document.getElementById('helm-anchor');
+  function placeFab() {
+    const b = document.body.classList; if (fab.hidden || b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel')) return; // (the helm is away: stay put)
+    const r = anchorEl?.getBoundingClientRect(); if (!r?.width) return;
+    fab.style.left = `${Math.round(r.left + r.width / 2 - fab.offsetWidth / 2)}px`; fab.style.top = `${Math.round(r.top - 12 - fab.offsetHeight)}px`; fab.style.bottom = 'auto'; fab.style.transform = 'none';
+  }
+  addEventListener('resize', () => setTimeout(placeFab, 400));
+
   // ---------- every frame ----------
-  let paintT = 0, sailed = false, slow = 0;
+  let paintT = 0, sailed = false, slow = 0, placeT = 0;
   function update(t, { moving }) {
     if (moving && !sailed) { sailed = true; if (st.auto && !st.power) setPower(true); } // the radio comes on as you start sailing
+    if (performance.now() > placeT) { placeT = performance.now() + 250; placeFab(); }
     chatter();
     if (st.open) { drawWave(t); if (performance.now() > paintT) { paintT = performance.now() + (st.tx ? 100 : 1000); paintCtrl(); if (!st.tx) { paintTop(); if (++slow % 4 === 0 && st.mode === 'direct') paintDial(); } } }
   }

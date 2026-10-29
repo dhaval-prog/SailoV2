@@ -8,7 +8,13 @@ import { ROSTER, stateAt, recentEvents, statusText } from './cpu-captains.js';
 import { PORT } from './station.js';
 import { follower } from './boat-motion.js';
 
-const NEAR = 2600, TAG = 1500, MAX_DRAWN = 8; // metres: drawn within NEAR, tagged within TAG; at most 8 boats at once
+const NEAR = 2600, TAG = 1500, MAX_DRAWN = 8; // metres: drawn within NEAR, an avatar within TAG; at most 8 boats at once
+// each boat carries one small round avatar instead of a name tag: far off it fades gently in and out; close by
+// (inside AV_NEAR, until it passes AV_FAR again: a gap so it doesn't flicker at the edge) it holds steady; hovering
+// over the boat brings it up clearly. Opacity eases between states.
+const AV_NEAR = 320, AV_FAR = 420;
+// the default captain avatar (as on the account button), until a captain has a photo
+const AVATAR = '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#fff7ea"/><path d="M7 14.5c0-3 4-5.5 9-5.5s9 2.5 9 5.5z" fill="#2343a0"/><rect x="6" y="14" width="20" height="2.6" rx="1.3" fill="#152042"/><circle cx="16" cy="11.6" r="1.6" fill="#ffb21a"/><path d="M9.5 18.5c1.4 4.2 3.8 6.5 6.5 6.5s5.1-2.3 6.5-6.5z" fill="#f2c9a0"/><path d="M12 22.2c1 .9 2.4 1.4 4 1.4s3-.5 4-1.4" stroke="#152042" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>';
 // which materials carry a captain's colours, per boat (material names from the boat builders)
 const PAINT = {
   tug: { hull: ['hull_yellow'], accent: ['paint_red'] },
@@ -33,7 +39,11 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     scene.add(g); return g;
   }
   function makeTag(m) {
-    const t = document.createElement('button'); t.type = 'button'; t.className = m.c.live ? 'cpu-tag live' : 'cpu-tag'; t.innerHTML = `<em class="cpu-say" hidden></em><b></b><small></small>`; t.querySelector('b').textContent = m.c.name.split(' ')[0]; t.dataset.id = m.c.id;
+    const t = document.createElement('button'); t.type = 'button'; t.className = m.c.live ? 'cpu-tag live' : 'cpu-tag'; t.dataset.id = m.c.id; t.setAttribute('aria-label', m.c.name);
+    t.innerHTML = `<em class="cpu-say" hidden></em><i class="cpu-av"></i>`; const av = t.querySelector('.cpu-av');
+    av.style.setProperty('--ring', m.c.live ? '#6EE7C5' : (m.c.colours.sail || m.c.colours.hull || m.c.colours.flag || '#ffffff'));
+    if (m.c.photo) { const img = new Image(); img.alt = ''; img.src = m.c.photo; img.onerror = () => { av.innerHTML = AVATAR; }; av.appendChild(img); } else av.innerHTML = AVATAR;
+    t.addEventListener('pointerenter', () => { m.hoverTag = true; }); t.addEventListener('pointerleave', () => { m.hoverTag = false; });
     t.addEventListener('click', e => { e.stopPropagation(); onOpen(m.c); }); ['pointerdown', 'pointerup'].forEach(ev => t.addEventListener(ev, e => e.stopPropagation()));
     tagLayer.appendChild(t); return t;
   }
@@ -73,7 +83,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     list.forEach(p => { const id = 'u:' + p.id; ids.add(id); let m = live.get(id);
       if (!m || m.c.boat !== p.boat || JSON.stringify(m.c.colours) !== JSON.stringify(p.colours)) { drop(m); m = { c: null, g: null, tag: null, st: null, yaw: p.st.yaw, sayT: 0, mo: null }; live.set(id, m); }
       m.c = { id, uid: p.id, live: true, name: p.name, boat: p.boat, colours: p.colours, rank: p.rank, catches: p.catches }; m.st = p.st;
-      if (m.tag) m.tag.querySelector('b').textContent = p.name.split(' ')[0]; });
+      if (m.tag) m.tag.setAttribute('aria-label', p.name); });
     live.forEach((m, id) => { if (!ids.has(id)) { drop(m); live.delete(id); } });
   }
   function drop(m) { if (!m) return; if (m.ring) { scene.remove(m.ring); m.ring = null; } if (m.g) { scene.remove(m.g); m.g = null; } if (m.tag) { m.tag.remove(); m.tag = null; } }
@@ -124,10 +134,15 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       m.lastEv = now;
       ringFor(m, alerts.has(m.c.id), t);
       if (!m.c.live) drawGear(m, m.waiting ? null : s, x, z, fx, fz, sx, sz, g.position.y, t);
-      // name tag
+      // the avatar over the boat (one per boat, at its real position)
       const tg = m.tag; tmp.set(x, g.position.y + 12.5, z); const [px, py, pz] = toScreen(tmp);
-      const on = m.d < TAG && pz < 1 && px > -60 && px < innerWidth + 60 && py > -40 && py < innerHeight + 40;
-      tg.hidden = !on; if (on) { const cx = Math.min(innerWidth - 64, Math.max(64, px)); tg.style.transform = `translate(${cx.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -100%)`; const st = status(m, s); if (tg.dataset.s !== st) { tg.dataset.s = st; tg.querySelector('small').textContent = st; } }
+      const onScreen = pz < 1 && px > -60 && px < innerWidth + 60 && py > -40 && py < innerHeight + 40;
+      m.near = m.near ? m.d < AV_FAR : m.d < AV_NEAR; const hov = m.hoverTag || hoverId === m.c.id;
+      const want = !onScreen || m.d > TAG ? 0 : hov ? 1 : m.near ? 0.95 : 0.75;
+      m.op = (m.op ?? 0) + (want - (m.op ?? 0)) * Math.min(1, mdt * 5);
+      tg.hidden = m.op < 0.02 && want === 0;
+      if (!tg.hidden) { const cx = Math.min(innerWidth - 40, Math.max(40, px)); tg.style.transform = `translate(${cx.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -100%)`; tg.style.opacity = m.op.toFixed(3);
+        const mode = hov ? 'hover' : m.near ? 'near' : 'far'; if (tg.dataset.m !== mode) tg.dataset.m = mode; }
     });
   }
   /** The captain whose boat the ray hits, if any. */
@@ -144,5 +159,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
   }
   /** Everyone out on the water, near or far (the map): [{ c, x, z, yaw, status }]. */
   const everyone = () => all().filter(m => m.st).map(m => ({ c: m.c, x: m.mo ? m.x : m.st.x, z: m.mo ? m.z : m.st.z, yaw: m.mo ? m.yaw : m.st.yaw ?? m.yaw ?? 0, status: status(m, m.st) }));
-  return { update, hit, out, near, say, setLive, everyone, setAlert, setBooked };
+  // the boat under the mouse (main.js), whose avatar comes up clearly
+  let hoverId = null; const setHover = id => { hoverId = id; };
+  return { update, hit, out, near, say, setLive, everyone, setAlert, setBooked, setHover };
 }
