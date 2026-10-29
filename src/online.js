@@ -8,6 +8,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 
 const session = () => { try { return JSON.parse(localStorage.getItem('sailo:session')); } catch { return null; } };
 const STALE = 20000; // ms without news before a boat is dropped
+const SEND_MS = 500, DELAY = SEND_MS + 350; // positions go out twice a second while moving; others are drawn this far behind real time
 
 /**
  * @param chartId the chart everyone shares (one channel each)
@@ -46,7 +47,13 @@ export function createOnline({ chartId, me, on = {}, positions = true }) {
     const id = d.id; if (!id || id === uid) return; let p = players.get(id);
     if (event === 'pos') { if (!p) { p = { id, last: null }; players.set(id, p); Object.assign(p, clean(d)); on.change?.(); }
       const n = v => Number.isFinite(+v) ? +v : 0;
-      p.last = { x: n(d.x), z: n(d.z), yaw: n(d.yaw), kn: n(d.kn), kind: ['sail', 'fish', 'anchor', 'dock'].includes(d.kind) ? d.kind : 'sail', t: Date.now() }; p.seen = Date.now(); }
+      // a timestamped report into the buffer: the sender's clock, mapped to ours by the smallest delay seen so far
+      // (network jitter then doesn't shake the boat); reports that arrive out of order are dropped
+      const now = Date.now(), ts = Number.isFinite(+d.ts) ? +d.ts : now, lag = now - ts;
+      p.off = p.off == null || lag < p.off ? lag : p.off + (lag - p.off) * 0.02;
+      const s = { x: n(d.x), z: n(d.z), yaw: n(d.yaw), kn: n(d.kn), kind: ['sail', 'fish', 'anchor', 'dock'].includes(d.kind) ? d.kind : 'sail', t: ts + p.off };
+      p.buf = p.buf || []; if (p.buf.length && s.t <= p.buf[p.buf.length - 1].t) return;
+      p.buf.push(s); if (p.buf.length > 12) p.buf.shift(); p.last = s; p.seen = now; }
     else if (event === 'wave' && d.to === uid && p) on.wave?.(p);
     else if (event === 'caught' && p) on.caught?.(p, { fish: String(d.fish || ''), kg: Math.max(0, +d.kg || 0) });
     else if (String(event).startsWith('radio:') && (!d.to || d.to === uid)) on.radio?.(event.slice(6), p || { id, ...clean(d), last: null }, d); // (radio.js)
@@ -58,16 +65,23 @@ export function createOnline({ chartId, me, on = {}, positions = true }) {
     const now = Date.now(); if (!joined) return;
     if (positions && now > posT) { const m = me(), moved = !sent || Math.hypot(m.x - sent.x, m.z - sent.z) > 0.8 || Math.abs(m.yaw - sent.yaw) > 0.02 || m.kind !== sent.kind;
       if (moved || now - sent.t > 5000) { sent = { x: m.x, z: m.z, yaw: m.yaw, kind: m.kind, t: now };
-        send('broadcast', { type: 'broadcast', event: 'pos', payload: { ...profile(), x: +m.x.toFixed(2), z: +m.z.toFixed(2), yaw: +m.yaw.toFixed(3), kn: +m.kn.toFixed(1), kind: m.kind } }); }
-      posT = now + 1000; }
+        send('broadcast', { type: 'broadcast', event: 'pos', payload: { ...profile(), x: +m.x.toFixed(2), z: +m.z.toFixed(2), yaw: +m.yaw.toFixed(3), kn: +m.kn.toFixed(1), kind: m.kind, ts: now } }); }
+      posT = now + SEND_MS; }
     if (now > tokenT) { tokenT = now + 5 * 60000; const s = session(); if (s?.access_token) send('access_token', { access_token: s.access_token }); }
     players.forEach((p, k) => { if (now - (p.seen || 0) > STALE && p.last) { players.delete(k); on.change?.(); } });
   }
-  /** The captains on the water now, with where their boat should be drawn (dead reckoning since the last report). */
+  /** The captains on the water now, with where their boat should be drawn: their reports played back a moment
+   *  behind real time, blended between the two around that moment (past the newest one, carried on along its
+   *  course for up to 1.5 s, then held). */
   function list() {
-    const now = Date.now(), out = [];
-    players.forEach(p => { if (!p.last) return; const L = p.last, dt = Math.min(2, (now - L.t) / 1000), v = L.kind === 'sail' ? L.kn * 0.5144 : 0;
-      out.push({ ...p, st: { x: L.x + Math.cos(L.yaw) * v * dt, z: L.z - Math.sin(L.yaw) * v * dt, yaw: L.yaw, kind: L.kind, speed: v } }); });
+    const now = Date.now(), rt = now - DELAY, out = [], wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+    players.forEach(p => { const b = p.buf; if (!b?.length) return; let st;
+      const i = b.findIndex(s => s.t > rt);
+      if (i > 0) { const a = b[i - 1], c = b[i], k = (rt - a.t) / (c.t - a.t);
+        st = { x: a.x + (c.x - a.x) * k, z: a.z + (c.z - a.z) * k, yaw: a.yaw + wrap(c.yaw - a.yaw) * k, kind: k < 0.5 ? a.kind : c.kind, speed: Math.hypot(c.x - a.x, c.z - a.z) / Math.max(0.05, (c.t - a.t) / 1000) }; }
+      else { const L = i === 0 ? b[0] : b[b.length - 1], dt = i === 0 ? 0 : Math.min(1.5, (rt - L.t) / 1000), v = L.kind === 'sail' ? L.kn * 0.5144 : 0;
+        st = { x: L.x + Math.cos(L.yaw) * v * dt, z: L.z - Math.sin(L.yaw) * v * dt, yaw: L.yaw, kind: L.kind, speed: v }; }
+      out.push({ ...p, st }); });
     return out;
   }
   connect();

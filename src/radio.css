@@ -107,7 +107,7 @@ body.radio-open #dock, body.radio-open #helm, body.radio-open #status, body.radi
 #radio .rd-state small { font: 500 10.5px/1.3 'JetBrains Mono', monospace; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.7); }
 
 @media (max-width: 720px), (max-height: 520px) {
-  #radio-fab { left: calc(50% + 48px); bottom: calc(34px + var(--safe-b, 0px)); }
+  #radio-fab { left: calc(38px + var(--safe-l, 0px)); bottom: calc(34px + var(--safe-b, 0px)); transform: none; } /* (the helm is on the right) */
   #radio-fab img { width: 44px; height: 44px; padding: 10px; }
   #radio .rd-scrim { height: 92%; }
   #radio .rd-body { width: calc(100% - 32px); gap: 12px; padding-bottom: calc(18px + var(--safe-b, 0px)); }

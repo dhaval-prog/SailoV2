@@ -298,3 +298,13 @@ body #joy #helm-anchor.on img.n { opacity: 1; }
   body #joy #helm-anchor { left: calc(100% + 12px); width: 42px; height: 42px; margin-top: -21px; }
   body #joy #helm-anchor img { width: 20px; height: 20px; }
 }
+
+/* ---------- the helm on the right (wheel, anchor to its left, speed underneath), beside the dock column ---------- */
+html body #helm { left: auto; right: calc(106px + var(--safe-r, 0px)); align-items: center; } /* (html: over fishing-naked.css, loaded later) */
+body #helm #hint { text-align: right; align-self: flex-end; }
+body #joy #helm-anchor { left: auto; right: calc(100% + 16px); }
+@media (max-width: 720px), (max-height: 520px) {
+  /* phones: left of the big helm ring, the speed line right-aligned under the wheel so it clears the ring */
+  html body #helm { left: auto; right: calc(96px + var(--safe-r, 0px)); align-items: flex-end; }
+  body #joy #helm-anchor { left: auto; right: calc(100% + 12px); }
+}

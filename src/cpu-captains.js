@@ -68,7 +68,7 @@ const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', mo
 /** The Pune date ("2026-10-29"), weekday and minutes since midnight for a moment (ms). */
 export function puneNow(ms = Date.now()) {
   const p = Object.fromEntries(fmt.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
-  return { day: `${p.year}-${p.month}-${p.day}`, weekday: p.weekday, min: +p.hour * 60 + +p.minute + +p.second / 60 };
+  return { day: `${p.year}-${p.month}-${p.day}`, weekday: p.weekday, min: +p.hour * 60 + +p.minute + (+p.second + (ms % 1000) / 1000) / 60 }; // (to the millisecond: whole seconds made boats tick)
 }
 const dayBefore = day => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const weekdayOf = day => new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
