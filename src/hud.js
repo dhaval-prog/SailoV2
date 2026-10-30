@@ -491,7 +491,7 @@ export function initHud(api) {
     setOthers: (list, pick) => { othersFn = list; othersPick = pick; },
     /** SOS calls on the map: list() => [{ id, x, z, name, mine }]; pick(id) when one is tapped. */
     setSOS: (list, pick) => { sosFn = list; sosPick = pick; },
-    update({ x, z, heading, dest, edge, az, kn, gearName, catchN, distNm, topKn }) {
+    update({ x, z, heading, dest, edge, az, kn, maxKn = 12, gearName, catchN, distNm, topKn }) {
       lastStats.catchN = catchN; lastStats.distNm = distNm; lastStats.topKn = topKn; lastStats.x = x; lastStats.z = z;
       const pos = formatPosition(x, z);
       if (mapOpen) drawMap(x, z, heading, dest, pos);
@@ -501,7 +501,7 @@ export function initHud(api) {
       const deg = Math.round(az * 180 / Math.PI);
       if (deg !== last.az) { needle.style.transform = north.style.transform = `rotate(${deg}deg)`; last.az = deg; }
       const k = Math.round(Math.abs(kn) * 10) / 10;
-      if (k !== last.kn) { spd.textContent = k.toFixed(1); arc.style.strokeDasharray = `${Math.min(100, Math.abs(kn) / 12 * 100)} 100`; last.kn = k; }
+      if (k !== last.kn) { spd.textContent = k.toFixed(1); arc.style.strokeDasharray = `${Math.min(100, Math.abs(kn) / maxKn * 100)} 100`; last.kn = k; }
       { const b = ((90 - heading * 180 / Math.PI) % 360 + 360) % 360, h = `${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / 45) % 8]} ${Math.round(b) % 360}°`; if (h !== last.hdg) { hdgEl.textContent = h; last.hdg = h; } }
       if (gearName !== last.gear) { gear.textContent = gearName; gear.className = { Ahead: 'fwd', Autopilot: 'fwd', Astern: 'rev', Anchored: 'hold' }[gearName] || ''; last.gear = gearName; }
       if (catchN !== last.c) {
