@@ -557,11 +557,11 @@ const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
-// back to the middle to stop) and the rim is the wheel (one full turn either way, clockwise for
-// starboard, anticlockwise for port, is full rudder: it goes no further). The lever stays where you leave it; the wheel, let go, spins back to centre.
+// back to the middle to stop) and the rest of the wheel steers: drag left or right anywhere on it (no need to go round);
+// half a turn either way is full rudder. The lever stays where you leave it; the wheel, let go, spins back to centre.
 // Tablets (tablet.js) drive with both thumbs: the throttle is a lever of its own on the other side of the screen,
 // and the whole wheel steers.
-const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
+const HELM = { lever: 0, deg: 0, mode: null, TURNS: 180 };
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
   const thr = document.createElement('div'); thr.id = 'throttle'; thr.setAttribute('role', 'slider'); thr.setAttribute('aria-label', 'Throttle'); thr.setAttribute('aria-orientation', 'vertical');
   thr.setAttribute('aria-valuemin', '-100'); thr.setAttribute('aria-valuemax', '100'); thr.tabIndex = 0;
@@ -596,7 +596,7 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
     paintLever(); }; // (a tick through idle)
   // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
   let grab = null;
-  const LONG = 280; let armed = null, armT = 0, last = null; // (ms of a long press; the lever's state when it was picked up)
+  let armed = null, wheelGrab = null, start = null; // (the lever's state when it was picked up; where a steering drag began)
   const lever = g => { let v = grab ? grab.v - (g.dy - grab.dy) / (LEV() * g.k) : -g.dy / (LEV() * g.k);
     if (armed?.from > 0) v = Math.max(0, v); else if (armed?.from < 0) v = Math.min(0, v); // (ahead or astern: back to idle, no further)
     setLever(v); };
@@ -610,20 +610,17 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
     HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 66 : 46) * g.k) ? 'lever' : 'wheel';
     base.classList.toggle('lever', HELM.mode === 'lever'); holding();
     grab = HELM.mode === 'lever' && big ? { v: HELM.lever, dy: g.dy } : null;
-    // by touch the lever takes a long press first (a brush of the thumb doesn't move it); then up from idle goes ahead,
-    // down from idle astern, and from ahead or astern it only comes back as far as idle (a second press to go on)
-    armed = null; clearTimeout(armT);
-    if (HELM.mode === 'lever' && e.pointerType !== 'mouse') { const pid = id; base.classList.add('lever-wait');
-      armT = setTimeout(() => { if (id !== pid || HELM.mode !== 'lever') return; armed = { from: Math.sign(HELM.lever) }; grab = { v: HELM.lever, dy: last.dy };
-        base.classList.remove('lever-wait'); base.classList.add('lever-armed'); if (navigator.vibrate) navigator.vibrate(18); }, LONG); last = g; return; }
-    if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
+    // the lever moves straight away; from ahead or astern a drag comes back only as far as idle (a second drag goes on)
+    armed = HELM.mode === 'lever' ? { from: Math.sign(HELM.lever) } : null;
+    start = { x: g.dx, y: g.dy, lever: HELM.lever, decided: HELM.mode !== 'lever' }; wheelGrab = { x: g.dx, deg: HELM.deg }; });
   base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
-    if (HELM.mode === 'lever') { if (base.classList.contains('lever-wait')) { if (Math.hypot(g.dx - last.dx, g.dy - last.dy) > 10 * g.k) { clearTimeout(armT); base.classList.remove('lever-wait'); } return; } // (moved before the long press: not picked up)
-      if (armed || e.pointerType === 'mouse') lever(g); return; }
-    if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
-    const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
-    HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
-  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; armed = null; clearTimeout(armT); base.classList.remove('active', 'lever', 'lever-wait', 'lever-armed'); holding(); };
+    // a drag that starts on the hub but goes sideways steers instead (the first few pixels decide)
+    if (HELM.mode === 'lever' && !start.decided) { const mx = Math.abs(g.dx - start.x), my = Math.abs(g.dy - start.y); if (Math.max(mx, my) < 6 * g.k) return;
+      start.decided = true; if (mx > my * 1.2) { HELM.mode = 'wheel'; base.classList.remove('lever'); wheelGrab = { x: start.x, deg: HELM.deg }; } }
+    if (HELM.mode === 'lever') { lever(g); return; }
+    // steering: left or right across the wheel (its width either way is half a turn: full rudder)
+    if (wheelGrab) HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, wheelGrab.deg + (g.dx - wheelGrab.x) / (60 * g.k) * HELM.TURNS)); });
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; armed = null; wheelGrab = null; base.classList.remove('active', 'lever'); holding(); };
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => base.addEventListener(ev, end));
   // the throttle: drag the handle (or touch anywhere along the track) up for ahead, down for astern; it stays where
   // it's left. Idle (or a tap on "Idle") stops the boat.
