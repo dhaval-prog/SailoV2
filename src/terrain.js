@@ -22,17 +22,17 @@ const GREEN = /^(park|grass|wood|scrub|pitch|cemetery|agriculture|golf_course|ga
 function rocksOf(shapes, rect, clear) {
   const cells = new Map(), C = T.cell, cand = [];
   shapes.forEach(({ ring }) => { const a = area(ring); if (a < 30) return; const [cx, cz] = centroid(ring);
-    if (a >= T.hugeArea) cand.push({ x: cx, z: cz, r: Math.min(T.hugeMax, Math.max(T.hugeMin, Math.sqrt(a) * 0.42)), huge: true });
+    if (a >= T.hugeArea) cand.push({ x: cx, z: cz, r: T.bigR, huge: true });
     const k = `${Math.floor(cx / C)},${Math.floor(cz / C)}`, c = cells.get(k) || { a: 0, x: 0, z: 0 }; c.a += a; c.x += cx * a; c.z += cz * a; cells.set(k, c); });
-  cells.forEach(c => { const cov = c.a / (C * C); if (cov < T.dense) return; cand.push({ x: c.x / c.a, z: c.z / c.a, r: T.medMin + (T.medMax - T.medMin) * Math.min(1, (cov - T.dense) / 0.5) }); });
+  cells.forEach(c => { const cov = c.a / (C * C); if (cov < T.dense) return; cand.push({ x: c.x / c.a, z: c.z / c.a, r: T.medR }); });
   cand.sort((a, b) => b.r - a.r || a.x - b.x || a.z - b.z);
   const out = [], m = T.edge;
   cand.forEach(c => {
     if (c.x < rect.x0 + m || c.x > rect.x1 - m || c.z < rect.z0 + m || c.z > rect.z1 - m) return; // (a lane along every tile edge)
     if (Math.abs(c.x) > WORLD.half - 60 || Math.abs(c.z) > WORLD.half - 60 || clear(c.x, c.z, c.r)) return;
     if (out.some(o => Math.hypot(o.x - c.x, o.z - c.z) < o.r + c.r + T.gap)) return;
-    const s = h01(Math.round(c.x), Math.round(c.z), 1);
-    out.push({ x: c.x, z: c.z, r: c.r, h: c.huge ? 11 + s * 10 : 4 + s * 5, k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
+    const s = h01(Math.round(c.x), Math.round(c.z), 1), v = 0.92 + s * 0.16; // (each a little different, ±8%)
+    out.push({ x: c.x, z: c.z, r: c.r * v, h: (c.huge ? T.bigH : T.medH) * (0.92 + h01(Math.round(c.x), Math.round(c.z), 3) * 0.16), k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
   });
   return out;
 }
@@ -55,7 +55,7 @@ function coralsOf(shapes, clear) {
  * @param o.stations [{ x, z }]   every Paradise Station (kept clear)
  * @param o.getBoat () => ({ x, z })
  */
-export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1, light = () => 1 }) {
+export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1, light = () => 1, fade = () => {} }) {
   const on = provider === 'mapbox'; // (OpenStreetMap has no footprints at this scale: then there are none)
   const clear = (x, z, r) => Math.hypot(x, z) < T.startClear + r || stations.some(s => Math.hypot(s.x - x, s.z - z) < T.stationClear + r);
   const rocks = new Map(), corals = new Map(), loading = new Set(); // tile key → list
@@ -64,12 +64,12 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   async function load(kind, z, x, y) {
     const key = `${kind}:${z}/${x}/${y}`, store = kind === 'rocks' ? rocks : corals; if (store.has(key) || loading.has(key)) return; loading.add(key);
     try {
-      let list = await geoCacheGet('terrain-v6:' + key);
+      let list = await geoCacheGet('terrain-v7:' + key);
       if (!list) {
         const shapes = await mapShapes(kind === 'rocks' ? 'building' : 'landuse', x, y, z, kind === 'rocks' ? () => true : cls => GREEN.test(cls));
         if (!shapes) return; // (offline: try again later)
         list = kind === 'rocks' ? rocksOf(shapes, tileRect(x, y, z), clear) : coralsOf(shapes, clear);
-        geoCachePut('terrain-v6:' + key, list);
+        geoCachePut('terrain-v7:' + key, list);
       }
       store.set(key, list);
       if (kind === 'rocks') list.forEach(r => { const e = r.r + T.boatPad; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const k = gkey(r.x + i * e, r.z + j * e); if (!grid.has(k)) grid.set(k, new Set()); grid.get(k).add(r); } });
@@ -91,6 +91,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     mat.customProgramCacheKey = () => ink ? 'sea-rock-ink' : 'sea-rock'; return mat; }; // (the two differ only inside: keep their shaders apart)
   const rockMat = rockShader(new THREE.MeshBasicMaterial({ name: 'sea_rock', vertexColors: true }), false);
   const inkMat = rockShader(new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#4a1d24', side: THREE.BackSide }), true);
+  fade(rockMat); fade(inkMat); // (far off they dissolve into the haze)
   const tileMeshes = new Map(), toBuild = []; // tile key → { rock, ink }
   function buildTile(key) { const list = rocks.get(key); if (!list?.length || tileMeshes.has(key)) return;
     const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;

@@ -13,6 +13,7 @@ import { createTerrain } from './terrain.js';
 import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
 import { rpc } from './econ.js';
+import { farFade } from './far-fade.js';
 import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
@@ -556,11 +557,11 @@ const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
-// back to the middle to stop) and the rim is the wheel (turn it round and round: two full
-// turns either way is full rudder). The lever stays where you leave it; the wheel, let go, spins back to centre.
+// back to the middle to stop) and the rim is the wheel (one full turn either way, clockwise for
+// starboard, anticlockwise for port, is full rudder: it goes no further). The lever stays where you leave it; the wheel, let go, spins back to centre.
 // Tablets (tablet.js) drive with both thumbs: the throttle is a lever of its own on the other side of the screen,
 // and the whole wheel steers.
-const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
+const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
   const thr = document.createElement('div'); thr.id = 'throttle'; thr.setAttribute('role', 'slider'); thr.setAttribute('aria-label', 'Throttle'); thr.setAttribute('aria-orientation', 'vertical');
   thr.setAttribute('aria-valuemin', '-100'); thr.setAttribute('aria-valuemax', '100'); thr.tabIndex = 0;
@@ -572,7 +573,8 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   const track = thr.querySelector('.th-track'), thumb = thr.querySelector('.th-thumb'), fill = thr.querySelector('.th-fill');
   const travel = () => (track.clientHeight - thumb.offsetHeight) / 2; // px from idle to full ahead (or astern)
   const geo = e => { const r = base.getBoundingClientRect(), k = r.width / 170; return { k, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) }; };
-  const paintLever = () => { const R = 40, v = HELM.lever, t = travel();
+  const LEV = () => phoneQ.matches ? 58 : 40; // (the lever's travel each way, in wheel units: on phones the slot runs the wheel's height)
+  const paintLever = () => { const R = LEV(), v = HELM.lever, t = travel();
     knob.style.transform = isTablet() ? 'none' : `translate(0px, ${(-v * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
     base.classList.toggle('fwd', v > 0); base.classList.toggle('rev', v < 0);
     thumb.style.transform = `translateY(${(-v * t).toFixed(1)}px)`;
@@ -590,17 +592,17 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
   let grab = null;
   const LONG = 280; let armed = null, armT = 0, last = null; // (ms of a long press; the lever's state when it was picked up)
-  const lever = g => { let v = grab ? grab.v - (g.dy - grab.dy) / (40 * g.k) : -g.dy / (40 * g.k);
+  const lever = g => { let v = grab ? grab.v - (g.dy - grab.dy) / (LEV() * g.k) : -g.dy / (LEV() * g.k);
     if (armed?.from > 0) v = Math.max(0, v); else if (armed?.from < 0) v = Math.min(0, v); // (ahead or astern: back to idle, no further)
     setLever(v); };
   // while a thumb is on the wheel or the throttle, the buttons round them don't take stray taps
   const holding = () => document.body.classList.toggle('steering', id != null || thrId != null);
-  base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
+  base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * LEV() * g.k;
     id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8);
     // on the hub (or the slot it slides in): the lever; anywhere else: the wheel (on tablets the wheel only steers).
     // Phones get a bigger lever area: a band down the middle of the wheel, inside its rim.
     const big = phoneQ.matches, w = (big ? 34 : 24) * g.k;
-    HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 50 : 46) * g.k) ? 'lever' : 'wheel';
+    HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 66 : 46) * g.k) ? 'lever' : 'wheel';
     base.classList.toggle('lever', HELM.mode === 'lever'); holding();
     grab = HELM.mode === 'lever' && big ? { v: HELM.lever, dy: g.dy } : null;
     // by touch the lever takes a long press first (a brush of the thumb doesn't move it); then up from idle goes ahead,
@@ -788,14 +790,18 @@ function castAt(p) {
 function stopFishing() { if (ACT.fish === 'off' || ACT.fish === 'reelin') return; fishing.reset(); if (!bobber.visible) bobber.position.copy(tipW); ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
 // while the anchor drops or comes up, the camera swings in close to the bow so you can watch it
 let anchorCamT = -1;
-const fishCam = () => setView(state.view); // (fishing keeps the usual view of the boat, from above: no swing round)
+// fishing: the camera rises to look down on the boat from high up (about 52° above the sea), far enough that the boat
+// takes about a fifth of the screen's width, from the side it was already looking from (no swing round)
+const fishCam = () => { const cam = stage._camera, tg = stage._controls.target, dir = cam.position.clone().sub(tg).setY(0); if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); dir.normalize();
+  const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) * cam.aspect), dist = Math.min(160, Math.max(36, 11 / 0.36 / 2 / Math.tan(hf / 2))), el = THREE.MathUtils.degToRad(52);
+  animCam(dir.multiplyScalar(dist * Math.cos(el)).setY(dist * Math.sin(el)), 1.5, 1.2); };
 const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const focus = fwd.clone().multiplyScalar(ANC.x).addScaledVector(side, ANC.z);
   animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
 function dropAnchor() { if (ACT.anchor !== 'up') return; clearCourse(false);
   // the sail boat anchors without the drop animation: it just holds position and furls its sails
   if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'down'; anchorG.visible = false; chain.visible = false; floatText(boat.position.clone().setY(boat.position.y + 9), 'Anchored · lowering sails', '#fff7ea'); paintStatus(); if (fishAfterAnchor) startFishing(); return; }
-  ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; anchorCam(); paintStatus(); }
+  ACT.anchor = 'dropping'; A.k = 0; A.splashed = false; A.bub = 0; chain.visible = true; if (fishAfterAnchor) fishCam(); else anchorCam(); paintStatus(); } // (going fishing: straight to the fishing view)
 function raiseAnchor() { fishAfterAnchor = false; if (ACT.anchor !== 'down') return;
   stopFishing(); // raising the anchor means sailing on: the rod comes in and the wheel comes back
   if (boatId === 'sail' || boatId === 'dinghy') { ACT.anchor = 'up'; anchorG.visible = true; anchorG.position.y = ANC.y0; floatText(boat.position.clone().setY(boat.position.y + 9), 'Hoisting sails', '#fff7ea'); paintStatus(); return; }
@@ -824,7 +830,7 @@ function stepActions(t, dt) {
     for (let i = 0; i < n; i++) { const yy = hawseY - (i + 0.5) * LINK; linkP.set(ANC.x + sway * (hawseY - yy), yy, ANC.z); linkM.compose(linkP, linkQ[i & 1], linkS); chain.setMatrixAt(i, linkM); }
     chain.count = n; chain.instanceMatrix.needsUpdate = true; }
   // bring the camera back once the anchor has settled
-  if (anchorCamT >= 0 && (ACT.anchor === 'up' || ACT.anchor === 'down')) { anchorCamT += dt; if (anchorCamT > 0.4) { anchorCamT = -1; setView(state.view); } }
+  if (anchorCamT >= 0 && (ACT.anchor === 'up' || ACT.anchor === 'down')) { anchorCamT += dt; if (anchorCamT > 0.4) { anchorCamT = -1; if (ACT.fish !== 'off' && ACT.fish !== 'reelin') fishCam(); else setView(state.view); } } // (fishing: the high fishing view)
   if (ACT.anchor === 'down') {
     vel *= Math.pow(0.05, dt); yaw += Math.sin(t * 0.25) * dt * 0.03;
     A.rip -= dt; if (A.rip <= 0) { A.rip = 1.6; anchorG.getWorldPosition(tmpV); const cw = new THREE.Vector3(ANC.x, 0, ANC.z).applyMatrix4(boat.matrixWorld); ripple(cw.x, cw.z, 0.45, 1.8); }
@@ -967,7 +973,8 @@ const moveBoat = (x, z, newYaw, moving) => { const dx = x - boat.position.x, dz 
   stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz; yaw = newYaw; dockVel = moving * 3; };
 // (the wallet sits under the place name and the clock in the top-left block)
 queueMicrotask(() => { const w = document.getElementById('stn-wallet'); if (w) document.getElementById('hud-tl').appendChild(w); });
-const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
+const fadeFar = farFade(seaU.uFog); // (rocks and islands far off dissolve into the haze, as the sea does)
+const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, fade: fadeFar, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
   camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
   onDockEnd: () => setView(state.view),
   berthInfo: i => berths?.info(i), bookBerth: i => berths ? berths.book(i) : Promise.resolve({ ok: true }), berthState: s => berths?.state(s),
@@ -1035,12 +1042,18 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
-terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night,
+terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night, fade: fadeFar,
   onHit: k => { hud.note('Rocks! Steer round them.', 2500); const p = 3 + 7 * k; // (the picture jolts: harder the faster you hit)
     stage.animate?.([{ transform: 'translate(0,0)' }, { transform: `translate(${p}px,${-p * 0.6}px)` }, { transform: `translate(${-p * 0.8}px,${p * 0.5}px)` }, { transform: `translate(${p * 0.4}px,${-p * 0.3}px)` }, { transform: 'translate(0,0)' }], { duration: 320, easing: 'ease-out' }); },
   onWarn: () => hud.note('Rocks ahead!', 1800) });
 fishShadows = createFishShadows({ THREE, scene: stage._scene, WL, wave: waveJS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
   species: () => FISH.map(f => ({ f, w: localOdds(f) })).filter(s => s.w > 0), image: (id, cb) => station.fishImageSoon(id, cb), active: () => station.mode === 'sea' });
+// the map, in the ring of icons round the wheel (after the cannon): opens the chart
+{ const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'map-orbit'; btn.setAttribute('aria-label', 'Map');
+  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.2l5.3-2.2 6.4 2.2 5.3-2.2v13.6l-5.3 2.2-6.4-2.2-5.3 2.2z"/><path d="M8.8 4v13.6M15.2 6.2v13.6"/></svg>';
+  document.body.appendChild(btn); btn.addEventListener('click', () => document.getElementById('dk-compass')?.click());
+  let at = ''; setInterval(() => { const p = helmOrbit.mapAt?.(48), v = p ? `${Math.round(p[0] - 24)},${Math.round(p[1] - 24)}` : '';
+    if (v === at) return; at = v; btn.style.visibility = v ? '' : 'hidden'; if (v) { const [x, y] = v.split(','); btn.style.left = x + 'px'; btn.style.top = y + 'px'; } }, 250); }
 // salvage: planks floating at sea, and wrecks to salvage (salvage.js; settings in world-config.js)
 salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: STATION, stations: STATIONS, edge: edgeDistance,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw }), report: () => combat.reportNow(), applyEcon: st => station.applyEcon(st),

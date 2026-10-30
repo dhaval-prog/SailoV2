@@ -267,3 +267,10 @@ body.aiming #stn-wallet, body.aiming #hud-scrim { pointer-events: none; }
 #salvage button:disabled { opacity: 0.5; cursor: default; }
 body.salvaging #nk-note { bottom: calc(330px + var(--safe-b, 0px)); }
 @media (max-width: 720px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #salvage .sv-go, #salvage .sv-card { bottom: calc(250px + var(--safe-b, 0px)); } body.salvaging #nk-note { bottom: calc(480px + var(--safe-b, 0px)); } }
+
+/* the map in the ring round the wheel (main.js): it goes when the helm does, or while fishing or at anchor */
+#map-orbit { position: fixed; z-index: 31; width: 48px; height: 48px; padding: 0; border: 0; background: none; cursor: pointer; display: none; place-items: center; -webkit-tap-highlight-color: transparent; }
+#map-orbit svg { width: 30px; height: 30px; fill: rgba(255, 255, 255, 0.16); stroke: #fff; stroke-width: 1.9; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.85)) drop-shadow(0 0 8px rgba(0, 20, 50, 0.45)); }
+#map-orbit:active svg { transform: scale(0.92); }
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #map-orbit { display: grid; } } /* (phones: wider screens have the compass in the side column) */
+body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #map-orbit { display: none; }

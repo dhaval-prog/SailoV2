@@ -176,7 +176,7 @@ export function initStation(ctx) {
   const root = new THREE.Group(); root.name = 'paradise_station'; root.position.copy(O); root.scale.setScalar(K); root.visible = false; stage._scene.add(root);
   // built the first time the boat heads towards the station
   let island = null, ready = false;
-  const build = () => { island = buildIsland({ THREE, M, scale: K, waveAt: (x, z, t) => waveJS(O.x + x * K, O.z + z * K, t) / K }); root.add(island.root); ready = true; };
+  const build = () => { island = buildIsland({ THREE, M, scale: K, waveAt: (x, z, t) => waveJS(O.x + x * K, O.z + z * K, t) / K }); root.add(island.root); ready = true; if (ctx.fade) island.root.traverse(o => (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => ctx.fade(m))); }; // (far off it dissolves into the haze)
 
   let stnT = 0;
   // the nearest station becomes the one you can sail into: the island (and everything on it) moves there
@@ -268,7 +268,16 @@ export function initStation(ctx) {
   let booking = false, berthPaintT = 0;
   // phones: a tap anywhere off the "Sail into port" bar puts it away (until you next come into range)
   let dismissed = false; const compact = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
-  addEventListener('pointerdown', e => { if (compact.matches && mode === 'sea' && near && !dismissed && !$('stn-bar').contains(e.target)) { dismissed = true; renderBar(); } }, true);
+  // a tap on the station's island (when you're close): choose a berth, as "Sail into port" does (even after the bar was put away)
+  const hitRay = new THREE.Raycaster(), hitV = new THREE.Vector2();
+  const onIsland = e => { if (!ready || !root.visible || e.target.closest?.('button, .stn-bar, .modal, #sheet, #nk-map')) return false; const r = stage._rect();
+    hitV.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); hitRay.setFromCamera(hitV, stage._camera); return hitRay.intersectObject(root, true).length > 0; };
+  let downIsland = false;
+  addEventListener('pointerdown', e => { downIsland = mode === 'sea' && onIsland(e);
+    if (compact.matches && mode === 'sea' && near && !dismissed && !downIsland && !$('stn-bar').contains(e.target)) { dismissed = true; renderBar(); } }, true);
+  addEventListener('pointerup', e => { if (!downIsland || mode !== 'sea') return; downIsland = false; if (!onIsland(e)) return;
+    const d = Math.hypot(ctx.boatPos().x - O.x, ctx.boatPos().z - O.z);
+    if (d < NEAR * 1.3) { e.stopPropagation(); dismissed = false; $('sailBtn').onclick(); } else toast('Sail closer to the station to moor.'); }, true);
   async function startDocking(i) {
     if (mode !== 'picking' || booking) return;
     // book it first: two boats can't take the same berth
