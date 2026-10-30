@@ -7,6 +7,7 @@ import { initStation, STATION, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LO
 import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
+import { createCombat } from './combat.js';
 import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
@@ -637,6 +638,7 @@ if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre')
       `mode ${['fullscreen', 'standalone', 'minimal-ui', 'browser'].find(m => matchMedia(`(display-mode: ${m})`).matches)}`].join('\n'); };
   paint(); setInterval(paint, 1000); }
 let boostT = 0; // seconds of NOS boost left (granted by the station: nos.js)
+let combat = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -905,6 +907,7 @@ stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clien
 stage.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6 || performance.now() - downAt.t > 450) return;
   if (seaLabels.cancelled) return; // that tap just put a place name back
+  if (combat?.aiming) { combat.tap(e); return; } // (aiming: the tap fires)
   const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, stage._camera);
   const hit = ray.intersectObject(boat, true).length > 0;
@@ -961,7 +964,8 @@ const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: (n, step) => stati
 // the local sailors (Pune Paradise) and real captains online (every chart) share one fleet on the water
 const isPuneChart = CHART.id === 'pune';
 const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group }, waveJS, WL, toScreen, cpu: isPuneChart,
-  playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c) });
+  playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c),
+  hullOf: c => c.live ? null : combat?.npcHull(c.id), smoke: (x, z, k) => combat?.smokeFrom(x, z, k) });
 // the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
 const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
@@ -978,8 +982,8 @@ const myColours = () => { const get = k => { try { return JSON.parse(localStorag
   return {}; };
 let myCatches = { n: 0, at: 0 }; const caughtTotal = () => { if (Date.now() - myCatches.at > 60000) { let n = 0; try { Object.values(JSON.parse(localStorage.getItem('sailo:fishlog') || '{}')).forEach(r => { n += r.n || 0; }); } catch { /* storage blocked */ } myCatches = { n, at: Date.now() }; } return myCatches.n; };
 const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x, z: boat.position.z, yaw, kn: Math.abs(vel * 1.944), boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal(),
-  kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail', nos: boostT > 0 }),
-  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
+  kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail', nos: boostT > 0, hp: combat ? combat.hull.hp : 100 }),
+  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } if (k === 'shot' || k === 'hit') { combat?.heard(k, p, d); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
 hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
 const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c), onCompose: (c, kind) => radioHelp.compose?.(kind, { uid: c.uid, name: c.name }) });
 // the boat's marine radio; the worldwide channel is joined only when someone tunes to it
@@ -988,6 +992,25 @@ const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPu
   global: heard => createOnline({ chartId: 'global', positions: false, me: () => ({ x: 0, z: 0, yaw: 0, kn: 0, kind: 'sail', boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal() }), on: { radio: heard } }) });
 // NOS: the button at the helm; a boost granted is spent by the boat's motion (the frame loop below)
 createNos({ station, orbit: helmOrbit, moving: () => vel > 0.5 && ACT.anchor === 'up' && station.mode === 'sea', boost: s => { boostT = s; }, note: t => hud.note(t, 4000) });
+// naval combat: the cannon at the helm, shots and hits (checked by the server), damage, and the safe harbour
+combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, emit, station, chartId: CHART.id, stationPos: STATION, orbit: helmOrbit,
+  getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw, vel }),
+  targets: () => [...(online ? online.list().map(p => ({ kind: 'player', id: p.id, name: p.name, x: p.st.x, z: p.st.z })) : []),
+    ...cpuFleet.everyone().filter(e => !e.c.live && !combat.npcHull(e.c.id)?.sunk).map(e => ({ kind: 'npc', id: e.c.id, name: e.c.name, x: e.x, z: e.z }))],
+  canFire: () => wreckT > 0 ? 'Your boat is wrecked.' : station.mode !== 'sea' ? 'Cast off first.' : ACT.fish !== 'off' ? 'Stop fishing first.' : ACT.anchor !== 'up' ? 'Raise the anchor first.' : '',
+  send: (k, payload) => online?.radio(k, payload),
+  seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
+  note: t => hud.note(t, 3500), onHull: h => station.setHull(h),
+  onWrecked: by => { wreckT = 0.001; vel = 0; clearCourse(false); hud.note(`Your boat was wrecked${by ? ` by ${by}` : ''}! She’ll be towed back to Paradise Station.`, 6000); } });
+addEventListener('sailo:hull', e => combat.repaired({ hp: e.detail.hp, hull: e.detail.hull, wrecked: false }));
+// a wrecked boat settles low in the water, then is towed home to Paradise Station and patched up
+function stepWreck(dt) {
+  if (wreckT <= 0) return; wreckT += dt; boat.position.y -= dt * 0.9; boat.rotation.x = Math.min(0.5, boat.rotation.x + dt * 0.15);
+  if (wreckT < 3.2) { if (Math.random() < 0.6) combat.smokeFrom(boat.position.x, boat.position.z, 1); return; }
+  wreckT = 0; const [x, z] = PORT.sea0, dx = x + 30 - boat.position.x, dz = z + 30 - boat.position.z;
+  [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); boat.position.y = 0; boat.rotation.x = 0; vel = 0;
+  combat.respawn().then(() => hud.note('Towed back to Paradise Station. The hull is patched up.', 5000));
+}
 // berths at Paradise Station: real captains book them in the database; the local sailors' come from their schedule
 var berths = createBerths({ chartId: CHART.id, online, playerName: hud.captainName, fleet: cpuFleet, cpu: isPuneChart });
 // SOS, saved messages, blocks and reports (signed-in captains)
@@ -1035,6 +1058,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   }
   if (ACT.anchor !== 'up') thr = 0;
   const busy = stationBusy(); if (busy) { thr = 0; str = 0; HELM.reset(); } // the station steers while mooring / moored
+  if (wreckT > 0) { thr = 0; str = 0; } // (wrecked: going down)
   steerS += (str - steerS) * Math.min(1, dt * 4);
   wheelUI.style.transform = `rotate(${HELM.mode === 'wheel' ? HELM.deg : steerS * HELM.TURNS}deg)`; // on-screen wheel: follows the hand, or the autopilot
   if (!stage._exporting) {
@@ -1056,7 +1080,8 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
     const hC = waveJS(bx, bz, t), hF = waveJS(bx + fx * 3, bz + fz * 3, t), hB = waveJS(bx - fx * 3, bz - fz * 3, t), hS = waveJS(bx + sx * 2, bz + sz * 2, t), hP = waveJS(bx - sx * 2, bz - sz * 2, t);
     boat.position.y += ((hC + hF + hB) / 3 * 0.85 - boat.position.y) * Math.min(1, dt * 3);
-    boat.rotation.set(boat.rotation.x + (-Math.atan((hS - hP) / 4) * 0.8 + steerS * sv * 0.07 - boat.rotation.x) * Math.min(1, dt * 3), yaw, boat.rotation.z + (Math.atan((hF - hB) / 6) * 0.8 + sv * 0.035 - boat.rotation.z) * Math.min(1, dt * 3));
+    const holed = combat ? 1 - combat.hull.hp / combat.hull.max : 0; if (holed > 0.4) combat.smokeFrom(bx, bz, holed); // (damaged: smoke; badly holed: a list)
+    boat.rotation.set(boat.rotation.x + (-Math.atan((hS - hP) / 4) * 0.8 + steerS * sv * 0.07 + (holed > 0.7 ? 0.1 : 0) - boat.rotation.x) * Math.min(1, dt * 3), yaw, boat.rotation.z + (Math.atan((hF - hB) / 6) * 0.8 + sv * 0.035 - boat.rotation.z) * Math.min(1, dt * 3));
     const bowX = bx + fx * 5.6, bowZ = bz + fz * 5.6, bowY = WL + waveJS(bowX, bowZ, t);
     if (Math.abs(vel) > 1) for (let q = 0; q < Math.ceil(Math.abs(sv) * 4); q++) { const sd = Math.random() < 0.5 ? -1 : 1, sp = 1.5 + Math.random() * 2; emit(bowX + sx * sd * 0.6, bowY, bowZ + sz * sd * 0.6, sx * sd * sp + fx * vel * 0.4, 2 + Math.random() * 2.5 * Math.abs(sv), sz * sd * sp + fz * vel * 0.4); }
     if (Math.random() < 0.12) { const sd = Math.random() < 0.5 ? -1 : 1, along = (Math.random() - 0.5) * 7; const ex = bx + fx * along + sx * sd * 2.5, ez = bz + fz * along + sz * sd * 2.5; for (let q = 0; q < 6; q++) emit(ex, WL + waveJS(ex, ez, t), ez, sx * sd * (0.5 + Math.random()), 1.2 + Math.random() * 1.5, sz * sd * (0.5 + Math.random())); }
@@ -1097,7 +1122,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 

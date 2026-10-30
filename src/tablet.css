@@ -99,3 +99,9 @@ html body #joy #helm-anchor { opacity: 0.9; }
 html body #joy #helm-anchor.on img.w { opacity: 1; }
 html body #joy #helm-anchor.on img.n { opacity: 0; }
 html body #radio-fab img { border: 0; }
+
+/* the hull (combat.js), beside coins and fuel once your boat is damaged */
+body #stn-wallet #hullPill { margin-left: 14px; font-size: 14px; color: #FFE3A8; }
+body #stn-wallet #hullPill[hidden] { display: none; }
+body #stn-wallet #hullPill.low { color: #FF8A7A; animation: nh-notif 1s ease-in-out infinite; }
+body #stn-wallet .hull-ico { width: 14px; height: 10px; border-radius: 0 0 7px 7px; background: currentColor; box-shadow: 0 1px 2px rgba(0, 20, 50, 0.6); }

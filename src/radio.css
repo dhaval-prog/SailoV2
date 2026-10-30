@@ -233,3 +233,19 @@ body.stn-bar-on #helm-orbit .dk { opacity: 0; visibility: hidden; pointer-events
 /* it steps aside with the helm */
 body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #nos-btn { display: none; }
 body.steering #nos-btn { pointer-events: auto; } /* (a second thumb fires it while the first steers) */
+
+/* the cannon (combat.js): bare like the other helm icons; the arc is the reload, the number the balls left */
+#cannon-btn { position: fixed; z-index: 31; width: 56px; height: 56px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer; display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
+#cannon-btn[hidden] { display: none; }
+#cannon-btn svg { width: 56px; height: 56px; overflow: visible; filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.85)) drop-shadow(0 0 8px rgba(0, 20, 50, 0.45)); }
+#cannon-btn .cb-track { fill: none; stroke: rgba(255, 255, 255, 0.18); stroke-width: 2.5; }
+#cannon-btn .cb-load { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 30px 30px; opacity: 0; transition: opacity 0.2s; }
+#cannon-btn.loading .cb-load { opacity: 0.9; stroke: #FFC531; }
+#cannon-btn .cb-ico { fill: #fff; } #cannon-btn .cb-mouth, #cannon-btn .cb-hub { fill: #172443; }
+#cannon-btn .cb-n { position: absolute; right: 2px; bottom: 2px; min-width: 18px; padding: 0 3px; font: 900 11px/16px var(--nh-font, 'Nunito', sans-serif); text-align: center; border-radius: 8px; background: #172443; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.8); }
+#cannon-btn.empty .cb-n { background: #FF5A4E; }
+#cannon-btn.on svg { filter: drop-shadow(0 0 10px rgba(255, 197, 49, 0.9)) drop-shadow(0 1px 2px rgba(0, 20, 50, 0.8)); }
+#cannon-btn.on .cb-ico { fill: #FFC531; }
+#cannon-btn:hover svg { transform: scale(1.06); } #cannon-btn:active svg { transform: scale(0.92); }
+body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #cannon-btn { display: none; }
+body.aiming #stn-wallet, body.aiming #hud-scrim { pointer-events: none; }

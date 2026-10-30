@@ -73,3 +73,18 @@ export const ECONOMY = {
     accel: 2.4,          // acceleration while boosting (×)
   },
 };
+
+// naval combat (combat.js; the server's copy: combat_cfg() in supabase/migrations/…_sailov2_combat.sql: keep in step)
+export const COMBAT = {
+  cannonPrice: 300,      // coins, once per boat (comes with startBalls)
+  ballPrice: 4,          // coins a cannonball
+  startBalls: 10, maxBalls: 40,
+  hull: 100,             // a hull's points
+  damage: 25,            // per hit (four hits sink a sound boat; never one, unless it's already badly holed)
+  reload: 4,             // seconds between shots
+  range: 140,            // metres
+  arc: 110,              // degrees: the cannon fires to either side (port or starboard), within this arc
+  repairPerHp: 2,        // coins per point of hull, at the Boathouse
+  safeRadius: 450,       // metres round Paradise Station: a safe harbour (no firing, no damage)
+  npcSunk: 600,          // seconds a sunk local sailor stays away
+};

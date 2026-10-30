@@ -23,7 +23,7 @@ const PAINT = {
   dinghy: { sail: ['mainsail_cloth', 'sail_cloth'], hull: ['hull_sage'] },
 };
 
-export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen, cpu = true }) {
+export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen, cpu = true, hullOf, smoke }) {
   const crew = (cpu ? ROSTER : []).map(c => ({ c, g: null, tag: null, st: null, yaw: 0, nextCheck: 0, lastEv: Date.now(), sayT: 0 }));
   const tagLayer = document.createElement('div'); tagLayer.id = 'cpu-tags'; document.body.appendChild(tagLayer);
 
@@ -110,7 +110,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     const people = [...live.values()].filter(m => m.d < NEAR).sort((a, b) => a.d - b.d).slice(0, MAX_DRAWN);
     const drawn = new Set([...people, ...crew.filter(m => m.d < NEAR).sort((a, b) => a.d - b.d).slice(0, Math.max(2, MAX_DRAWN - people.length))]);
     [...live.values(), ...crew].forEach(m => {
-      const show = drawn.has(m);
+      const hl = hullOf?.(m.c), show = drawn.has(m) && !hl?.sunk; // (a local sailor sunk in a fight is gone for a while: combat.js)
       if (!show) { if (m.g) m.g.visible = false; if (m.tag) m.tag.hidden = true; if (m.ring) m.ring.visible = false; if (m.gear) { m.gear.chain.visible = m.gear.line.visible = m.gear.bob.visible = false; } m.mo = null; m.lastEv = now; return; }
       if (m.sayT && now > m.sayT) { m.sayT = 0; const e = m.tag.querySelector('.cpu-say'); e.classList.remove('on'); setTimeout(() => { if (!m.sayT) e.hidden = true; }, 300); }
       if (!m.g) { m.g = build(m); m.tag = makeTag(m); }
@@ -129,6 +129,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
       // wake while under way (from the boat's real speed); a splash now and then while fishing, and a big one when they land a fish
       if (pose.v > 0.6 && Math.random() < dt * 14 * Math.min(1, pose.v / 3)) { const side = (Math.random() - 0.5) * 2.2, bx = x - fx * 5.4 + sx * side, bz = z - fz * 5.4 + sz * side;
         emit(bx, WL + waveJS(bx, bz, t), bz, -fx * 1.5 + (Math.random() - 0.5), 1 + Math.random(), -fz * 1.5 + (Math.random() - 0.5)); }
+      { const k = m.c.live ? (s.hp != null && s.hp < 100 ? 1 - s.hp / 100 : 0) : hl ? 1 - hl.hp / 100 : 0; if (k > 0.2) smoke?.(x, z, k); } // (a damaged boat smokes)
       if (s.nos) for (let q = 0; q < 3; q++) { const jx = x - fx * 5.8 + sx * (Math.random() - 0.5), jz = z - fz * 5.8 + sz * (Math.random() - 0.5); emit(jx, WL + 0.25 + waveJS(jx, jz, t), jz, -fx * (5 + Math.random() * 4), 1.5 + Math.random() * 2.5, -fz * (5 + Math.random() * 4)); } // (a captain on NOS: the jet off their stern)
       if (s.kind === 'berth' && !m.waiting && Math.random() < dt * 0.35) { const sd = Math.random() < 0.5 ? -1 : 1, al = (Math.random() - 0.5) * 7; splash(x + fx * al + sx * sd * 2.4, z + fz * al + sz * sd * 2.4, 2, 0.15); } // (water lapping at a moored hull)
       if (s.kind === 'fish' && !m.waiting && Math.random() < dt * 0.25) { const px = x - fx * 3 + sx * 11, pz = z - fz * 3 + sz * 11; splash(px, pz, 3, 0.25); } // (nibbles at the float)
