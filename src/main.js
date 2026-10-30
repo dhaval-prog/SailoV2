@@ -557,11 +557,11 @@ const drive = { jx: 0, jy: 0, keys: new Set() };
 addEventListener('keydown', e => drive.keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // the helm: the hub is a throttle lever (push it up to go ahead, pull it down to go astern,
-// back to the middle to stop) and the rest of the wheel steers: drag left or right anywhere on it (no need to go round);
-// half a turn either way is full rudder. The lever stays where you leave it; the wheel, let go, spins back to centre.
+// back to the middle to stop) and the rim is the wheel (turn it round and round: two full
+// turns either way is full rudder). The lever stays where you leave it; the wheel, let go, spins back to centre.
 // Tablets (tablet.js) drive with both thumbs: the throttle is a lever of its own on the other side of the screen,
 // and the whole wheel steers.
-const HELM = { lever: 0, deg: 0, mode: null, TURNS: 180 };
+const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
   const thr = document.createElement('div'); thr.id = 'throttle'; thr.setAttribute('role', 'slider'); thr.setAttribute('aria-label', 'Throttle'); thr.setAttribute('aria-orientation', 'vertical');
   thr.setAttribute('aria-valuemin', '-100'); thr.setAttribute('aria-valuemax', '100'); thr.tabIndex = 0;
@@ -573,12 +573,9 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 180 };
   const track = thr.querySelector('.th-track'), thumb = thr.querySelector('.th-thumb'), fill = thr.querySelector('.th-fill');
   const travel = () => (track.clientHeight - thumb.offsetHeight) / 2; // px from idle to full ahead (or astern)
   const geo = e => { const r = base.getBoundingClientRect(), k = r.width / 170; return { k, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) }; };
-  const LEV = () => phoneQ.matches ? 58 : 40; // (the lever's travel each way, in wheel units: on phones the slot runs the wheel's height)
-  const paintLever = () => { const R = LEV(), v = HELM.lever, t = travel();
+  const paintLever = () => { const R = 40, v = HELM.lever, t = travel();
     knob.style.transform = isTablet() ? 'none' : `translate(0px, ${(-v * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
     base.classList.toggle('fwd', v > 0); base.classList.toggle('rev', v < 0);
-    // the slot fills from idle to the hub, deepening with speed: teal to bright green ahead, orange to red astern
-    base.style.setProperty('--lev', Math.abs(v).toFixed(3)); base.style.setProperty('--lev-col', v > 0 ? `hsl(${Math.round(170 - 45 * v)} 78% ${Math.round(40 + 10 * v)}%)` : v < 0 ? `hsl(${Math.round(30 - 26 * -v)} 88% ${Math.round(52 - 4 * -v)}%)` : '#fff');
     thumb.style.transform = `translateY(${(-v * t).toFixed(1)}px)`;
     fill.style.cssText = v > 0 ? `bottom:50%;height:${(v * t).toFixed(1)}px` : v < 0 ? `top:50%;height:${(-v * t).toFixed(1)}px` : 'height:0';
     thr.classList.toggle('fwd', v > 0); thr.classList.toggle('rev', v < 0); thr.setAttribute('aria-valuenow', String(Math.round(v * 100)));
@@ -588,39 +585,29 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 180 };
   // phones: the idle stop is wider and holds the lever (it clicks into place: a tick, and the hub settles with a bounce)
   const idleZone = () => phoneQ.matches ? 0.2 : 0.12; let snapT = 0;
   { const notch = document.createElement('i'); notch.className = 'joy-notch'; notch.setAttribute('aria-hidden', 'true'); base.insertBefore(notch, knob); } // (phone.css draws it)
-  { const t = document.createElement('i'); t.className = 'joy-ticks'; t.setAttribute('aria-hidden', 'true'); base.insertBefore(t, knob); } // (gear marks along the slot: phone.css)
   const setLever = v => { v = Math.max(-1, Math.min(1, v)); const was = HELM.lever; HELM.lever = Math.abs(v) < idleZone() ? 0 : v;
-    // a step felt at every quarter (a light buzz), and a clunk landing in idle
-    if (was && HELM.lever && Math.sign(was) === Math.sign(HELM.lever) && Math.min(3, Math.floor(Math.abs(was) * 4)) !== Math.min(3, Math.floor(Math.abs(HELM.lever) * 4)) && navigator.vibrate) navigator.vibrate(8);
-    if (!was !== !HELM.lever) { if (navigator.vibrate) navigator.vibrate(HELM.lever ? 10 : 28); if (!HELM.lever) { base.classList.remove('idle-snap'); void base.offsetWidth; base.classList.add('idle-snap'); clearTimeout(snapT); snapT = setTimeout(() => base.classList.remove('idle-snap'), 400); } }
+    if (!was !== !HELM.lever) { if (navigator.vibrate) navigator.vibrate(6); if (!HELM.lever) { base.classList.remove('idle-snap'); void base.offsetWidth; base.classList.add('idle-snap'); clearTimeout(snapT); snapT = setTimeout(() => base.classList.remove('idle-snap'), 400); } }
     paintLever(); }; // (a tick through idle)
   // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
   let grab = null;
-  let armed = null, wheelGrab = null, start = null; // (the lever's state when it was picked up; where a steering drag began)
-  const lever = g => { let v = grab ? grab.v - (g.dy - grab.dy) / (LEV() * g.k) : -g.dy / (LEV() * g.k);
-    if (armed?.from > 0) v = Math.max(0, v); else if (armed?.from < 0) v = Math.min(0, v); // (ahead or astern: back to idle, no further)
-    setLever(v); };
+  const lever = g => setLever(grab ? grab.v - (g.dy - grab.dy) / (40 * g.k) : -g.dy / (40 * g.k));
   // while a thumb is on the wheel or the throttle, the buttons round them don't take stray taps
   const holding = () => document.body.classList.toggle('steering', id != null || thrId != null);
-  base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * LEV() * g.k;
+  base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
     id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(8);
     // on the hub (or the slot it slides in): the lever; anywhere else: the wheel (on tablets the wheel only steers).
     // Phones get a bigger lever area: a band down the middle of the wheel, inside its rim.
     const big = phoneQ.matches, w = (big ? 34 : 24) * g.k;
-    HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 66 : 46) * g.k) ? 'lever' : 'wheel';
+    HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 50 : 46) * g.k) ? 'lever' : 'wheel';
     base.classList.toggle('lever', HELM.mode === 'lever'); holding();
     grab = HELM.mode === 'lever' && big ? { v: HELM.lever, dy: g.dy } : null;
-    // the lever moves straight away; from ahead or astern a drag comes back only as far as idle (a second drag goes on)
-    armed = HELM.mode === 'lever' ? { from: Math.sign(HELM.lever) } : null;
-    start = { x: g.dx, y: g.dy, lever: HELM.lever, decided: HELM.mode !== 'lever' }; wheelGrab = { x: g.dx, deg: HELM.deg }; });
+    if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
   base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
-    // a drag that starts on the hub but goes sideways steers instead (the first few pixels decide)
-    if (HELM.mode === 'lever' && !start.decided) { const mx = Math.abs(g.dx - start.x), my = Math.abs(g.dy - start.y); if (Math.max(mx, my) < 6 * g.k) return;
-      start.decided = true; if (mx > my * 1.2) { HELM.mode = 'wheel'; base.classList.remove('lever'); wheelGrab = { x: start.x, deg: HELM.deg }; } }
     if (HELM.mode === 'lever') { lever(g); return; }
-    // steering: left or right across the wheel (its width either way is half a turn: full rudder)
-    if (wheelGrab) HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, wheelGrab.deg + (g.dx - wheelGrab.x) / (60 * g.k) * HELM.TURNS)); });
-  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; armed = null; wheelGrab = null; base.classList.remove('active', 'lever'); holding(); };
+    if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
+    const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
+    HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; base.classList.remove('active', 'lever'); holding(); };
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => base.addEventListener(ev, end));
   // the throttle: drag the handle (or touch anywhere along the track) up for ahead, down for astern; it stays where
   // it's left. Idle (or a tap on "Idle") stops the boat.

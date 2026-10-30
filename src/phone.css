@@ -37,30 +37,4 @@
   body.anchored :is(#helm-orbit, #radio-fab) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.25s, visibility 0s linear 0.25s; }
 }
 
-/* the lever's slot: as long as the wheel is tall, in the wheel's own light colours */
-@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
-  body #joy #joy-dir { width: 7px; height: 104px; margin: -52px 0 0 -3.5px; border-radius: 5px; border: 1.5px solid rgba(255, 255, 255, 0.45); background: rgba(10, 30, 70, 0.35);
-    box-shadow: 0 1px 4px rgba(0, 20, 50, 0.4); opacity: 1; }
-  body #joy.fwd #joy-dir { border-color: rgba(110, 231, 197, 0.85); }
-  body #joy.rev #joy-dir { border-color: rgba(255, 160, 120, 0.85); }
-  body #joy #joy-dir::before { top: -9px; border-bottom: 5px solid #fff; opacity: 0.7; } body #joy #joy-dir::after { bottom: -9px; border-top: 5px solid #fff; opacity: 0.7; }
-  body #joy.fwd #joy-dir::before { border-bottom-color: #6EE7C5; opacity: 1; } body #joy.rev #joy-dir::after { border-top-color: #FF9A6B; opacity: 1; }
-}
 
-/* the lever (phones): gear marks, a fill from idle to the hub, a warning astern */
-@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
-  /* marks: a tick at each quarter both ways, the idle notch bold in the middle (the gear itself shows under the wheel) */
-  body #joy .joy-ticks { display: block; position: absolute; left: 50%; top: 50%; width: 27px; height: 80px; margin: -40px 0 0 -13.5px; pointer-events: none; z-index: 1;
-    background: linear-gradient(#fff, #fff) 0 12.5% / 6px 1.5px, linear-gradient(#fff, #fff) 0 25% / 6px 1.5px, linear-gradient(#fff, #fff) 0 37.5% / 6px 1.5px,
-      linear-gradient(#fff, #fff) 0 62.5% / 6px 1.5px, linear-gradient(#fff, #fff) 0 75% / 6px 1.5px, linear-gradient(#fff, #fff) 0 87.5% / 6px 1.5px,
-      linear-gradient(#fff, #fff) 100% 12.5% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 25% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 37.5% / 6px 1.5px,
-      linear-gradient(#fff, #fff) 100% 62.5% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 75% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 87.5% / 6px 1.5px;
-    background-repeat: no-repeat; opacity: 0.75; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
-  body #joy .joy-notch { width: 30px; height: 4px; margin: -2px 0 0 -15px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 255, 0.6); z-index: 1; }
-  /* the fill: from the idle notch to the hub (teal ahead, orange astern) */
-  body #joy.fwd #joy-dir { background: linear-gradient(to top, rgba(10, 30, 70, 0.35) 50%, rgba(52, 209, 182, 0.75) 50%, rgba(52, 209, 182, 0.75) calc(50% + var(--lev) * 50%), rgba(10, 30, 70, 0.35) calc(50% + var(--lev) * 50%)); }
-  body #joy.rev #joy-dir { background: linear-gradient(to bottom, rgba(10, 30, 70, 0.35) 50%, rgba(255, 122, 69, 0.75) 50%, rgba(255, 122, 69, 0.75) calc(50% + var(--lev) * 50%), rgba(10, 30, 70, 0.35) calc(50% + var(--lev) * 50%));
-    animation: lev-rev 1.6s ease-in-out infinite; }
-  @keyframes lev-rev { 50% { box-shadow: 0 0 0 3px rgba(255, 170, 40, 0.75), 0 0 14px rgba(255, 140, 30, 0.8); } } /* (astern: a slow amber pulse, so it's never missed) */
-}
-.joy-ticks { display: none; }
