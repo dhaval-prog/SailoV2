@@ -40,7 +40,7 @@ export function addStations(places) { const add = stationsFor(places, STATIONS);
 export const harbourKey = st => st.id === 'home' ? CHART.id : `${CHART.id}@${st.id}`;
 const K = 1 / 0.6;           // island scale (source tug was 0.6x)
 const NEAR = 260;            // metres: "Sail into port" offered inside this range
-const SHOW = 2200;           // metres: island drawn inside this range
+const SHOW = 650;            // metres: island drawn inside this range (the sea haze hides it past ~420 m)
 
 // ---- fish, prices and the economy (values from the station file) ----
 export const FISH = [
@@ -267,7 +267,7 @@ export function initStation(ctx) {
     b.el.querySelector('.mk-sub').textContent = !h || h.by === 'you' ? 'Moor here' : h.by === 'local' ? `${h.name.split(' ')[0]} · local sailor` : `Taken · ${h.name}`; });
   let booking = false, berthPaintT = 0;
   // phones: a tap anywhere off the "Sail into port" bar puts it away (until you next come into range)
-  let dismissed = false; const compact = matchMedia('(max-width: 720px), (max-height: 520px)');
+  let dismissed = false; const compact = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
   addEventListener('pointerdown', e => { if (compact.matches && mode === 'sea' && near && !dismissed && !$('stn-bar').contains(e.target)) { dismissed = true; renderBar(); } }, true);
   async function startDocking(i) {
     if (mode !== 'picking' || booking) return;

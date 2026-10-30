@@ -108,3 +108,24 @@ export const SALVAGE = {
     seen: 420,           // drawn within this distance
   },
 };
+
+// the sea's terrain (terrain.js): rocks where the map's buildings are, corals where it's green
+export const TERRAIN = {
+  cell: 40,              // metres: buildings are counted in squares this size…
+  dense: 0.32,           // …and a square this built-up becomes a medium rock
+  medMin: 6, medMax: 13, // a medium rock's radius (metres)
+  hugeArea: 3500,        // a footprint this big (m²: a mall, a campus) becomes a huge rock…
+  hugeMin: 14, hugeMax: 30, // …this size
+  gap: 22,               // metres of open water kept between two rocks, at least
+  edge: 14,              // and a lane along every map tile's edge
+  startClear: 260,       // no rocks round the harbour where voyages start…
+  stationClear: 320,     // …nor round any Paradise Station
+  boatPad: 4,            // the boat's own clearance
+  coralStep: 16,         // corals: one may grow every this many metres in a green area…
+  coralFill: 0.7,        // …this often
+  coralsPerArea: 500,    // at most this many per park
+  coralMin: 4, coralMax: 9, // metres across
+  loadAround: 900,       // map tiles are read this far round the boat
+  drawRocks: 650, drawCorals: 420, // and drawn this far (the haze hides more)
+  repaint: 120,          // redrawn when the boat has moved this far
+};

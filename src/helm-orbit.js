@@ -21,7 +21,7 @@ const mirror = o => Object.fromEntries(Object.entries(o).map(([k, a]) => [k, (54
 export function initHelmOrbit() {
   const joy = document.getElementById('joy'), anchor = document.getElementById('helm-anchor'), dock = document.getElementById('dock');
   const topB = dock.querySelector('[data-v="top"]'), chaseB = dock.querySelector('.dk-helm'), dockAfter = dock.querySelector('.dk-moreg');
-  const phone = matchMedia('(max-width: 720px), (max-height: 520px)'), flat = matchMedia('(max-height: 520px) and (orientation: landscape)');
+  const phone = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)'), flat = matchMedia('(max-height: 520px) and (orientation: landscape)');
   const layer = document.createElement('div'); layer.id = 'helm-orbit'; document.body.appendChild(layer);
   const rad = d => d * Math.PI / 180;
 

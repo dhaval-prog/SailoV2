@@ -9,6 +9,8 @@ import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
 import { createCombat } from './combat.js';
 import { createSalvage } from './salvage.js';
+import { createTerrain } from './terrain.js';
+import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
 import { rpc } from './econ.js';
 import { ECONOMY } from './world-config.js';
@@ -37,7 +39,7 @@ import { isTablet } from './tablet.js';
 import { createWildlife } from './wildlife.js';
 import { ROSTER, stateAt } from './cpu-captains.js';
 import { clock as liveClock } from './live.js';
-const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px)');
+const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
 import './radio.css';
 import './cpu.css';
 import './voyage.css';
@@ -518,7 +520,7 @@ function stepEnv(t, dt) {
 }
 // HUD: account panel (time of day, weather, export) + camera dock
 const hud = initHud({
-  stage, getState: () => state, setView, zoomBy, faceNorth, recenter,
+  stage, getState: () => state, rocks: () => terrain?.all() || [], setView, zoomBy, faceNorth, recenter,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
   boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   getBoat: () => sinkOut ? sinkOut.id : boatId,
@@ -618,7 +620,7 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   addEventListener('sailo:controls', paintLever); addEventListener('resize', () => setTimeout(paintLever, 100)); paintLever(); }
 // upright phones: the picture is framed a little higher, so the boat sits clear of the wheel and its icons at the bottom
 // (the view is shifted, not the camera, so taps on the water and labels on the scene still line up)
-{ const upright = matchMedia('(max-width: 720px) and (orientation: portrait)'), cam = stage._camera;
+{ const upright = matchMedia('(max-width: 720px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)'), cam = stage._camera;
   const frame = () => { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
     if (upright.matches) cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
   new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }
@@ -652,7 +654,7 @@ if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre')
       `mode ${['fullscreen', 'standalone', 'minimal-ui', 'browser'].find(m => matchMedia(`(display-mode: ${m})`).matches)}`].join('\n'); };
   paint(); setInterval(paint, 1000); }
 let boostT = 0; // seconds of NOS boost left (granted by the station: nos.js)
-let combat = null, salvage = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
+let combat = null, salvage = null, terrain = null, fishShadows = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -1020,6 +1022,14 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
     const c0 = station.coins(), f0 = station.holdInfo().n; // (half your coins and catch went down with her: the server says how much)
     station.refresh().then(() => { const dc = c0 - station.coins(), df = f0 - station.holdInfo().n; salvage?.refresh();
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
+// the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
+// the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
+terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp,
+  onHit: k => { hud.note('Rocks! Steer round them.', 2500); const p = 3 + 7 * k; // (the picture jolts: harder the faster you hit)
+    stage.animate?.([{ transform: 'translate(0,0)' }, { transform: `translate(${p}px,${-p * 0.6}px)` }, { transform: `translate(${-p * 0.8}px,${p * 0.5}px)` }, { transform: `translate(${p * 0.4}px,${-p * 0.3}px)` }, { transform: 'translate(0,0)' }], { duration: 320, easing: 'ease-out' }); },
+  onWarn: () => hud.note('Rocks ahead!', 1800) });
+fishShadows = createFishShadows({ THREE, scene: stage._scene, WL, wave: waveJS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
+  species: () => FISH.map(f => ({ f, w: localOdds(f) })).filter(s => s.w > 0), image: (id, cb) => station.fishImageSoon(id, cb), active: () => station.mode === 'sea' });
 // salvage: planks floating at sea, and wrecks to salvage (salvage.js; settings in world-config.js)
 salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: STATION, stations: STATIONS, edge: edgeDistance,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw }), report: () => combat.reportNow(), applyEcon: st => station.applyEcon(st),
@@ -1058,7 +1068,7 @@ const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
   onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; },
   // tap a name (on the sea or the compass strip) to sail there
   sailTo: (x, z, name) => { const ok = setCourse(new THREE.Vector3(x, WL, z), true); if (ok) floatText(boat.position.clone().setY(9), `Course set · ${name}`, '#7ff0c8'); return ok; },
-  station: STATION, course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off', night: () => E.night > 0.5 });
+  station: STATION, hazards: () => terrain?.hazards() || [], course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off', night: () => E.night > 0.5 });
 // beside the boat while fishing or anchored: stop fishing and raise / drop anchor
 const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),
@@ -1101,6 +1111,9 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
     if (busy) { nx = boat.position.x; nz = boat.position.z; vel = dockVel; } // position comes from the station's mooring route
     else if (station.blocked(nx, nz) && !station.blocked(boat.position.x, boat.position.z)) { nx = boat.position.x; nz = boat.position.z; vel *= 0.2; station.shoreWarn(); clearCourse(false); } // island, pier and rocks (a boat already inside, e.g. reloaded at a berth, can still sail out)
+    else if (terrain?.blocked(nx, nz) && !terrain.blocked(boat.position.x, boat.position.z)) { // a rock: slide along it if the boat meets it at a slant, else stop
+      if (!terrain.blocked(nx, boat.position.z)) nz = boat.position.z; else if (!terrain.blocked(boat.position.x, nz)) nx = boat.position.x; else { nx = boat.position.x; nz = boat.position.z; }
+      terrain.hit(vel, (nx + boat.position.x) / 2 + Math.cos(yaw) * 4, (nz + boat.position.z) / 2 - Math.sin(yaw) * 4); vel *= 0.35; clearCourse(false); }
     const dx = nx - boat.position.x, dz = nz - boat.position.z;
     if (!busy && dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
     if (!busy) fuelK = station.burn(Math.hypot(dx, dz), Math.abs(thr));
@@ -1151,7 +1164,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1194,4 +1207,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, state: () => state, swapBoat: id => swapBoat(id), combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

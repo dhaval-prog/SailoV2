@@ -106,7 +106,7 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #radio .rd-state b { font: 900 15px/1.2 'Nunito', sans-serif; }
 #radio .rd-state small { font: 500 10.5px/1.3 'JetBrains Mono', monospace; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.7); }
 
-@media (max-width: 720px), (max-height: 520px) {
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
 
   #radio-fab img { width: 50px; height: 50px; padding: 12px; }
   #radio .rd-scrim { height: 92%; }
@@ -193,7 +193,7 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #sos-card .rd-why { padding: 0; }
 #sos-card .sos-fine { font: 700 11px/1.3 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.65); }
 body.boat-sel #sos-card, body.map-open #sos-card { display: none; }
-@media (max-width: 720px), (max-height: 520px) {
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
   #sos-card { top: calc(150px + var(--safe-t, 0px)); }
   #radio .rd-tools { gap: 6px; }
   #radio .rd-modes { gap: 14px; }
@@ -202,7 +202,7 @@ body.boat-sel #sos-card, body.map-open #sos-card { display: none; }
 }
 /* while the radio is open, notes show at the top so they don't cover it */
 body.radio-open #nk-note { top: calc(112px + var(--safe-t, 0px)); bottom: auto; }
-@media (max-width: 720px), (max-height: 520px) {
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
   /* phones: the SOS, power and close buttons sit in a row above the tabs */
   #radio .rd-top { flex-direction: column-reverse; align-items: stretch; gap: 8px; border-bottom: 0; }
   #radio .rd-tools { justify-content: flex-end; }
@@ -241,11 +241,12 @@ body.steering #nos-btn { pointer-events: auto; } /* (a second thumb fires it whi
 #cannon-btn .cb-track { fill: none; stroke: rgba(255, 255, 255, 0.18); stroke-width: 2.5; }
 #cannon-btn .cb-load { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 30px 30px; opacity: 0; transition: opacity 0.2s; }
 #cannon-btn.loading .cb-load { opacity: 0.9; stroke: #FFC531; }
-#cannon-btn .cb-ico { fill: #fff; } #cannon-btn .cb-mouth, #cannon-btn .cb-hub { fill: #172443; }
+#cannon-btn .cb-ico { fill: #fff; } #cannon-btn .cb-shine { fill: #172443; opacity: 0.35; } /* a cannonball bomb: the fuse lit */
+#cannon-btn .cb-fuse { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; } #cannon-btn .cb-spark { fill: #FFC531; }
 #cannon-btn .cb-n { position: absolute; right: 2px; bottom: 2px; min-width: 18px; padding: 0 3px; font: 900 11px/16px var(--nh-font, 'Nunito', sans-serif); text-align: center; border-radius: 8px; background: #172443; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.8); }
 #cannon-btn.empty .cb-n { background: #FF5A4E; }
 #cannon-btn.on svg { filter: drop-shadow(0 0 10px rgba(255, 197, 49, 0.9)) drop-shadow(0 1px 2px rgba(0, 20, 50, 0.8)); }
-#cannon-btn.on .cb-ico { fill: #FFC531; }
+#cannon-btn.on .cb-ico { fill: #FFC531; } #cannon-btn.on .cb-fuse { stroke: #FFC531; } #cannon-btn.on .cb-spark { fill: #FF7A45; }
 #cannon-btn:hover svg { transform: scale(1.06); } #cannon-btn:active svg { transform: scale(0.92); }
 body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #cannon-btn { display: none; }
 body.aiming #stn-wallet, body.aiming #hud-scrim { pointer-events: none; }
@@ -265,4 +266,4 @@ body.aiming #stn-wallet, body.aiming #hud-scrim { pointer-events: none; }
 #salvage .sv-all { width: 100%; margin-top: 10px; padding: 12px; border: 0; border-radius: 14px; background: #FFC531; color: #3b2a14; font: 800 15px/1 var(--nh-font); cursor: pointer; }
 #salvage button:disabled { opacity: 0.5; cursor: default; }
 body.salvaging #nk-note { bottom: calc(330px + var(--safe-b, 0px)); }
-@media (max-width: 720px) { #salvage .sv-go, #salvage .sv-card { bottom: calc(250px + var(--safe-b, 0px)); } body.salvaging #nk-note { bottom: calc(480px + var(--safe-b, 0px)); } }
+@media (max-width: 720px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #salvage .sv-go, #salvage .sv-card { bottom: calc(250px + var(--safe-b, 0px)); } body.salvaging #nk-note { bottom: calc(480px + var(--safe-b, 0px)); } }

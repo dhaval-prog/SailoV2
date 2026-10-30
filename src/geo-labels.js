@@ -29,7 +29,7 @@ const fmtKm = m => (m >= 10000 ? Math.round(m / 1000) : (m / 1000).toFixed(1)) +
  * ctx: THREE, stage, boat, WL, toScreen, avoid() -> screen rects to keep clear, onZone(zone),
  *      sailTo(x, z) -> true when a course was set, station { x, z, name }, course() -> {x, z} | null, busy() -> true while fishing
  */
-export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy, night }) {
+export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy, night, hazards }) {
   const layer = document.createElement('div'); layer.id = 'geo-labels'; document.body.appendChild(layer);
   const toast = document.createElement('div'); toast.id = 'geo-toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast);
   const pool = new Map(); // key -> { el, on, dist, w, h }
@@ -89,6 +89,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
     const list = [];
     const c = course(); if (c) list.push({ key: 'course', p: { name: 'Your course', x: c.x, z: c.z }, cls: 'cs-course', pri: 0 });
     if (station) list.push({ key: 'station', p: station, cls: 'cs-station', pri: 1 });
+    (hazards?.() || []).forEach((h, i) => list.push({ key: 'rock:' + i, p: h, cls: 'cs-rock', pri: 1 })); // (rocks close by: red, not a place to sail to)
     placeList().filter(p => Math.hypot(p.x - bx, p.z - bz) < STRIP[p.kind] && Math.hypot(p.x - bx, p.z - bz) > 150).sort((a, b) => Math.hypot(a.x - bx, a.z - bz) - Math.hypot(b.x - bx, b.z - bz)).slice(0, STRIP.max)
       .forEach(p => list.push({ key: 'p:' + p.key, p, cls: `cs-${p.kind}`, pri: 2 }));
     const taken = [], show = new Set();
