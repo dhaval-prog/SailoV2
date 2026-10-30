@@ -36,6 +36,7 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
   addEventListener('keydown', e => { if (e.target.closest?.('input, textarea')) return; if (e.key === 'f' || e.key === 'F') setAim(!aiming); if (e.key === 'Escape') setAim(false); });
   function setAim(on) {
     if (on) { const why = whyNot(); if (why) { note(why); return; } }
+    if (on && !aiming) { hereEvery = 2000; here(true); } // (a shot needs a fresh position on the server)
     aiming = on; btn.classList.toggle('on', on); arcs.visible = sight.visible = on; document.body.classList.toggle('aiming', on);
     if (on) note(innerWidth > 720 ? 'Aim with the pointer, click to fire (port or starboard). F or Esc to stop.' : 'Tap the water or a boat to fire, to either side. Tap the cannon again to stop.');
   }
@@ -146,9 +147,14 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
   function setHull(h) { const was = hull.wrecked, hit = synced && h.hp < hull.hp && !h.wrecked; synced = true; hull = { hp: h.hp, max: h.hull, wrecked: !!h.wrecked }; onHull(hull); paint();
     if (hit && Date.now() - heardAt > 4000) note(`You've been hit! Hull ${Math.round(hull.hp / hull.max * 100)}%`); // (the radio's word on who fired may not come)
     if (hull.wrecked && !was) onWrecked(lastHitBy); }
-  let hereT = 0; async function here(force) { if (!signedIn) return; const now = Date.now(); if (!force && now - hereT < 2000) return; hereT = now; const b = getBoat();
+  let hereT = 0, hereEvery = 2000; async function here(force) { if (!signedIn) return; const now = Date.now(); if (!force && now - hereT < hereEvery) return; hereT = now; const b = getBoat();
     try { setHull(await rpc('combat_here', { p_chart: chartId, p_x: +b.x.toFixed(1), p_z: +b.z.toFixed(1), p_station_x: +stationPos.x.toFixed(1), p_station_z: +stationPos.z.toFixed(1) })); } catch { /* offline */ } }
-  let npcHulls = new Map(), npcT = 0;
+  let npcHulls = new Map(), npcT = 0, npcEvery = 10000, busyT = 0;
+  // how often to tell the server where you are (and hear about your hull): every couple of seconds while another captain
+  // is close enough to come into range, while aiming or with a ball in the air; now and then otherwise. The local
+  // sailors' hulls likewise: often only while one is about.
+  function pace() { const b = getBoat(), ts = targets(), near = (kind, d) => ts.some(t => t.kind === kind && Math.hypot(t.x - b.x, t.z - b.z) < d);
+    hereEvery = aiming || balls.length || near('player', 450) ? 2000 : 30000; npcEvery = aiming || near('npc', 600) ? 10000 : 60000; }
   async function npcRefresh() { try { const list = await rpc('combat_npcs', { p_chart: chartId }); npcHulls = new Map((list || []).map(n => [n.npc, n])); } catch { /* offline */ } }
   let lastHitBy = '', heardAt = 0, synced = false; // (synced: the first answer is just how the hull was left)
   /** A radio message from another captain (online.js): their shot to draw, or a hit on you. */
@@ -177,7 +183,8 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
         if (aim) { aimAt(aimTarget ? { x: aimTarget.x, z: aimTarget.z } : aim); sight.position.set(aim.x, WL + 0.3 + wave(aim.x, aim.z, t), aim.z); sight.rotation.y += dt; }
         const why = whyNot(); if (why) { setAim(false); note(why); } }
       stepBalls(dt, t); stepPuffs(dt);
-      here(); if (Date.now() - npcT > 10000) { npcT = Date.now(); npcRefresh(); }
+      if (Date.now() - busyT > 1000) { busyT = Date.now(); pace(); }
+      here(); if (Date.now() - npcT > npcEvery) { npcT = Date.now(); npcRefresh(); }
       if ((performance.now() | 0) % 4 === 0) paint();
     },
     get hull() { return hull; }, npcHull: id => npcHulls.get(id) || null, refreshHull,

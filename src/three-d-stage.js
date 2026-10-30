@@ -215,8 +215,14 @@ class ThreeDStage extends HTMLElement {
     };
     fit();
     this._ro = new ResizeObserver(fit);
+    // world matrices: only for what's shown. three.js walks every object each frame, hidden or not, and much of the scene
+    // waits hidden at the top level (pooled gulls, dolphins, planks and smoke, the island while it's far off); a hidden
+    // thing is brought up to date the frame it's shown again
+    scene.matrixWorldAutoUpdate = false;
     this._loop = () => {
       controls.update();
+      const kids = scene.children;
+      for (let i = 0; i < kids.length; i++) if (kids[i].visible) kids[i].updateMatrixWorld();
       renderer.render(scene, camera);
       this._afterRender?.(renderer); // (main.js: reads the colour along the picture's bottom edge)
     };

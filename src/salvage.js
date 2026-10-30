@@ -58,7 +58,7 @@ export function createSalvage({ THREE, scene, WL, wave, splash, chartId, station
   }
 
   // ---------- wrecks ----------
-  let wrecks = new Map(), wreckT = 0; // id → { w (from the server), g (debris), crate }
+  let wrecks = new Map(), wreckT = 0, takenT = 0; // id → { w (from the server), g (debris), crate }
   const crateGeo = new THREE.BoxGeometry(1.1, 0.8, 0.8), crateMat = new THREE.MeshStandardMaterial({ color: '#8a5a2b', roughness: 0.8 }), bandMat = new THREE.MeshStandardMaterial({ color: '#3d3f44', roughness: 0.5, metalness: 0.6 });
   const slick = new THREE.MeshBasicMaterial({ color: '#1b2a33', transparent: true, opacity: 0.22, depthWrite: false });
   function debris(w) {
@@ -134,7 +134,10 @@ export function createSalvage({ THREE, scene, WL, wave, splash, chartId, station
         if (age < 25 && Math.random() < 0.3) splash(w.x + (Math.random() - 0.5) * 6, w.z + (Math.random() - 0.5) * 6, 3, 0.2); // (bubbles as she goes down)
         const d = Math.hypot(w.x - b.x, w.z - b.z); if (loot && !w.mine && d < bestD) { bestD = d; best = id; } });
       if (best !== at) { at = best; if (!at) open = false; paintPanel(); }
-      if (now - wreckT > 8000) { wreckT = now; refresh(); }
+      // wrecks: checked often only while one is about (a new one is announced on the radio); planks others took, now and then
+      const wreckNear = [...wrecks.values()].some(o => Math.hypot(o.w.x - b.x, o.w.z - b.z) < 600);
+      if (now - wreckT > (wreckNear ? 8000 : 45000)) { wreckT = now; refresh(); }
+      if (near.length && now - takenT > 90000) { takenT = now; refreshTaken(); }
     },
     /** A radio message from another captain (online.js): a wreck appeared or was emptied. */
     heard() { refresh(); },
