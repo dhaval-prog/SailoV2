@@ -453,6 +453,8 @@ const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 53, side: 79,
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
 stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
+// the camera never goes under the water: at most a low look along the surface, and always a little above the swell
+stage._controls.maxPolarAngle = Math.PI / 2 - 0.1; stage._minY = () => WL + 1.6 + Math.max(0, waveJS(stage._camera.position.x, stage._camera.position.z, seaU.time.value));
 let zoomAnim = null;
 const zoomBy = f => { const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
 let camAnim = null;
@@ -587,7 +589,10 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
     paintLever(); }; // (a tick through idle)
   // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
   let grab = null;
-  const lever = g => setLever(grab ? grab.v - (g.dy - grab.dy) / (40 * g.k) : -g.dy / (40 * g.k));
+  const LONG = 280; let armed = null, armT = 0, last = null; // (ms of a long press; the lever's state when it was picked up)
+  const lever = g => { let v = grab ? grab.v - (g.dy - grab.dy) / (40 * g.k) : -g.dy / (40 * g.k);
+    if (armed?.from > 0) v = Math.max(0, v); else if (armed?.from < 0) v = Math.min(0, v); // (ahead or astern: back to idle, no further)
+    setLever(v); };
   // while a thumb is on the wheel or the throttle, the buttons round them don't take stray taps
   const holding = () => document.body.classList.toggle('steering', id != null || thrId != null);
   base.addEventListener('pointerdown', e => { const g = geo(e), hubY = -HELM.lever * 40 * g.k;
@@ -598,13 +603,20 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
     HELM.mode = !isTablet() && Math.abs(g.dx) < w && (Math.hypot(g.dx, g.dy - hubY) < (big ? 32 : 24) * g.k || Math.abs(g.dy) < (big ? 50 : 46) * g.k) ? 'lever' : 'wheel';
     base.classList.toggle('lever', HELM.mode === 'lever'); holding();
     grab = HELM.mode === 'lever' && big ? { v: HELM.lever, dy: g.dy } : null;
+    // by touch the lever takes a long press first (a brush of the thumb doesn't move it); then up from idle goes ahead,
+    // down from idle astern, and from ahead or astern it only comes back as far as idle (a second press to go on)
+    armed = null; clearTimeout(armT);
+    if (HELM.mode === 'lever' && e.pointerType !== 'mouse') { const pid = id; base.classList.add('lever-wait');
+      armT = setTimeout(() => { if (id !== pid || HELM.mode !== 'lever') return; armed = { from: Math.sign(HELM.lever) }; grab = { v: HELM.lever, dy: last.dy };
+        base.classList.remove('lever-wait'); base.classList.add('lever-armed'); if (navigator.vibrate) navigator.vibrate(18); }, LONG); last = g; return; }
     if (HELM.mode === 'lever') lever(g); else lastA = Math.atan2(g.dy, g.dx); });
   base.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const g = geo(e);
-    if (HELM.mode === 'lever') { lever(g); return; }
+    if (HELM.mode === 'lever') { if (base.classList.contains('lever-wait')) { if (Math.hypot(g.dx - last.dx, g.dy - last.dy) > 10 * g.k) { clearTimeout(armT); base.classList.remove('lever-wait'); } return; } // (moved before the long press: not picked up)
+      if (armed || e.pointerType === 'mouse') lever(g); return; }
     if (Math.hypot(g.dx, g.dy) < 10 * g.k) return; // too near the middle to read an angle
     const a = Math.atan2(g.dy, g.dx); let d = a - lastA; d = Math.atan2(Math.sin(d), Math.cos(d)); lastA = a;
     HELM.deg = Math.max(-HELM.TURNS, Math.min(HELM.TURNS, HELM.deg + d * 180 / Math.PI)); });
-  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; base.classList.remove('active', 'lever'); holding(); };
+  const end = e => { if (e.pointerId !== id) return; id = null; HELM.mode = null; grab = null; armed = null; clearTimeout(armT); base.classList.remove('active', 'lever', 'lever-wait', 'lever-armed'); holding(); };
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => base.addEventListener(ev, end));
   // the throttle: drag the handle (or touch anywhere along the track) up for ahead, down for astern; it stays where
   // it's left. Idle (or a tap on "Idle") stops the boat.
@@ -776,8 +788,7 @@ function castAt(p) {
 function stopFishing() { if (ACT.fish === 'off' || ACT.fish === 'reelin') return; fishing.reset(); if (!bobber.visible) bobber.position.copy(tipW); ACT.fish = 'reelin'; F.k = 0; F.from.copy(bobber.position); paintStatus(); }
 // while the anchor drops or comes up, the camera swings in close to the bow so you can watch it
 let anchorCamT = -1;
-// while fishing the camera looks at the boat broadside (bow to the right), from a little above
-const fishCam = () => { const side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); animCam(side.multiplyScalar(43).setY(30), 1.5, 1.2); };
+const fishCam = () => setView(state.view); // (fishing keeps the usual view of the boat, from above: no swing round)
 const anchorCam = () => { const fwd = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const focus = fwd.clone().multiplyScalar(ANC.x).addScaledVector(side, ANC.z);
   animCam(side.clone().multiplyScalar(9).addScaledVector(fwd, 7).setY(3.2), 0.6, 0.6, focus); anchorCamT = 0; };
@@ -967,7 +978,7 @@ const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, 
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
   seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
   hitsBoat: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.intersectObject(boat, true).length > 0; },
-  tiltCam: on => { const side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); if (on) animCam(side.multiplyScalar(36).setY(38), 1.5, 0.7); else fishCam(); },
+  tiltCam: () => {}, // (the camera stays put while you cast)
   shake: () => stage.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-5px,3px)' }, { transform: 'translate(4px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260 }),
   landPoint: () => new THREE.Vector3(...FIT.land).applyMatrix4(boat.matrixWorld),
   night: () => E.night, weather: () => state.w, yaw: () => yaw });
@@ -1024,7 +1035,7 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
-terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp,
+terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night,
   onHit: k => { hud.note('Rocks! Steer round them.', 2500); const p = 3 + 7 * k; // (the picture jolts: harder the faster you hit)
     stage.animate?.([{ transform: 'translate(0,0)' }, { transform: `translate(${p}px,${-p * 0.6}px)` }, { transform: `translate(${-p * 0.8}px,${p * 0.5}px)` }, { transform: `translate(${p * 0.4}px,${-p * 0.3}px)` }, { transform: 'translate(0,0)' }], { duration: 320, easing: 'ease-out' }); },
   onWarn: () => hud.note('Rocks ahead!', 1800) });
