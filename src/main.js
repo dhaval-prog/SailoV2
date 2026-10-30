@@ -8,6 +8,7 @@ import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
 import { createCombat } from './combat.js';
+import { createSalvage } from './salvage.js';
 import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
@@ -638,7 +639,7 @@ if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre')
       `mode ${['fullscreen', 'standalone', 'minimal-ui', 'browser'].find(m => matchMedia(`(display-mode: ${m})`).matches)}`].join('\n'); };
   paint(); setInterval(paint, 1000); }
 let boostT = 0; // seconds of NOS boost left (granted by the station: nos.js)
-let combat = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
+let combat = null, salvage = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -983,7 +984,7 @@ const myColours = () => { const get = k => { try { return JSON.parse(localStorag
 let myCatches = { n: 0, at: 0 }; const caughtTotal = () => { if (Date.now() - myCatches.at > 60000) { let n = 0; try { Object.values(JSON.parse(localStorage.getItem('sailo:fishlog') || '{}')).forEach(r => { n += r.n || 0; }); } catch { /* storage blocked */ } myCatches = { n, at: Date.now() }; } return myCatches.n; };
 const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x, z: boat.position.z, yaw, kn: Math.abs(vel * 1.944), boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal(),
   kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail', nos: boostT > 0, hp: combat ? combat.hull.hp : 100 }),
-  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } if (k === 'shot' || k === 'hit') { combat?.heard(k, p, d); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
+  on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } if (k === 'shot' || k === 'hit') { combat?.heard(k, p, d); return; } if (k === 'wreck' || k === 'salvage') { salvage?.heard(); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
 hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
 const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c), onCompose: (c, kind) => radioHelp.compose?.(kind, { uid: c.uid, name: c.name }) });
 // the boat's marine radio; the worldwide channel is joined only when someone tunes to it
@@ -1001,7 +1002,16 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
   send: (k, payload) => online?.radio(k, payload),
   seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
   note: t => hud.note(t, 3500), onHull: h => station.setHull(h),
-  onWrecked: by => { wreckT = 0.001; vel = 0; clearCourse(false); hud.note(`Your boat was wrecked${by ? ` by ${by}` : ''}! She’ll be towed back to Paradise Station.`, 6000); } });
+  onSank: id => { salvage?.refresh(); online?.radio('wreck', { id }); },
+  onWrecked: by => { wreckT = 0.001; vel = 0; clearCourse(false); hud.note(`Your boat was wrecked${by ? ` by ${by}` : ''}! She’ll be towed back to Paradise Station.`, 6000);
+    const c0 = station.coins(), f0 = station.holdInfo().n; // (half your coins and catch went down with her: the server says how much)
+    station.refresh().then(() => { const dc = c0 - station.coins(), df = f0 - station.holdInfo().n; salvage?.refresh();
+      if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
+// salvage: planks floating at sea, and wrecks to salvage (salvage.js; settings in world-config.js)
+salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: { x: STATION.x, z: STATION.z }, edge: edgeDistance,
+  getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw }), report: () => combat.reportNow(), applyEcon: st => station.applyEcon(st),
+  canSalvage: () => wreckT > 0 ? 'Your boat is wrecked.' : station.mode !== 'sea' ? 'Cast off first.' : '',
+  fishName: id => FISH.find(f => f.id === id)?.name || id, send: (k, p) => online?.radio(k, p), note: t => hud.note(t, 3500) });
 addEventListener('sailo:hull', e => combat.repaired({ hp: e.detail.hp, hull: e.detail.hull, wrecked: false }));
 // a wrecked boat settles low in the water, then is towed home to Paradise Station and patched up
 function stepWreck(dt) {
@@ -1122,7 +1132,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1165,4 +1175,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, combat: () => combat, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

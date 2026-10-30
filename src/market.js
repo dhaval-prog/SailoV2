@@ -5,7 +5,7 @@
 import { MARKET as M } from './world-config.js';
 import { clock } from './live.js';
 
-const h32 = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); return (h ^ (h >>> 15)) >>> 0; };
+export const h32 = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); return (h ^ (h >>> 15)) >>> 0; };
 const noise = (id, k) => h32(`mkt:${id}:${k}`) / 4294967296 * 2 - 1; // -1…1, fixed per species and half-hour
 const smooth = u => u * u * (3 - 2 * u);
 // the chart's local hour at a moment (formatting dates is slow: remembered per minute)

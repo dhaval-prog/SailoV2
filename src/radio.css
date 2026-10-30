@@ -249,3 +249,20 @@ body.steering #nos-btn { pointer-events: auto; } /* (a second thumb fires it whi
 #cannon-btn:hover svg { transform: scale(1.06); } #cannon-btn:active svg { transform: scale(0.92); }
 body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #cannon-btn { display: none; }
 body.aiming #stn-wallet, body.aiming #hud-scrim { pointer-events: none; }
+
+/* salvage (salvage.js): the prompt alongside a wreck, and what's in it */
+#salvage .sv-go { position: fixed; z-index: 28; left: 50%; bottom: calc(92px + var(--safe-b, 0px)); transform: translateX(-50%); padding: 12px 20px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 26px;
+  background: rgba(110, 69, 38, 0.82); color: #fff; font: 800 15px/1 var(--nh-font); letter-spacing: 0.02em; box-shadow: 0 4px 16px rgba(0, 20, 50, 0.4); cursor: pointer; animation: nh-blurIn 0.35s ease-out both; }
+#salvage .sv-card { position: fixed; z-index: 28; left: 50%; bottom: calc(84px + var(--safe-b, 0px)); transform: translateX(-50%); width: min(340px, calc(100vw - 32px)); box-sizing: border-box; padding: 14px 16px 16px;
+  border-radius: 18px; background: rgba(12, 28, 58, 0.88); color: #fff; font-family: var(--nh-font); box-shadow: 0 8px 28px rgba(0, 20, 50, 0.5); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: nh-blurIn 0.3s ease-out both; }
+#salvage [hidden] { display: none !important; }
+#salvage .sv-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+#salvage .sv-t { font-size: 16px; }
+#salvage .sv-x { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 14px; cursor: pointer; }
+#salvage .sv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+#salvage .sv-row b { display: block; font-size: 14.5px; } #salvage .sv-row small { display: block; margin-top: 2px; font: 500 11px/1.3 var(--nh-mono); color: rgba(255, 255, 255, 0.6); }
+#salvage .qb { min-width: 64px; padding: 9px 14px; border: 0; border-radius: 12px; background: #F3D9B1; color: #3b2a14; font: 800 13.5px/1 var(--nh-font); cursor: pointer; }
+#salvage .sv-all { width: 100%; margin-top: 10px; padding: 12px; border: 0; border-radius: 14px; background: #FFC531; color: #3b2a14; font: 800 15px/1 var(--nh-font); cursor: pointer; }
+#salvage button:disabled { opacity: 0.5; cursor: default; }
+body.salvaging #nk-note { bottom: calc(330px + var(--safe-b, 0px)); }
+@media (max-width: 720px) { #salvage .sv-go, #salvage .sv-card { bottom: calc(250px + var(--safe-b, 0px)); } body.salvaging #nk-note { bottom: calc(480px + var(--safe-b, 0px)); } }

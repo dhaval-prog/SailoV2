@@ -237,3 +237,6 @@ body.stn-docked #helm { opacity: 0; visibility: hidden; pointer-events: none; }
 .stn .qb.nos-buy{background:#ffc531;color:#3b2a14;font-weight:800}
 .stn .qb:disabled{opacity:.5;cursor:default}
 .stn .holdbar.gunbar i{background:linear-gradient(90deg,#8a96a3,#3b434d)}
+.stn .plank-sell .plank-row{margin-top:4px}
+.stn .plank-sell .stepper .tagbtn{margin-left:4px}
+.stn .plank-sell .stepper .tagbtn{width:auto;padding:0 12px}

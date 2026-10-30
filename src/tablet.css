@@ -105,3 +105,8 @@ body #stn-wallet #hullPill { margin-left: 14px; font-size: 14px; color: #FFE3A8;
 body #stn-wallet #hullPill[hidden] { display: none; }
 body #stn-wallet #hullPill.low { color: #FF8A7A; animation: nh-notif 1s ease-in-out infinite; }
 body #stn-wallet .hull-ico { width: 14px; height: 10px; border-radius: 0 0 7px 7px; background: currentColor; box-shadow: 0 1px 2px rgba(0, 20, 50, 0.6); }
+
+/* wooden planks (salvage.js), beside coins and fuel once you have some */
+body #stn-wallet #plankPill { margin-left: 14px; font-size: 14px; color: #F3D9B1; }
+body #stn-wallet #plankPill[hidden] { display: none; }
+body #stn-wallet .plank-ico { width: 16px; height: 6px; border-radius: 2px; background: linear-gradient(90deg, #C68A4E, #A06A38); box-shadow: 0 1px 2px rgba(0, 20, 50, 0.6), inset 4px 0 0 -3px #6E4526, inset -4px 0 0 -3px #6E4526; transform: rotate(-12deg); }

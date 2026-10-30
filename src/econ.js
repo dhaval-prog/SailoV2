@@ -13,6 +13,8 @@ const NICE = {
   no_cannon: 'This boat has no cannon.', no_balls: 'Out of cannonballs: buy more at the Boathouse.', reloading: 'Reloading…', rack_full: 'The rack is full.',
   safe_harbour: 'Paradise Station is a safe harbour: no cannon fire here.', out_of_range: 'Out of range.', where_are_you: 'Hold on: finding your position…',
   wrecked: 'Your boat is wrecked.', hull_fine: 'The hull is sound.', missed: 'Missed!', already_wrecked: 'Already sunk.', not_yourself: 'Not your own boat!', too_late: 'Missed!',
+  wreck_gone: 'The wreck has gone down.', own_wreck: 'That’s your own wreck: someone else gets to salvage it.', too_far: 'Come closer to reach it.', nothing_left: 'Nothing left to take.',
+  plank_gone: 'The plank drifted off.', no_such_plank: 'The plank drifted off.', plank_taken: 'Someone got to that plank first.', not_enough_planks: 'You don’t have that many planks.',
 };
 export class EconError extends Error { constructor(code) { super(NICE[code] || 'The harbour didn’t answer. Try again?'); this.code = code; } }
 

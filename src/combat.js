@@ -19,8 +19,9 @@ const TAU = Math.PI * 2, wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
  * @param o.canFire () => '' | reason                                    why not now (docked, fishing, …)
  * @param o.send (kind, payload)                                          tell the other captains (online.js radio)
  * @param o.seaPoint (pointer event) => Vector3 | null                    where on the water the pointer is
+ * @param o.onSank (wreck id) => void                                       a boat you hit went down (salvage.js shows the wreck)
  */
-export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, station, chartId, stationPos, targets, canFire, send, seaPoint, orbit, note, onWrecked, onHull }) {
+export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, station, chartId, stationPos, targets, canFire, send, seaPoint, orbit, note, onWrecked, onHull, onSank }) {
   const V3 = THREE.Vector3;
   let signedIn = false, hull = { hp: C.hull, max: C.hull, wrecked: false }, aiming = false, reloadUntil = 0, busy = false;
   serverEconomy().then(on => { signedIn = on; if (on) refreshHull(); });
@@ -118,7 +119,8 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
     try { const r = await rpc('combat_hit', { p_shot: shot, p_kind: tg.kind, p_target: tg.id, p_x: x, p_z: z });
       note(r.wrecked ? `${tg.name}${tg.kind === 'npc' ? '’s boat' : ''} is sinking!` : `Hit! ${tg.name} · hull ${Math.round(r.hp / r.hull * 100)}%`);
       if (tg.kind === 'player') send('hit', { to: tg.id, damage: r.damage, wrecked: r.wrecked });
-      if (tg.kind === 'npc') npcRefresh(); }
+      if (tg.kind === 'npc') npcRefresh();
+      if (r.wrecked) onSank?.(r.wreck); }
     catch (e) { note(e.message); }
   }
 
@@ -179,6 +181,8 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
       if ((performance.now() | 0) % 4 === 0) paint();
     },
     get hull() { return hull; }, npcHull: id => npcHulls.get(id) || null, refreshHull,
+    /** Tell the server where you are now (before salvaging). */
+    reportNow: () => here(true),
     /** After a wreck: back to a sound hull (the server agrees). */
     respawn: () => rpc('combat_respawn').then(setHull).catch(() => {}),
     /** Hull repaired at the Boathouse. */

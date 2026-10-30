@@ -14,7 +14,7 @@ import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
 import './station.css';
 import { priceOf, trendOf, headline, ticker } from './market.js';
 import { econ, econBeacon, serverEconomy } from './econ.js';
-import { ECONOMY, COMBAT } from './world-config.js';
+import { ECONOMY, COMBAT, SALVAGE } from './world-config.js';
 import { PLACE } from './live.js';
 
 const MILE = 1609.344;
@@ -170,7 +170,7 @@ export function initStation(ctx) {
   // ---------- DOM: wallet, dock bar, markers, toast, shop modal ----------
   const ui = document.createElement('div'); ui.className = 'stn'; document.body.appendChild(ui);
   ui.innerHTML = `
-    <div class="stn-wallet" id="stn-wallet"><span class="pill" id="coins"><span class="coin"></span><span id="coinN">0</span></span><span class="pill" id="fuelPill"><span class="fuelbar"><i id="fuelFill"></i></span><span id="fuelN">0 L</span></span><span class="pill hullpill" id="hullPill" hidden title="Hull"><span class="hull-ico" aria-hidden="true"></span><span id="hullN"></span></span></div>
+    <div class="stn-wallet" id="stn-wallet"><span class="pill" id="coins"><span class="coin"></span><span id="coinN">0</span></span><span class="pill" id="fuelPill"><span class="fuelbar"><i id="fuelFill"></i></span><span id="fuelN">0 L</span></span><span class="pill plankpill" id="plankPill" hidden title="Wooden planks"><span class="plank-ico" aria-hidden="true"></span><span id="plankN"></span></span><span class="pill hullpill" id="hullPill" hidden title="Hull"><span class="hull-ico" aria-hidden="true"></span><span id="hullN"></span></span></div>
     <div class="hud bc stn-bar" id="stn-bar" hidden><div><div class="dc-title">Paradise Station</div><div class="dc-sub" id="dockSub"></div></div><button class="btn" id="sailBtn"></button></div>
     <button class="marker locked" id="mk-market" hidden><span class="mk"><span class="mk-name">Fish Market</span><span class="mk-sub">Sell your catch</span></span></button>
     <button class="marker locked" id="mk-boathouse" hidden><span class="mk"><span class="mk-name">Boathouse</span><span class="mk-sub">Refuel · boat inventory</span></span></button>
@@ -183,7 +183,8 @@ export function initStation(ctx) {
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
   const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} L`; $('fuelPill').title = `Fuel ${Math.round(S.fuel)} of ${S.cap} L`;
     $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15);
-    const hk = hull.hp / hull.max; $('hullPill').hidden = hk >= 1; $('hullN').textContent = `Hull ${Math.round(hk * 100)}%`; $('hullPill').classList.toggle('low', hk <= 0.25); }; // (shown once damaged)
+    const hk = hull.hp / hull.max; $('hullPill').hidden = hk >= 1; $('hullN').textContent = `Hull ${Math.round(hk * 100)}%`; $('hullPill').classList.toggle('low', hk <= 0.25); // (shown once damaged)
+    $('plankPill').hidden = !S.planks; $('plankN').textContent = S.planks; $('plankPill').title = `${S.planks} wooden plank${S.planks === 1 ? '' : 's'}`; }; // (once you have some)
 
   // ---------- the economy: on the server for a signed-in captain (econ.js), on this device otherwise ----------
   // The server's answer is the truth: after every change the coins, holds, tanks and NOS are what it says. The tank of
@@ -417,6 +418,7 @@ export function initStation(ctx) {
     <div class="sign"><span>Fish Market</span></div><button class="rx" data-act="close" aria-label="Close">✕</button>
     <div class="mk-ticker" aria-label="Today’s prices"><span id="mkTicker"></span></div>
     <div class="rp-body"><section><div class="rp-h"><h3>Today’s catch</h3><button class="tagbtn" data-act="addall">Add all</button></div><div class="ice" id="catchList"></div></section>
+    <section class="plank-sell" id="plankSell" hidden></section>
     <section><div class="rp-h"><h3>Selling crate</h3><span class="rp-note">Tap a fish in the crate to put it back</span></div>
     <div class="view crate" id="crateView"><div class="scale"><div class="face">${dialTicks(-135, 135, 20, 5, 31, [[-135, 0], [-67.5, 5], [0, 10], [67.5, 15], [135, 20]])}<div class="needle" id="needle"></div><div class="hub"></div><div class="kg" id="kgRead">0.0 kg</div></div></div></div>
     <div class="cchips" id="crateItems"></div>
@@ -438,7 +440,21 @@ export function initStation(ctx) {
     ui.querySelectorAll('#crateView .tlab').forEach((l, i) => { l.textContent = range / 4 * i; }); $('kgRead').textContent = kg.toFixed(1) + ' kg';
     countTo($('tillN'), total, 'c');
     const b = $('sellBtn'); b.disabled = !n; b.textContent = n ? `Sell ${n} fish for ${total}c` : 'Crate is empty';
+    renderPlanks();
   }
+  // wooden planks (salvage.js): sold here at a fixed price each, apart from the fish
+  let plankSell = 0;
+  function renderPlanks() {
+    const el = $('plankSell'); if (!el) return; el.hidden = !S.planks; if (!S.planks) return;
+    plankSell = Math.max(1, Math.min(S.planks, plankSell || S.planks)); const P = SALVAGE.plankPrice;
+    const html = `<div class="rp-h"><h3>Wooden planks</h3><span class="rp-note">${S.planks} on board · ${P}c each</span></div>
+      <div class="nos-row plank-row"><div class="stepper"><button data-act="plank-" ${plankSell <= 1 ? 'disabled' : ''} aria-label="One fewer">−</button><b>${plankSell}</b><button data-act="plank+" ${plankSell >= S.planks ? 'disabled' : ''} aria-label="One more">+</button><button class="tagbtn" data-act="plankall">All</button></div>
+      <button class="qb nos-buy" data-act="plankgo">Sell ${plankSell} for ${plankSell * P}c</button></div>`;
+    if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; } // (only when it changed: a redraw under a finger loses the tap)
+  }
+  function sellPlanks() { const n = Math.min(plankSell, S.planks); if (n < 1) return;
+    if (server) return call('econ_sell_planks', { p_n: n }).then(st => { plankSell = 0; toast(`Sold ${st.sold} plank${st.sold === 1 ? '' : 's'} · +${st.paid}c`); bump('coins'); renderPlanks(); }).catch(e => toast(e.message));
+    toast('Sign in to sell planks.'); }
   const boathouseShell = () => `<div class="roof"></div><div class="sign teal"><span>Boathouse</span><small>${berth.name}</small></div><button class="rx" data-act="close" aria-label="Close">✕</button>
     <div class="rp-body"><section class="pump"><div class="pump-top"><span>HARBOUR FUEL</span><span class="pump-price">${FUEL_PRICE}c / L</span></div>
     <div class="pump-face"><div class="fdial"><div class="zone"></div>${dialTicks(-120, 120, 16, 4, 30, [[-120, 'E'], [0, '½'], [120, 'F']])}<div class="needle f" id="fNeedle"></div><div class="hub"></div><div class="kg">FUEL</div></div>
@@ -543,6 +559,9 @@ export function initStation(ctx) {
     if (a === 'gunbuy') return buyGun();
     if (a === 'balls') return buyBalls();
     if (a === 'repair') return repairHull();
+    if (a === 'plank-' || a === 'plank+') { plankSell += a === 'plank+' ? 1 : -1; return renderPlanks(); }
+    if (a === 'plankall') { plankSell = S.planks; return renderPlanks(); }
+    if (a === 'plankgo') return sellPlanks();
     if (a === 'nosfill') return refillNos();
     if (a === 'q10') return startPump(Math.min(10, S.cap - S.fuel));
     if (a === 'qfull') return startPump(S.cap - S.fuel);
@@ -660,6 +679,9 @@ export function initStation(ctx) {
       if (server) return call('econ_nos_fire', { p_boat: S.active }).then(st => +st.boost || 0).catch(e => { toast(e.message); return 0; });
       const dur = Math.min(N.burst, n.charge); n.charge -= dur; boostReady = Date.now() + (dur + N.cooldown) * 1000; save(); dispatchEvent(new Event('sailo:econ')); return Promise.resolve(dur); },
     coins: () => S.coins,
+    planks: () => S.planks,
+    /** Fetch the economy again (after a wreck took half of it). */
+    refresh: () => server ? call('econ_get').catch(() => {}) : Promise.resolve(),
     /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
     fishModel: id => kit().fishModels[id].clone(),
     fishImage: id => { const f = FISH.find(q => q.id === id); return f ? picture(f) : ''; },
