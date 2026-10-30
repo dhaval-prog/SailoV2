@@ -14,7 +14,7 @@ import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
 import './station.css';
 import { priceOf, trendOf, headline, ticker } from './market.js';
 import { econ, econBeacon, serverEconomy } from './econ.js';
-import { ECONOMY } from './world-config.js';
+import { ECONOMY, COMBAT, SALVAGE } from './world-config.js';
 import { PLACE } from './live.js';
 
 const MILE = 1609.344;
@@ -103,6 +103,7 @@ Object.defineProperties(S, {
   holdCap: { get: () => BOAT_SPECS[S.active].hold, enumerable: false },
 });
 const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ coins: S.coins, planks: S.planks, active: S.active, boats: S.boats })); } catch { /* storage blocked */ } };
+let hull = { hp: 100, max: 100 }; // your hull (combat.js), once the server has said
 const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
 /** Fuel and hold for any boat, for the Garage. */
 export const boatStatus = id => { const b = S.boats[id], sp = BOAT_SPECS[id]; return { fuel: b.fuel, cap: sp.fuel, fish: FISH.reduce((a, f) => a + (b.hold[f.id] || 0), 0), holdCap: sp.hold, kn: sp.kn }; };
@@ -169,7 +170,7 @@ export function initStation(ctx) {
   // ---------- DOM: wallet, dock bar, markers, toast, shop modal ----------
   const ui = document.createElement('div'); ui.className = 'stn'; document.body.appendChild(ui);
   ui.innerHTML = `
-    <div class="stn-wallet" id="stn-wallet"><span class="pill" id="coins"><span class="coin"></span><span id="coinN">0</span></span><span class="pill" id="fuelPill"><span class="fuelbar"><i id="fuelFill"></i></span><span id="fuelN">0 L</span></span></div>
+    <div class="stn-wallet" id="stn-wallet"><span class="pill" id="coins"><span class="coin"></span><span id="coinN">0</span></span><span class="pill" id="fuelPill"><span class="fuelbar"><i id="fuelFill"></i></span><span id="fuelN">0 L</span></span><span class="pill plankpill" id="plankPill" hidden title="Wooden planks"><span class="plank-ico" aria-hidden="true"></span><span id="plankN"></span></span><span class="pill hullpill" id="hullPill" hidden title="Hull"><span class="hull-ico" aria-hidden="true"></span><span id="hullN"></span></span></div>
     <div class="hud bc stn-bar" id="stn-bar" hidden><div><div class="dc-title">Paradise Station</div><div class="dc-sub" id="dockSub"></div></div><button class="btn" id="sailBtn"></button></div>
     <button class="marker locked" id="mk-market" hidden><span class="mk"><span class="mk-name">Fish Market</span><span class="mk-sub">Sell your catch</span></span></button>
     <button class="marker locked" id="mk-boathouse" hidden><span class="mk"><span class="mk-name">Boathouse</span><span class="mk-sub">Refuel · boat inventory</span></span></button>
@@ -181,7 +182,9 @@ export function initStation(ctx) {
   let toastT; const toast = msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2800); };
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
   const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} L`; $('fuelPill').title = `Fuel ${Math.round(S.fuel)} of ${S.cap} L`;
-    $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15); };
+    $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15);
+    const hk = hull.hp / hull.max; $('hullPill').hidden = hk >= 1; $('hullN').textContent = `Hull ${Math.round(hk * 100)}%`; $('hullPill').classList.toggle('low', hk <= 0.25); // (shown once damaged)
+    $('plankPill').hidden = !S.planks; $('plankN').textContent = S.planks; $('plankPill').title = `${S.planks} wooden plank${S.planks === 1 ? '' : 's'}`; }; // (once you have some)
 
   // ---------- the economy: on the server for a signed-in captain (econ.js), on this device otherwise ----------
   // The server's answer is the truth: after every change the coins, holds, tanks and NOS are what it says. The tank of
@@ -191,7 +194,8 @@ export function initStation(ctx) {
   const applyEcon = (st, { refuelled = false } = {}) => {
     S.coins = st.coins; S.planks = st.planks || 0;
     Object.keys(BOAT_SPECS).forEach(id => { const b = st.boats?.[id]; if (!b) return; const local = S.boats[id].fuel;
-      S.boats[id] = { fuel: id === S.active && !refuelled ? Math.min(local, +b.fuel) : +b.fuel, hold: { ...b.hold }, nos: { owned: !!b.nos?.owned, charge: +b.nos?.charge || 0 } }; });
+      S.boats[id] = { fuel: id === S.active && !refuelled ? Math.min(local, +b.fuel) : +b.fuel, hold: { ...b.hold }, nos: { owned: !!b.nos?.owned, charge: +b.nos?.charge || 0 },
+        cannon: { owned: !!b.cannon?.owned, balls: +b.cannon?.balls || 0 } }; });
     if (st.boostReady) boostReady = Date.now() + (Date.parse(st.boostReady) - Date.parse(st.now)); // (on this device's clock)
     save(); renderWallet(); dispatchEvent(new Event('sailo:econ'));
     if (panel === 'market') updateMarket(); else if (panel === 'boathouse') updateBoathouse();
@@ -414,6 +418,7 @@ export function initStation(ctx) {
     <div class="sign"><span>Fish Market</span></div><button class="rx" data-act="close" aria-label="Close">✕</button>
     <div class="mk-ticker" aria-label="Today’s prices"><span id="mkTicker"></span></div>
     <div class="rp-body"><section><div class="rp-h"><h3>Today’s catch</h3><button class="tagbtn" data-act="addall">Add all</button></div><div class="ice" id="catchList"></div></section>
+    <section class="plank-sell" id="plankSell" hidden></section>
     <section><div class="rp-h"><h3>Selling crate</h3><span class="rp-note">Tap a fish in the crate to put it back</span></div>
     <div class="view crate" id="crateView"><div class="scale"><div class="face">${dialTicks(-135, 135, 20, 5, 31, [[-135, 0], [-67.5, 5], [0, 10], [67.5, 15], [135, 20]])}<div class="needle" id="needle"></div><div class="hub"></div><div class="kg" id="kgRead">0.0 kg</div></div></div></div>
     <div class="cchips" id="crateItems"></div>
@@ -435,7 +440,21 @@ export function initStation(ctx) {
     ui.querySelectorAll('#crateView .tlab').forEach((l, i) => { l.textContent = range / 4 * i; }); $('kgRead').textContent = kg.toFixed(1) + ' kg';
     countTo($('tillN'), total, 'c');
     const b = $('sellBtn'); b.disabled = !n; b.textContent = n ? `Sell ${n} fish for ${total}c` : 'Crate is empty';
+    renderPlanks();
   }
+  // wooden planks (salvage.js): sold here at a fixed price each, apart from the fish
+  let plankSell = 0;
+  function renderPlanks() {
+    const el = $('plankSell'); if (!el) return; el.hidden = !S.planks; if (!S.planks) return;
+    plankSell = Math.max(1, Math.min(S.planks, plankSell || S.planks)); const P = SALVAGE.plankPrice;
+    const html = `<div class="rp-h"><h3>Wooden planks</h3><span class="rp-note">${S.planks} on board · ${P}c each</span></div>
+      <div class="nos-row plank-row"><div class="stepper"><button data-act="plank-" ${plankSell <= 1 ? 'disabled' : ''} aria-label="One fewer">−</button><b>${plankSell}</b><button data-act="plank+" ${plankSell >= S.planks ? 'disabled' : ''} aria-label="One more">+</button><button class="tagbtn" data-act="plankall">All</button></div>
+      <button class="qb nos-buy" data-act="plankgo">Sell ${plankSell} for ${plankSell * P}c</button></div>`;
+    if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; } // (only when it changed: a redraw under a finger loses the tap)
+  }
+  function sellPlanks() { const n = Math.min(plankSell, S.planks); if (n < 1) return;
+    if (server) return call('econ_sell_planks', { p_n: n }).then(st => { plankSell = 0; toast(`Sold ${st.sold} plank${st.sold === 1 ? '' : 's'} · +${st.paid}c`); bump('coins'); renderPlanks(); }).catch(e => toast(e.message));
+    toast('Sign in to sell planks.'); }
   const boathouseShell = () => `<div class="roof"></div><div class="sign teal"><span>Boathouse</span><small>${berth.name}</small></div><button class="rx" data-act="close" aria-label="Close">✕</button>
     <div class="rp-body"><section class="pump"><div class="pump-top"><span>HARBOUR FUEL</span><span class="pump-price">${FUEL_PRICE}c / L</span></div>
     <div class="pump-face"><div class="fdial"><div class="zone"></div>${dialTicks(-120, 120, 16, 4, 30, [[-120, 'E'], [0, '½'], [120, 'F']])}<div class="needle f" id="fNeedle"></div><div class="hub"></div><div class="kg">FUEL</div></div>
@@ -444,6 +463,7 @@ export function initStation(ctx) {
     <div class="pump-ctrl"><button class="nozzle" id="nozzle">Hold to pump</button><div class="quick"><button class="qb" data-act="q10">+10 L</button><button class="qb" data-act="qfull">Fill up</button></div></div>
     <div class="pump-note" id="pumpNote"></div></section>
     <section class="nos-shop" id="nosShop"></section>
+    <section class="nos-shop" id="gunShop"></section>
     <section><div class="rp-h"><h3>On board</h3><span class="rp-note" id="holdTxt"></span></div><div class="holdbar"><i id="holdFill"></i></div><div class="view" id="tugViewHost" style="height:150px;margin-bottom:10px"></div><div class="slots" id="slots"></div></section></div>`;
   let pumping = false, pumpTarget = 0, sessL = 0, showL = 0, bubbleT = 0;
   function updatePumpUI() {
@@ -473,7 +493,25 @@ export function initStation(ctx) {
     if (S.coins < cost) return toast(`A full refill is ${cost} coins. Sell some fish first.`);
     if (server) return call('econ_nos_refill', { p_boat: S.active, p_seconds: +add.toFixed(2) }).then(st => { toast(`NOS refilled · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message));
     S.coins -= cost; n.charge = N.capacity; save(); renderWallet(); renderNos(); toast(`NOS refilled · −${cost}c`); dispatchEvent(new Event('sailo:econ')); }
-  function updateBoathouse() { renderNos();
+  // the cannon (signed-in captains: combat is checked by the server), its balls, and the hull's repairs
+  const G = COMBAT, gunOf = () => S.boats[S.active].cannon || { owned: false, balls: 0 };
+  function renderGun() {
+    const el = $('gunShop'); if (!el) return; const g = gunOf(), dmg = hull.max - hull.hp, room = G.maxBalls - g.balls, n10 = Math.min(10, room);
+    const repair = dmg > 0 ? `<div class="nos-row"><span class="rp-note">Hull ${Math.round(hull.hp / hull.max * 100)}% · ${G.repairPerHp}c a point</span><button class="qb" data-act="repair">Repair · ${dmg * G.repairPerHp}c</button></div>` : '';
+    el.innerHTML = !server ? `<div class="rp-h"><h3>Cannon</h3></div><p class="nos-pitch">Sign in to fit a cannon: every shot is checked by the harbour master.</p>`
+      : g.owned ? `<div class="rp-h"><h3>Cannon</h3><span class="rp-note">${g.balls} / ${G.maxBalls} balls · ${G.range} m</span></div>
+        <div class="holdbar gunbar"><i style="width:${(g.balls / G.maxBalls * 100).toFixed(1)}%"></i></div>
+        <div class="nos-row"><span class="rp-note">${G.ballPrice}c a ball</span><button class="qb" data-act="balls" ${n10 < 1 ? 'disabled' : ''}>${n10 < 1 ? 'Rack full' : `+${n10} balls · ${n10 * G.ballPrice}c`}</button></div>${repair}`
+      : `<div class="rp-h"><h3>Cannon</h3><span class="rp-note">for the ${S.active === 'tug' ? 'tug' : 'boat you’re sailing'}</span></div>
+        <p class="nos-pitch">Fires to port or starboard, ${G.range} m. Four hits sink a boat. Not in the harbour: Paradise Station is a safe harbour. Comes with ${G.startBalls} balls.</p>
+        <div class="nos-row"><span class="rp-note">Fires from the helm</span><button class="qb nos-buy" data-act="gunbuy" ${S.coins < G.cannonPrice ? 'disabled' : ''}>Cannon · ${G.cannonPrice}c</button></div>${repair}`;
+  }
+  function buyGun() { if (!server) return; if (S.coins < G.cannonPrice) return toast(`A cannon is ${G.cannonPrice} coins.`);
+    call('econ_cannon_buy', { p_boat: S.active }).then(st => { toast(`Cannon fitted · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message)); }
+  function buyBalls() { const n = Math.min(10, G.maxBalls - gunOf().balls); if (!server || n < 1) return;
+    call('econ_balls_buy', { p_boat: S.active, p_n: n }).then(st => { toast(`+${st.n} cannonballs · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message)); }
+  function repairHull() { if (!server) return; econ('combat_repair').then(st => { applyEcon(st); hull = { hp: st.hp, max: G.hull }; renderGun(); renderWallet(); dispatchEvent(new CustomEvent('sailo:hull', { detail: { hp: st.hp, hull: G.hull } })); toast(`Hull repaired · −${st.paid}c`); bump('coins'); }).catch(e => toast(e.message)); }
+  function updateBoathouse() { renderNos(); renderGun();
     const n = holdCount(); $('holdTxt').textContent = `Hold ${n} / ${S.holdCap}`; $('holdFill').style.width = (n / S.holdCap * 100) + '%';
     // only what's on board (there are too many species to list them all)
     const held = FISH.filter(f => S.hold[f.id]);
@@ -518,6 +556,12 @@ export function initStation(ctx) {
   $('card').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return; const a = b.dataset.act, id = b.dataset.id;
     if (a === 'close') return closePanel();
     if (a === 'nosbuy') return buyNos();
+    if (a === 'gunbuy') return buyGun();
+    if (a === 'balls') return buyBalls();
+    if (a === 'repair') return repairHull();
+    if (a === 'plank-' || a === 'plank+') { plankSell += a === 'plank+' ? 1 : -1; return renderPlanks(); }
+    if (a === 'plankall') { plankSell = S.planks; return renderPlanks(); }
+    if (a === 'plankgo') return sellPlanks();
     if (a === 'nosfill') return refillNos();
     if (a === 'q10') return startPump(Math.min(10, S.cap - S.fuel));
     if (a === 'qfull') return startPump(S.cap - S.fuel);
@@ -618,6 +662,14 @@ export function initStation(ctx) {
       return true; },
     /** Resolves once the last economy change has been answered. */
     settled: () => pending,
+    /** The boat you're sailing (for the server's checks). */
+    activeBoat: () => S.active,
+    /** Show an economy the server sent along with something else (a shot). */
+    applyEcon: st => { if (st && typeof st.coins === 'number') applyEcon(st); },
+    /** The cannon on the boat you're sailing: { owned, balls }. */
+    cannon: () => ({ ...gunOf() }),
+    /** Your hull (combat.js): shown at the top, repaired at the Boathouse. */
+    setHull(h) { if (h.hp === hull.hp && h.max === hull.max) return; hull = { hp: h.hp, max: h.max }; renderWallet(); if (panel === 'boathouse') renderGun(); }, // (only when it changed: a redraw under a finger loses the tap)
     /** NOS on the boat you're sailing: { owned, charge (s), cap, readyIn (ms until it can fire again) }. */
     nos: () => { const n = nosOf(); return { owned: n.owned, charge: n.charge, cap: N.capacity, readyIn: Math.max(0, boostReady - Date.now()) }; },
     /** Fire NOS: resolves with the seconds of boost granted (the server's say when signed in), or 0. */
@@ -627,6 +679,9 @@ export function initStation(ctx) {
       if (server) return call('econ_nos_fire', { p_boat: S.active }).then(st => +st.boost || 0).catch(e => { toast(e.message); return 0; });
       const dur = Math.min(N.burst, n.charge); n.charge -= dur; boostReady = Date.now() + (dur + N.cooldown) * 1000; save(); dispatchEvent(new Event('sailo:econ')); return Promise.resolve(dur); },
     coins: () => S.coins,
+    planks: () => S.planks,
+    /** Fetch the economy again (after a wreck took half of it). */
+    refresh: () => server ? call('econ_get').catch(() => {}) : Promise.resolve(),
     /** The detailed fish model (a copy) and its picture, shared with the Fish Market. */
     fishModel: id => kit().fishModels[id].clone(),
     fishImage: id => { const f = FISH.find(q => q.id === id); return f ? picture(f) : ''; },

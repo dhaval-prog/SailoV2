@@ -73,3 +73,38 @@ export const ECONOMY = {
     accel: 2.4,          // acceleration while boosting (×)
   },
 };
+
+// naval combat (combat.js; the server's copy: combat_cfg() in supabase/migrations/…_sailov2_combat.sql: keep in step)
+export const COMBAT = {
+  cannonPrice: 300,      // coins, once per boat (comes with startBalls)
+  ballPrice: 4,          // coins a cannonball
+  startBalls: 10, maxBalls: 40,
+  hull: 100,             // a hull's points
+  damage: 25,            // per hit (four hits sink a sound boat; never one, unless it's already badly holed)
+  reload: 4,             // seconds between shots
+  range: 140,            // metres
+  arc: 110,              // degrees: the cannon fires to either side (port or starboard), within this arc
+  repairPerHp: 2,        // coins per point of hull, at the Boathouse
+  safeRadius: 450,       // metres round Paradise Station: a safe harbour (no firing, no damage)
+  npcSunk: 600,          // seconds a sunk local sailor stays away
+};
+
+// salvage (salvage.js; the server's copy: salvage_cfg() in supabase/migrations/…_sailov2_salvage.sql: keep in step)
+export const SALVAGE = {
+  plankPrice: 6,         // coins a plank at the Fish Market (a fixed price: planks aren't fish)
+  wreckPlanks: 5,        // planks in every wreck
+  lootShare: 0.5,        // of a wrecked captain's coins and of each kind of fish in their hold (rounded down: the odd one stays)
+  wreckLasts: 600,       // seconds a wreck floats before it's gone, loot and all
+  reach: 30,             // metres: close enough to salvage a wreck
+  credit: 'last hit',    // with several attackers, whoever's shot sinks the boat is recorded as sinking it
+  // planks floating at sea: a shared schedule (the same planks for every captain), each picked up once
+  plank: {
+    cell: 600,           // the sea is split into squares this size…
+    slot: 900,           // …and time into slots this long; a square may hold a plank in a slot
+    chance: 0.12,        // odds it does
+    awayFromStation: 600, // never in the harbour
+    reach: 25,           // metres: the server's check (you pick one up by sailing within pickUp)
+    pickUp: 9,
+    seen: 420,           // drawn within this distance
+  },
+};
