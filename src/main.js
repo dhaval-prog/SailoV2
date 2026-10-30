@@ -9,6 +9,8 @@ import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
 import { createCombat } from './combat.js';
 import { createSalvage } from './salvage.js';
+import { createTerrain } from './terrain.js';
+import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
 import { rpc } from './econ.js';
 import { ECONOMY } from './world-config.js';
@@ -652,7 +654,7 @@ if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre')
       `mode ${['fullscreen', 'standalone', 'minimal-ui', 'browser'].find(m => matchMedia(`(display-mode: ${m})`).matches)}`].join('\n'); };
   paint(); setInterval(paint, 1000); }
 let boostT = 0; // seconds of NOS boost left (granted by the station: nos.js)
-let combat = null, salvage = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
+let combat = null, salvage = null, terrain = null, fishShadows = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
 let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
@@ -1020,6 +1022,12 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
     const c0 = station.coins(), f0 = station.holdInfo().n; // (half your coins and catch went down with her: the server says how much)
     station.refresh().then(() => { const dc = c0 - station.coins(), df = f0 - station.holdInfo().n; salvage?.refresh();
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
+// the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
+// the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
+terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z }),
+  onHit: () => hud.note('Rocks! Steer round them.', 2500) });
+fishShadows = createFishShadows({ THREE, scene: stage._scene, WL, wave: waveJS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
+  species: () => FISH.map(f => ({ f, w: localOdds(f) })).filter(s => s.w > 0), image: (id, cb) => station.fishImageSoon(id, cb), active: () => station.mode === 'sea' });
 // salvage: planks floating at sea, and wrecks to salvage (salvage.js; settings in world-config.js)
 salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: STATION, stations: STATIONS, edge: edgeDistance,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw }), report: () => combat.reportNow(), applyEcon: st => station.applyEcon(st),
@@ -1101,6 +1109,9 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
     if (busy) { nx = boat.position.x; nz = boat.position.z; vel = dockVel; } // position comes from the station's mooring route
     else if (station.blocked(nx, nz) && !station.blocked(boat.position.x, boat.position.z)) { nx = boat.position.x; nz = boat.position.z; vel *= 0.2; station.shoreWarn(); clearCourse(false); } // island, pier and rocks (a boat already inside, e.g. reloaded at a berth, can still sail out)
+    else if (terrain?.blocked(nx, nz) && !terrain.blocked(boat.position.x, boat.position.z)) { // a rock: slide along it if the boat meets it at a slant, else stop
+      if (!terrain.blocked(nx, boat.position.z)) nz = boat.position.z; else if (!terrain.blocked(boat.position.x, nz)) nx = boat.position.x; else { nx = boat.position.x; nz = boat.position.z; }
+      vel *= 0.35; terrain.hit(); clearCourse(false); }
     const dx = nx - boat.position.x, dz = nz - boat.position.z;
     if (!busy && dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
     if (!busy) fuelK = station.burn(Math.hypot(dx, dz), Math.abs(thr));
@@ -1151,7 +1162,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
@@ -1194,4 +1205,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, state: () => state, swapBoat: id => swapBoat(id), combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

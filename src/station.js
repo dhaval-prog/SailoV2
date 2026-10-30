@@ -40,7 +40,7 @@ export function addStations(places) { const add = stationsFor(places, STATIONS);
 export const harbourKey = st => st.id === 'home' ? CHART.id : `${CHART.id}@${st.id}`;
 const K = 1 / 0.6;           // island scale (source tug was 0.6x)
 const NEAR = 260;            // metres: "Sail into port" offered inside this range
-const SHOW = 2200;           // metres: island drawn inside this range
+const SHOW = 650;            // metres: island drawn inside this range (the sea haze hides it past ~420 m)
 
 // ---- fish, prices and the economy (values from the station file) ----
 export const FISH = [

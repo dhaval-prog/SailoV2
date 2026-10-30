@@ -184,6 +184,26 @@ async function mapbox(x, y, z) {
   return out;
 }
 
+// ---------- shapes for the sea's terrain (terrain.js): building footprints and green areas, Mapbox only ----------
+/** One tile's polygons of a layer, in world metres: [{ cls, ring: [[x, z], …] }] (outer rings), or null if it can't load. */
+export async function mapShapes(layer, x, y, z, keep = () => true) {
+  if (provider !== 'mapbox') return null;
+  if (!mbLib) { const [vt, pbf] = await Promise.all([import('@mapbox/vector-tile'), import('pbf')]); mbLib = { VectorTile: vt.VectorTile, Pbf: pbf.default }; }
+  mbTilesets ||= Promise.resolve('mapbox.mapbox-streets-v8'); const ts = await mbTilesets;
+  let r; try { r = await fetch(`https://api.mapbox.com/v4/${ts}/${z}/${x}/${y}.vector.pbf?access_token=${TOKEN}`); } catch { return null; } if (!r.ok) return null;
+  const tile = new mbLib.VectorTile(new mbLib.Pbf(new Uint8Array(await r.arrayBuffer()))), L = tile.layers[layer], out = [];
+  if (!L) return out;
+  for (let i = 0; i < L.length; i++) { const ft = L.feature(i), p = ft.properties, cls = p.class || p.type || ''; if (!keep(cls, p)) continue;
+    const g = ft.toGeoJSON(x, y, z).geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    polys.forEach(poly => { const ring = poly[0]?.map(([lng, lat]) => project(lat, lng)); if (ring && ring.length > 2) out.push({ cls, ring }); }); }
+  return out;
+}
+/** The tiles at zoom z covering a world rectangle: [[x, y], …], and a tile's own rectangle in world metres. */
+export function tilesIn(x0, z0, x1, z1, z) { const [n, w] = unproject(x0, z0), [s, e] = unproject(x1, z1), out = [];
+  for (let x = lng2t(w, z); x <= lng2t(e, z); x++) for (let y = lat2t(n, z); y <= lat2t(s, z); y++) out.push([x, y]); return out; }
+export function tileRect(x, y, z) { const b = tileBox(x, y, z), [x0, z0] = project(b.n, b.w), [x1, z1] = project(b.s, b.e); return { x0, z0, x1, z1 }; }
+export { cacheGet as geoCacheGet, cachePut as geoCachePut };
+
 // ---------- loading by visible bounds ----------
 const requested = new Set();
 // each source loads on its own (Mapbox tiles come back fast; Overpass requests are queued)
