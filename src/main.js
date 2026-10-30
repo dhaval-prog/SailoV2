@@ -14,8 +14,7 @@ import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
 import { rpc } from './econ.js';
 import { farFade } from './far-fade.js';
-import { createQuality } from './quality.js';
-import { ECONOMY, TERRAIN } from './world-config.js';
+import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
 import * as geo from './geo.js';
@@ -265,7 +264,7 @@ const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATIO
 const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
 addEventListener('sailo:station', () => { CALM.c.copy(stW(2, 2)); SHORE.c.copy(stW(-6, -3)); }); // (the calm water and shallows go with the nearest station)
 const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 2) return 1; const k = Math.max(0, u - 1); return 0.12 + 0.88 * k * k * (3 - 2 * k); };
-const seaU = { uSky: { value: new THREE.Color(0.55, 0.85, 0.96) }, time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
+const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
 const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.34, 0.2, 0.11, 0.05], WK = [0.18, 0.29, 0.52, 0.95], WS = [1.1, 1.5, 2.1, 2.9];
 const ENV = { amp: 1 };
@@ -285,7 +284,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float f = 1.0 - smoothstep(45.0, 72.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
       #endif
       gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
-  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec3 uSky; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
+  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
       vec3 deep = vec3(0.07, 0.33, 0.66), mid = vec3(0.11, 0.55, 0.84), far = vec3(0.24, 0.76, 0.93), lite = vec3(0.36, 0.82, 0.96);
@@ -324,7 +323,6 @@ const makeSea = waves => new THREE.ShaderMaterial({
       #endif
       col = mix(col, col * vec3(0.2, 0.3, 0.56) + vec3(0.0, 0.015, 0.05), uNight); // moonlit sea (as in the station file)
       col += uFlash * vec3(0.25, 0.3, 0.38);
-      { vec3 vv = normalize(cameraPosition - wp); float fres = pow(1.0 - clamp(vv.y, 0.0, 1.0), 4.0); col = mix(col, uSky, fres * 0.42 * (1.0 - uNight * 0.6)); } // (the sky, mirrored where the sea is seen side-on)
       col = mix(col, uHaze, smoothstep(uFog.x, uFog.y, d));
       gl_FragColor = vec4(col, 1.0);
     }`,
@@ -496,7 +494,7 @@ function stepEnv(t, dt) {
   seaU.uHaze.value.copy(shaderHaze); seaU.uFog.value.set(fogNear, fogFar); seaU.uFlash.value = flash;
   seaU.uSun.value.set(0.45, 0.75, 0.35).normalize().lerp(new THREE.Vector3(-0.53, 0.46, -0.71), E.night).normalize();
   seaU.uSpec.value = Math.max(0, 1.1 - E.cover * 0.4 - E.dark) * (1 - 0.4 * E.night);
-  skyU.uTop.value.copy(E.top).lerp(shaderHaze, foggy * E.night * 0.35); skyU.uMid.value.copy(E.mid).lerp(shaderHaze, foggy * E.night * 0.7); seaU.uSky.value.copy(skyU.uMid.value); skyU.uHor.value.copy(shaderHaze); skyU.uStars.value = E.night * Math.max(0, 1 - E.cover * 0.75); skyU.uFlash.value = flash;
+  skyU.uTop.value.copy(E.top).lerp(shaderHaze, foggy * E.night * 0.35); skyU.uMid.value.copy(E.mid).lerp(shaderHaze, foggy * E.night * 0.7); skyU.uHor.value.copy(shaderHaze); skyU.uStars.value = E.night * Math.max(0, 1 - E.cover * 0.75); skyU.uFlash.value = flash;
   cloudU.cover.value = E.cover; cloudU.dark.value = E.dark; cloudU.fade.value = E.cfade; cloudU.flash.value = flash;
   cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#4a5c86'), E.night * 0.85);
   stage._scene.fog.color.copy(fogCol); stage._scene.fog.near = fogNear; stage._scene.fog.far = fogFar;
@@ -660,7 +658,7 @@ if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre')
   paint(); setInterval(paint, 1000); }
 let boostT = 0; // seconds of NOS boost left (granted by the station: nos.js)
 let combat = null, salvage = null, terrain = null, fishShadows = null, wreckT = 0; // naval combat (combat.js); seconds into your boat's sinking, after a wreck
-let yaw = 0, vel = 0, steerS = 0, lastT = 0, dtSm = 1 / 60, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
+let yaw = 0, vel = 0, steerS = 0, lastT = 0, MAXV = 6; // MAXV (m/s) follows the active boat's top speed
 // gentle motion
 const clock = new THREE.Clock();
 // ===== boat actions: fishing + anchor =====
@@ -1089,15 +1087,9 @@ const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),
   onFish: () => { ACT.fish === 'off' ? startFishing() : stopFishing(); }, onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
-// adaptive quality (quality.js): lighter pictures on phones that can't keep up
-const quality = createQuality({ renderer: stage._renderer, resize: () => { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; stage._renderer.setSize(w, h); },
-  setShadows: on => { if (lights.key.castShadow !== on) lights.key.castShadow = on; },
-  setRange: k => { TERRAIN.drawRocks = Math.round(650 * k); TERRAIN.drawCorals = Math.round(420 * k); } });
 (function tick() {
   const t = clock.getElapsedTime();
-  // frame pacing: the step is smoothed over a few frames, so one slow frame doesn't jolt the boat and the camera
-  const rawDt = Math.min(0.1, Math.max(0, t - lastT)); lastT = t; dtSm += (rawDt - dtSm) * (rawDt > dtSm * 2.5 ? 0.12 : 0.35);
-  const dt = Math.min(0.05, dtSm); quality.frame();
+  const dt = Math.min(0.05, t - lastT); lastT = t;
   const k = drive.keys;
   const kThr = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0), kStr = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
   let thr = Math.max(-1, Math.min(1, HELM.lever + kThr));
