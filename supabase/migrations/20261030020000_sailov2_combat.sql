@@ -161,7 +161,7 @@ end $$;
 create or replace function public.combat_hit(p_shot bigint, p_kind text, p_target text, p_x double precision, p_z double precision)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare me uuid := auth.uid(); c jsonb := public.combat_cfg(); s public.combat_shots; tp public.combat_pos; th public.combat_hull; nh public.npc_hull;
-  dmg int := (c ->> 'damage')::int; tid uuid; wrecked boolean := false; nhp int;
+  dmg int := (c ->> 'damage')::int; tid uuid; sank boolean := false; nhp int;
 begin
   select * into s from public.combat_shots where id = p_shot and user_id = me for update;
   if s.id is null or s.resolved then raise exception 'no_such_shot' using errcode = 'P0001'; end if;
@@ -178,21 +178,21 @@ begin
     if public.combat_safe(s.chart, tp.x, tp.z) then raise exception 'safe_harbour' using errcode = 'P0001'; end if;
     th := public.combat_hull_row(tid);
     if th.wrecked_at is not null then raise exception 'already_wrecked' using errcode = 'P0001'; end if;
-    nhp := greatest(0, th.hp - dmg); wrecked := nhp = 0;
-    update public.combat_hull set hp = nhp, hit_at = now(), hit_by = me, wrecked_at = case when wrecked then now() else null end, wrecked_by = case when wrecked then me else null end, updated_at = now()
+    nhp := greatest(0, th.hp - dmg); sank := nhp = 0;
+    update public.combat_hull set hp = nhp, hit_at = now(), hit_by = me, wrecked_at = case when sank then now() else null end, wrecked_by = case when sank then me else null end, updated_at = now()
       where user_id = tid;
   elsif p_kind = 'npc' then
     if char_length(p_target) not between 1 and 40 then raise exception 'no_such_target' using errcode = 'P0001'; end if;
     insert into public.npc_hull (chart, npc) values (s.chart, p_target) on conflict do nothing;
     select * into nh from public.npc_hull where chart = s.chart and npc = p_target for update;
     if nh.sunk_until > now() then raise exception 'already_wrecked' using errcode = 'P0001'; end if;
-    nhp := greatest(0, case when nh.sunk_until is not null then (c ->> 'hull')::int else nh.hp end - dmg); wrecked := nhp = 0;
-    update public.npc_hull set hp = case when wrecked then (c ->> 'hull')::int else nhp end, hit_at = now(),
-      sunk_until = case when wrecked then now() + make_interval(secs => (c ->> 'npcSunk')::double precision) else null end
+    nhp := greatest(0, case when nh.sunk_until is not null then (c ->> 'hull')::int else nh.hp end - dmg); sank := nhp = 0;
+    update public.npc_hull set hp = case when sank then (c ->> 'hull')::int else nhp end, hit_at = now(),
+      sunk_until = case when sank then now() + make_interval(secs => (c ->> 'npcSunk')::double precision) else null end
       where chart = s.chart and npc = p_target;
   else raise exception 'no_such_target' using errcode = 'P0001'; end if;
-  update public.combat_shots set target_kind = p_kind, target = p_target, damage = dmg, wrecked = combat_hit.wrecked where id = s.id;
-  return jsonb_build_object('hp', nhp, 'hull', (c ->> 'hull')::int, 'damage', dmg, 'wrecked', wrecked);
+  update public.combat_shots set target_kind = p_kind, target = p_target, damage = dmg, wrecked = sank where id = s.id;
+  return jsonb_build_object('hp', nhp, 'hull', (c ->> 'hull')::int, 'damage', dmg, 'wrecked', sank);
 end $$;
 
 /** Repair the hull at the Boathouse (moored): coins per point. */

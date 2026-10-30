@@ -94,15 +94,18 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
   function launch(from, to, shot, target, mine) {
     const d = Math.hypot(to.x - from.x, to.z - from.z), T = 0.7 + d / 110, h = 3 + d * 0.06;
     const mesh = new THREE.Mesh(ballGeo, ballMat); mesh.position.set(from.x, from.y, from.z); scene.add(mesh);
-    balls.push({ mesh, from, to: { x: to.x, z: to.z }, T, h, t: 0, shot, target, mine });
+    balls.push({ mesh, from, to: { x: to.x, z: to.z }, aim: { x: to.x, z: to.z }, T, h, t: 0, t0: performance.now(), shot, target, mine });
   }
   const islandR = 32; // (the station's island: a ball that reaches it stops there)
   function stepBalls(dt, t) {
-    for (let i = balls.length - 1; i >= 0; i--) { const B = balls[i]; B.t += dt; const u = Math.min(1, B.t / B.T);
+    const tgs = balls.some(B => B.mine) ? targets() : [];
+    for (let i = balls.length - 1; i >= 0; i--) { const B = balls[i]; B.t = (performance.now() - B.t0) / 1000; const u = Math.min(1, B.t / B.T); // (real time: the server wants the hit soon after the shot)
+      if (B.mine && B.target) { const tg = tgs.find(t => t.kind === B.target.kind && t.id === B.target.id); // (fired at a boat: the ball follows it while in the air,
+        if (tg && Math.hypot(tg.x - B.aim.x, tg.z - B.aim.z) < 25) { B.to.x = tg.x; B.to.z = tg.z; } }    //  unless it gets well clear, under NOS say)
       const x = B.from.x + (B.to.x - B.from.x) * u, z = B.from.z + (B.to.z - B.from.z) * u, y = B.from.y + (WL - B.from.y) * u + B.h * 4 * u * (1 - u);
       B.mesh.position.set(x, y, z);
       let end = u >= 1 ? 'water' : null, hitT = null;
-      if (!end && B.mine && y < WL + 4.2) targets().forEach(tg => { if (!end && Math.hypot(tg.x - x, tg.z - z) < 4.6) { end = 'boat'; hitT = tg; } });
+      if (B.mine && (y < WL + 4.2 || end)) tgs.forEach(tg => { if (end !== 'boat' && Math.hypot(tg.x - x, tg.z - z) < 4.6) { end = 'boat'; hitT = tg; } }); // (and where it lands, in case a slow frame skipped past)
       if (!end && y < WL + 3 && Math.hypot(x - stationPos.x, z - stationPos.z) < islandR) end = 'land';
       if (!end) { if (Math.random() < 0.5) emit(x, y, z, 0, 0.3, 0); continue; } // (a faint trail)
       scene.remove(B.mesh); balls.splice(i, 1);
@@ -138,16 +141,18 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
 
   // ---------- your hull, where you are (for the server), and the local sailors' hulls ----------
   async function refreshHull() { try { const h = await rpc('combat_me'); setHull(h); } catch { /* offline */ } }
-  function setHull(h) { const was = hull.wrecked; hull = { hp: h.hp, max: h.hull, wrecked: !!h.wrecked }; onHull(hull); paint(); if (hull.wrecked && !was) onWrecked(lastHitBy); }
+  function setHull(h) { const was = hull.wrecked, hit = synced && h.hp < hull.hp && !h.wrecked; synced = true; hull = { hp: h.hp, max: h.hull, wrecked: !!h.wrecked }; onHull(hull); paint();
+    if (hit && Date.now() - heardAt > 4000) note(`You've been hit! Hull ${Math.round(hull.hp / hull.max * 100)}%`); // (the radio's word on who fired may not come)
+    if (hull.wrecked && !was) onWrecked(lastHitBy); }
   let hereT = 0; async function here(force) { if (!signedIn) return; const now = Date.now(); if (!force && now - hereT < 2000) return; hereT = now; const b = getBoat();
     try { setHull(await rpc('combat_here', { p_chart: chartId, p_x: +b.x.toFixed(1), p_z: +b.z.toFixed(1), p_station_x: +stationPos.x.toFixed(1), p_station_z: +stationPos.z.toFixed(1) })); } catch { /* offline */ } }
   let npcHulls = new Map(), npcT = 0;
   async function npcRefresh() { try { const list = await rpc('combat_npcs', { p_chart: chartId }); npcHulls = new Map((list || []).map(n => [n.npc, n])); } catch { /* offline */ } }
-  let lastHitBy = '';
+  let lastHitBy = '', heardAt = 0, synced = false; // (synced: the first answer is just how the hull was left)
   /** A radio message from another captain (online.js): their shot to draw, or a hit on you. */
   function heard(kind, p, d) {
     if (kind === 'shot') launch({ x: +d.x, y: +d.y, z: +d.z }, { x: +d.ax, z: +d.az }, null, null, false);
-    if (kind === 'hit') { lastHitBy = p?.name || 'another captain'; note(`You were hit by ${lastHitBy}!`); refreshHull(); }
+    if (kind === 'hit') { lastHitBy = p?.name || 'another captain'; heardAt = Date.now(); note(`You were hit by ${lastHitBy}!`); refreshHull(); }
   }
 
   function paint() {

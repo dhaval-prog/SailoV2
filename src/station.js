@@ -650,7 +650,7 @@ export function initStation(ctx) {
     /** The cannon on the boat you're sailing: { owned, balls }. */
     cannon: () => ({ ...gunOf() }),
     /** Your hull (combat.js): shown at the top, repaired at the Boathouse. */
-    setHull(h) { hull = { hp: h.hp, max: h.max }; renderWallet(); if (panel === 'boathouse') renderGun(); },
+    setHull(h) { if (h.hp === hull.hp && h.max === hull.max) return; hull = { hp: h.hp, max: h.max }; renderWallet(); if (panel === 'boathouse') renderGun(); }, // (only when it changed: a redraw under a finger loses the tap)
     /** NOS on the boat you're sailing: { owned, charge (s), cap, readyIn (ms until it can fire again) }. */
     nos: () => { const n = nosOf(); return { owned: n.owned, charge: n.charge, cap: N.capacity, readyIn: Math.max(0, boostReady - Date.now()) }; },
     /** Fire NOS: resolves with the seconds of boost granted (the server's say when signed in), or 0. */
