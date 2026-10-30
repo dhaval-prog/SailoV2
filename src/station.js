@@ -8,6 +8,8 @@
 
 import { buildIsland } from './station-island.js';
 import { CHART, WORLD, project, formatOffset } from './world.js';
+import { isPune } from './chart.js';
+import { stationsFor, PUNE_MAJORS } from './stations.js';
 import { regionAt, regionName } from './regions.js';
 import { MORE_FISH, buildSpecies } from './fish-species.js';
 import { MORE_FISH_2, RENAMES } from './fish-species-2.js';
@@ -25,7 +27,17 @@ const spot = (() => { const st = CHART.station; if (!st) return { x: -3.7 * MILE
   let [x, z] = project(st.lat, st.lng); const d = Math.hypot(x, z), lim = WORLD.half - 1500;
   if (d < 900) { if (d < 1) { x = -900; z = 0; } else { x *= 900 / d; z *= 900 / d; } }
   return { x: Math.max(-lim, Math.min(lim, x)), z: Math.max(-lim, Math.min(lim, z)) }; })();
-export const STATION = { name: 'Paradise Station', at: CHART.station?.name || '', ...spot, where: formatOffset(spot.x, spot.z) };
+// HOME: the chart's own station (the local sailors' port). STATIONS: it and one in every major neighbourhood
+// (stations.js). STATION: the one nearest your boat. There's one island built in full, and it moves to the nearest
+// station while you're at sea (with its berths, shops and safe harbour). Stations are 1.2 km apart at least and the sea
+// haze hides anything past ~400 m, so it moves while out of sight (at the halfway line) and no other is ever in view.
+export const HOME = Object.freeze({ id: 'home', name: 'Paradise Station', at: CHART.station?.name || '', ...spot, where: formatOffset(spot.x, spot.z) });
+export const STATIONS = [HOME, ...(isPune ? stationsFor(PUNE_MAJORS, [HOME]) : [])];
+export const STATION = { ...HOME };
+/** More stations (other cities, as their neighbourhoods load): those clear of the rest are added. */
+export function addStations(places) { const add = stationsFor(places, STATIONS); if (add.length) { STATIONS.push(...add); dispatchEvent(new Event('sailo:stations')); } return add; }
+/** The name to book berths under at a station (the home port keeps the chart's own). */
+export const harbourKey = st => st.id === 'home' ? CHART.id : `${CHART.id}@${st.id}`;
 const K = 1 / 0.6;           // island scale (source tug was 0.6x)
 const NEAR = 260;            // metres: "Sail into port" offered inside this range
 const SHOW = 2200;           // metres: island drawn inside this range
@@ -129,7 +141,7 @@ export const PORT = (() => {
     { name: 'Berth 3', pos: [xa1 + 1.95, PZ + 9.4], yaw: Math.PI / 2, side: -1, via: [[edgeX + 24, PZ + 22], [xa1 + 2.6, PZ + 15]] },
     { name: 'Berth 4', pos: [xa1 - hw, BZ + 1.95], yaw: Math.PI, side: 1, via: [[edgeX + 26, PZ + 21], [xa1 + 5, BZ + 2.4]] },
   ];
-  const w = ([x, z]) => [STATION.x + x * K, STATION.z + z * K];
+  const w = ([x, z]) => [HOME.x + x * K, HOME.z + z * K];
   // where boats wait offshore for a berth: a loose arc beyond the harbour mouth
   const queue = [0, 1, 2, 3, 4, 5].map(i => w([edgeX + 44 + (i % 3) * 9, PZ + 44 + Math.floor(i / 3) * 10 - (i % 3) * 4]));
   return { local: { IC, isl, PZ, W, hw, BZ, edgeX, xa1, SEA0, BERTHS }, sea0: w(SEA0), queue,
@@ -165,6 +177,14 @@ export function initStation(ctx) {
   // built the first time the boat heads towards the station
   let island = null, ready = false;
   const build = () => { island = buildIsland({ THREE, M, scale: K, waveAt: (x, z, t) => waveJS(O.x + x * K, O.z + z * K, t) / K }); root.add(island.root); ready = true; };
+
+  let stnT = 0;
+  // the nearest station becomes the one you can sail into: the island (and everything on it) moves there
+  function nearest(bp) {
+    let best = STATION, bd = Math.hypot(bp.x - STATION.x, bp.z - STATION.z);
+    STATIONS.forEach(st => { const d = Math.hypot(bp.x - st.x, bp.z - st.z); if (d < bd - 50) { bd = d; best = st; } }); // (a little stickiness at the halfway line)
+    if (best.id !== STATION.id) { Object.assign(STATION, best, { where: formatOffset(best.x, best.z) }); O.set(best.x, WL, best.z); root.position.copy(O); dispatchEvent(new CustomEvent('sailo:station', { detail: STATION })); }
+  }
 
 
   // ---------- DOM: wallet, dock bar, markers, toast, shop modal ----------
@@ -221,6 +241,7 @@ export function initStation(ctx) {
   const ropes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), M('rope', '#e6cf9a')); m.visible = false; stage._scene.add(m); return m; });
   const renderBar = () => {
     const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near && !dismissed;
+    bar.querySelector('.dc-title').textContent = STATION.id === 'home' ? 'Paradise Station' : `Paradise Station · ${STATION.at}`; // (which neighbourhood's)
     bar.hidden = !show; document.body.classList.toggle('stn-bar-on', show); document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
     if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = headline(LOCAL_FISH) || 'Moor at the pier to open the shops'; }
     else if (mode === 'picking') { b.textContent = 'Cancel'; b.disabled = false; sub.textContent = 'Pick a berth along the pier'; }
@@ -588,7 +609,8 @@ export function initStation(ctx) {
   function tick(t, dt) {
     const bp = ctx.boatPos(), dist = Math.hypot(bp.x - O.x, bp.z - O.z);
     if (mode === 'picking' && (berthPaintT -= dt) < 0) { berthPaintT = 1; paintBerths(); } // (boats come and go while you choose)
-    if (!island && dist < 3500) build();
+    if (!island && STATIONS.some(st => Math.hypot(bp.x - st.x, bp.z - st.z) < 3500)) build();
+    if (mode === 'sea' && (stnT -= dt) < 0) { stnT = 0.5; nearest(bp); }
     root.visible = ready && dist < SHOW;
     const wasNear = near; near = dist < NEAR; if (!near) dismissed = false; if (near !== wasNear && mode === 'sea') renderBar();
     if (root.visible) {
@@ -629,7 +651,12 @@ export function initStation(ctx) {
 
   renderWallet(); renderBar();
   return {
-    tick, blocked, ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _sea: () => { closePanel(); mode = 'sea'; renderBar(); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
+    tick, blocked,
+    /** Where boats leave the nearest station's harbour mouth (world x, z): a wrecked boat is towed there. */
+    seaMouth: () => { const p = toW(SEA0[0], SEA0[1]); return [p.x, p.z]; },
+    /** The nearest station's berths and harbour mouth (world x, z): where gulls gather. */
+    harbourPoints: () => [...BERTHS.map(b => toW(...b.pos)), toW(SEA0[0], SEA0[1])].map(p => ({ x: p.x, z: p.z })),
+    ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _sea: () => { closePanel(); mode = 'sea'; renderBar(); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
     get mode() { return mode; },
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
     burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr)); reportBurn();

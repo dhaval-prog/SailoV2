@@ -5,7 +5,7 @@
 // This module is the schedule (pure maths, no 3D); cpu-fleet.js draws the boats.
 import { SEED } from './geo-seed.js';
 import { project, clampToWorld } from './world.js';
-import { STATION, BOAT_SPECS, FISH, PORT, FUEL_PRICE, burnFor } from './station.js';
+import { HOME as STATION, BOAT_SPECS, FISH, PORT, FUEL_PRICE, burnFor } from './station.js'; // (the local sailors' port is the home station)
 
 // ---------- the roster ----------
 // sessions: [start, end] local times ("HH:MM"; an end past midnight is written as e.g. "27:00"), each with

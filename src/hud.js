@@ -4,7 +4,7 @@
 
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
-import { STATION, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
+import { STATION, STATIONS, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { currentSession, signOut } from './auth.js';
 import { beforeSignOut, lastSaved } from './cloud.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
@@ -194,12 +194,14 @@ export function initHud(api) {
   { const g = el('g', { class: 'map-mark', 'data-x': 0, 'data-y': 0 });
     el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 }, g);
     el('text', { x: 0, y: u * 5.2, class: 'map-label', 'font-size': u * 3.2 }, g).textContent = 'Harbour'; }
-  // Paradise Station island
-  { const g = el('g', { transform: `translate(${STATION.x} ${STATION.z})`, class: 'map-station map-mark', 'data-x': STATION.x, 'data-y': STATION.z });
+  // Paradise Stations: the home port, and one in every major neighbourhood (more arrive as other cities' maps load)
+  const drawn = new Set(), drawStation = st => { if (drawn.has(st.id)) return; drawn.add(st.id); const home = st.id === 'home';
+    const g = el('g', { transform: `translate(${st.x} ${st.z})`, class: 'map-station map-mark' + (home ? '' : ' map-station-n'), 'data-x': st.x, 'data-y': st.z });
     el('ellipse', { rx: u * 2.4, ry: u * 1.8, class: 'map-island', 'stroke-width': u * 0.4 }, g);
     el('path', { d: `M${-u * 0.3} ${u * 0.6}Q${-u * 0.2} ${-u * 0.6} ${u * 0.4} ${-u * 1.4}M${u * 0.4} ${-u * 1.4}q${-u * 1.4} ${-u * 0.1} ${-u * 1.8} ${u * 0.6}M${u * 0.4} ${-u * 1.4}q${u * 1.4} ${-u * 0.1} ${u * 1.8} ${u * 0.6}`, class: 'map-palm', 'stroke-width': u * 0.45 }, g);
-    el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station';
-    if (STATION.at) el('text', { x: 0, y: u * 8.4, class: 'map-label map-label-sub', 'font-size': u * 2.3 }, g).textContent = `at ${STATION.at}`; }
+    if (home) el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station';
+    if (home && st.at) el('text', { x: 0, y: u * 8.4, class: 'map-label map-label-sub', 'font-size': u * 2.3 }, g).textContent = `at ${st.at}`; }; // (a neighbourhood's station sits on its name)
+  STATIONS.forEach(drawStation); addEventListener('sailo:stations', () => STATIONS.forEach(drawStation));
   // compass rose and scale bar
   const northG = el('g', {});
   el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, northG);
@@ -393,11 +395,12 @@ export function initHud(api) {
   paintFleet();
   $('tb-fleet').addEventListener('click', openGarage);
   // search: places in this chart; picking one pins a course there
-  const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, { name: 'Paradise Station', sub: `${STATION.at ? STATION.at + ' · ' : ''}Fish Market · Boathouse · fuel`, x: STATION.x, z: STATION.z }];
+  const stationPlaces = () => STATIONS.map(st => ({ name: st.id === 'home' ? 'Paradise Station' : `Paradise Station · ${st.at}`, sub: `${st.id === 'home' && st.at ? st.at + ' · ' : ''}Fish Market · Boathouse · fuel`, x: st.x, z: st.z }));
+  const PLACES = [{ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, ...stationPlaces()];
   const openSearch = () => {
     openSheet('Search', 'Find a place and sail there', '<label class="ns-field"><img src="./hud/white/search.svg" alt="" draggable="false"><input class="sh-input" id="sh-q" type="search" placeholder="Search places" autocomplete="off" spellcheck="false"></label><div id="sh-results" class="sheet-body"></div>', 'search');
     const q = $('sh-q'), res = $('sh-results');
-    PLACES.length = 2; placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: groupLabel(p.group), x: p.x, z: p.z }));
+    PLACES.length = 0; PLACES.push({ name: 'Harbour', sub: 'Where every voyage starts', x: 0, z: 0 }, ...stationPlaces()); placeList().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => PLACES.push({ name: p.name, sub: groupLabel(p.group), x: p.x, z: p.z }));
     const paint = () => { const term = q.value.trim().toLowerCase(), list = PLACES.filter(p => !term || p.name.toLowerCase().includes(term)).slice(0, term ? 40 : 12);
       res.innerHTML = list.length ? list.map((p, i) => `<button class="sh-row" style="--n:${i}" data-i="${PLACES.indexOf(p)}"><div><b>${p.name}</b><br><small>${p.sub} · ${formatPosition(p.x, p.z)}</small></div><span class="go"><em>${fmtMi(Math.hypot(p.x - lastStats.x, p.z - lastStats.z))}</em><span class="ns-sail">Sail<img src="./gf/teal/arrow.svg" alt="" draggable="false"></span></span></button>`).join('') : '<div class="sh-msg">No places match that search.</div>'; };
     q.addEventListener('input', paint);
