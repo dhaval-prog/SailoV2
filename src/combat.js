@@ -29,7 +29,7 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
   // ---------- the button at the helm ----------
   const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'cannon-btn'; btn.hidden = true; btn.setAttribute('aria-label', 'Cannon');
   btn.innerHTML = `<svg viewBox="0 0 60 60" aria-hidden="true"><circle class="cb-track" cx="30" cy="30" r="26"/><circle class="cb-load" cx="30" cy="30" r="26" pathLength="100"/>
-    <g class="cb-ico"><rect x="14" y="25" width="26" height="10" rx="5" transform="rotate(-18 27 30)"/><circle cx="40" cy="26" r="3.2" class="cb-mouth"/><circle cx="24" cy="38" r="6"/><circle cx="24" cy="38" r="2.2" class="cb-hub"/></g></svg><b class="cb-n"></b>`;
+    <g class="cb-ico"><circle cx="27" cy="34" r="11"/><rect x="31.5" y="19" width="7" height="6" rx="1.5" transform="rotate(40 35 22)"/><path class="cb-fuse" d="M37.5 18.5 q3 -5 7.5 -3.5"/><path class="cb-spark" d="M46 11.5 l1.2 2.6 2.8 .3 -2.1 1.9 .6 2.8 -2.5 -1.4 -2.5 1.4 .6 -2.8 -2.1 -1.9 2.8 -.3z"/><circle cx="22.5" cy="29.5" r="3" class="cb-shine"/></g></svg><b class="cb-n"></b>`;
   document.body.appendChild(btn);
   const load = btn.querySelector('.cb-load'), count = btn.querySelector('.cb-n');
   btn.addEventListener('click', () => setAim(!aiming));

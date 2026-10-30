@@ -21,7 +21,7 @@ body.boat-sel .cpu-tag, body.stn-docked .cpu-tag { pointer-events: none; }
 #sheet.nk .cp-sec p + p { margin-top: 6px; }
 #sheet.nk .cp-dim { color: var(--gf-dim); font-weight: 700 !important; font-size: 13.5px !important; }
 #sheet.nk .cp-note { margin: 12px 0 0; padding-top: 14px; border-top: 1px solid var(--gf-line); font: 700 12px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.55); }
-@media (max-width: 720px) { .cpu-tag b { font-size: 12.5px; } .cpu-tag small { font-size: 9.5px; } }
+@media (max-width: 720px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { .cpu-tag b { font-size: 12.5px; } .cpu-tag small { font-size: 9.5px; } }
 
 /* a captain's speech bubble over their name */
 .cpu-say { order: -1; max-width: 220px; margin-bottom: 4px; padding: 7px 12px; border-radius: 14px 14px 14px 4px; background: rgba(255, 255, 255, 0.95); color: #172443; text-shadow: none;
@@ -61,7 +61,7 @@ body.boat-sel .cpu-tag, body.stn-docked .cpu-tag { pointer-events: none; }
 #hb-ticker i { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.8); }
 @keyframes hb-in { 0% { opacity: 0; transform: translateX(-10px); } 6%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 body.boat-sel #hb-ticker, body.stn-docked #hb-ticker { display: none; }
-@media (max-width: 720px), (max-height: 520px) { #hb-ticker { left: 16px; top: calc(146px + var(--safe-t, 0px)); font-size: 12.5px; max-width: calc(100vw - 90px); } }
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #hb-ticker { left: 16px; top: calc(146px + var(--safe-t, 0px)); font-size: 12.5px; max-width: calc(100vw - 90px); } }
 @media (hover: hover) { #sheet.nk .hb-row:hover span, #sheet.nk .hb-rec:hover b, #hb-ticker:hover span, .cpu-tag:hover b { color: #6EE7C5; } }
 
 /* a real captain online: a teal dot before the name */

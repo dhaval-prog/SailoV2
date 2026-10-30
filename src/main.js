@@ -37,7 +37,7 @@ import { isTablet } from './tablet.js';
 import { createWildlife } from './wildlife.js';
 import { ROSTER, stateAt } from './cpu-captains.js';
 import { clock as liveClock } from './live.js';
-const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px)');
+const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
 import './radio.css';
 import './cpu.css';
 import './voyage.css';
@@ -618,7 +618,7 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   addEventListener('sailo:controls', paintLever); addEventListener('resize', () => setTimeout(paintLever, 100)); paintLever(); }
 // upright phones: the picture is framed a little higher, so the boat sits clear of the wheel and its icons at the bottom
 // (the view is shifted, not the camera, so taps on the water and labels on the scene still line up)
-{ const upright = matchMedia('(max-width: 720px) and (orientation: portrait)'), cam = stage._camera;
+{ const upright = matchMedia('(max-width: 720px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)'), cam = stage._camera;
   const frame = () => { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
     if (upright.matches) cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
   new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }

@@ -155,7 +155,7 @@
 #sheet.nk .gf-empty p { margin: 0; font: 700 14.5px/1.45 'Nunito', sans-serif; color: var(--gf-dim); text-wrap: pretty; }
 
 /* ---------- phones: the 390×844 frames ---------- */
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
   #sheet.nk::after { content: ''; position: fixed; top: 0; left: 0; right: 0; height: calc(var(--safe-t, 0px) + 71px); background: linear-gradient(180deg, rgba(5, 12, 34, 0.97) 55%, transparent); pointer-events: none; z-index: 2; }
   #sheet.nk .map-card { padding: max(76px, calc(var(--safe-t, 0px) + 65px)) 20px calc(40px + var(--safe-b, 0px)); }
   #sheet.nk #sheet-close { top: max(14px, calc(var(--safe-t, 0px) + 15px)); right: calc(18px + var(--safe-r, 0px)); width: 40px; height: 40px; background-size: 18px; }
@@ -209,4 +209,4 @@
 
 /* the boat you're sailing can be customised too (its pencil is always shown, phones included) */
 #sheet.nk .gf-boat.on .gf-acts { gap: 12px; }
-@media (max-width: 720px) { #sheet.nk .gf-edit.gf-edit-on { display: grid; } }
+@media (max-width: 720px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #sheet.nk .gf-edit.gf-edit-on { display: grid; } }

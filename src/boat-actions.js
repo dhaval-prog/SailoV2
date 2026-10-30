@@ -13,7 +13,7 @@ export function initBoatActions({ menu, onOpen, onClose }) {
   const prev = menu.querySelector('.ba-nav.prev'), next = menu.querySelector('.ba-nav.next');
   const dots = menu.querySelector('.ba-dots'), caret = menu.querySelector('.ba-caret'), ripples = menu.querySelector('.ba-ripples');
   const isOpen = () => menu.style.display !== 'none';
-  const compact = matchMedia('(max-width: 720px), (max-height: 520px)'); // the phone layout (same breakpoint as naked-hud.css)
+  const compact = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)'); // the phone layout (same breakpoint as naked-hud.css)
   let active = 0;
 
   // the highlighted action: a filled white ring, navy icon and a yellow underline

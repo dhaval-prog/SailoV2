@@ -2,7 +2,7 @@
 // side, the wheel (steering only) on the other. Left-handed captains can swap the sides. While this applies the
 // body carries `tablet` (and `lefty` for the swapped sides); phones and computers are unchanged.
 const LEFTY = 'sailo:lefty';
-export const tabletQ = matchMedia('(pointer: coarse) and (min-width: 721px) and (min-height: 521px)');
+export const tabletQ = matchMedia('(pointer: coarse) and (min-width: 721px) and (min-height: 521px) and (orientation: landscape)'); // (upright, an iPad takes the phone layout)
 export const isTablet = () => tabletQ.matches;
 let lefty = false; try { lefty = localStorage.getItem(LEFTY) === '1'; } catch { /* storage blocked */ }
 export const isLefty = () => tabletQ.matches && lefty;
