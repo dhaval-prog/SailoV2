@@ -42,7 +42,7 @@ export function initFirstVoyage({ isNew, addCoins, holdCount, pinStation, onToas
     if (skipped) { el.classList.add('out'); setTimeout(() => el.remove(), 400); return; }
     $('.vg-n').textContent = 'Complete'; $('.vg-t').textContent = 'You’re a real captain now'; $('.vg-p').textContent = 'Explore any city, find rarer fish and buy new boats in the Garage.';
     $('.vg-row').hidden = true; el.classList.add('win'); setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 5000); };
-  const next = () => { const s = STEPS[v.step]; addCoins(s.coins); onToast?.(`${s.title} · +${s.coins} coins`);
+  const next = () => { const s = STEPS[v.step]; addCoins(s.coins, v.step + 1); onToast?.(`${s.title} · +${s.coins} coins`);
     const r = $('.vg-reward'); r.textContent = `+${s.coins}c`; r.classList.remove('go'); void r.offsetWidth; r.classList.add('go');
     if (v.step + 1 >= STEPS.length) { finish(); return; } v = { step: v.step + 1 }; write(v); setTimeout(paint, 700); };
 

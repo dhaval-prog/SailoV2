@@ -220,3 +220,19 @@ body.stn-docked #helm { opacity: 0; visibility: hidden; pointer-events: none; }
 .stn .marker.berth.taken { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.6); }
 .stn .marker.berth.taken .mk-sub { color: #9a4a0e; }
 .stn .marker.berth:disabled:not(.taken) { opacity: 0.8; cursor: progress; }
+
+/* the market's live prices: a ticker under the sign, and each price with its trend and base price */
+.stn .mk-ticker{position:relative;margin:-4px 14px 6px;overflow:hidden;white-space:nowrap;border-radius:10px;background:#152042;color:#fff7ea;font:600 12.5px/26px 'Baloo 2',system-ui,sans-serif;mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.stn .mk-ticker span{display:inline-block;padding-left:100%;animation:mk-run 38s linear infinite}
+@keyframes mk-run{to{transform:translateX(-100%)}}
+@media (prefers-reduced-motion:reduce){.stn .mk-ticker span{animation:none;padding-left:10px}}
+.stn .ptag{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.stn .ptag small{font-size:10px;font-weight:700;color:#7a6a48;white-space:nowrap}
+.stn .ptag.up small{color:#1f8a5e}.stn .ptag.down small{color:#c2412d}
+/* the Boathouse's NOS section: buy it once, refill it like fuel */
+.stn .nos-shop:empty{display:none}
+.stn .nos-pitch{margin:4px 0 10px;font-size:13px;line-height:1.35;color:rgba(255,247,234,.88);font-weight:600}
+.stn .nos-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.stn .holdbar.nosbar i{background:linear-gradient(90deg,#3cc8ff,#6ee7ff)}
+.stn .qb.nos-buy{background:#ffc531;color:#3b2a14;font-weight:800}
+.stn .qb:disabled{opacity:.5;cursor:default}

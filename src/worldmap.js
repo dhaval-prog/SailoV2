@@ -62,8 +62,8 @@ async function mbLabels(z, x, y) {
   tileCache.set(id, p); return p;
 }
 
-/** Open the world map. opts: { current (chart), coins(): number, travel(chart, fare): bool } */
-export function openWorldMap({ current, coins, travel }) {
+/** Open the world map. opts: { current (chart), coins(): number, travel(chart, fare): bool, settled(): promise (the fare paid) } */
+export function openWorldMap({ current, coins, travel, settled }) {
   const el = document.createElement('div'); el.className = 'wm'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'wm-title');
   el.innerHTML = `<div class="wm-card">
     <header class="wm-head"><div><h2 id="wm-title">World map</h2><p>Sailed charts are unlocked. Fly to a new city to unlock it.</p></div><button class="icon-btn" id="wm-x" type="button" aria-label="Close world map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></header>
@@ -203,7 +203,7 @@ export function openWorldMap({ current, coins, travel }) {
       const [x1, y1] = pts[i], [x2, y2] = pts[i + 1], x = x1 + (x2 - x1) * f, y = y1 + (y2 - y1) * f, s = view.w / svg.getBoundingClientRect().width;
       planeG.setAttribute('transform', `translate(${x} ${y}) rotate(${Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI}) scale(${s * 1.4})`);
       routeP.style.strokeDashoffset = String((1 - e) * 2000);
-      if (k < 1) requestAnimationFrame(step); else { el.classList.add('arrive'); setTimeout(() => location.reload(), 700); } };
+      if (k < 1) requestAnimationFrame(step); else { el.classList.add('arrive'); setTimeout(() => Promise.resolve(settled?.()).finally(() => location.reload()), 700); } }; // (once the fare is settled)
     routeP.style.strokeDasharray = '2000'; requestAnimationFrame(step);
   }
 
