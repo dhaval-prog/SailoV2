@@ -226,6 +226,7 @@ class ThreeDStage extends HTMLElement {
     scene.matrixWorldAutoUpdate = false;
     this._loop = () => {
       controls.update();
+      { const y = this._minY?.(); if (y != null && camera.position.y < y) camera.position.y = y; } // (main.js: never under the water)
       const kids = scene.children;
       for (let i = 0; i < kids.length; i++) if (kids[i].visible) kids[i].updateMatrixWorld();
       renderer.render(scene, camera);

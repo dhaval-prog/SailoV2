@@ -31,3 +31,11 @@
 @media (max-height: 520px) { body #voyage { top: calc(var(--nh-tl, 18px) + 54px); left: calc(22px + var(--safe-l, 0px) + 130px); width: 260px; padding: 8px 0; } body #voyage .vg-p { font-size: 12px; } }
 .joy-notch { display: none; }
 @keyframes ph-snap { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+/* at anchor the wheel steps aside, and the view buttons and the radio go with it */
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
+  body.anchored :is(#helm-orbit, #radio-fab) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.25s, visibility 0s linear 0.25s; }
+}
+/* the lever: a long press picks it up (the hub swells), then it moves */
+body #joy.lever-wait #knob .hub { transform: scale(0.94); transition: transform 0.28s ease-out; }
+body #joy.lever-armed #knob .hub { transform: scale(1.12); box-shadow: 0 0 0 4px rgba(110, 231, 197, 0.55); transition: transform 0.12s; }
