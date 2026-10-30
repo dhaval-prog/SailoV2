@@ -4,6 +4,7 @@
 // drawn (the nearest few in full), so phones stay smooth. Tap a boat or its tag for the captain's card.
 // Real captains online (online.js, via setLive) are drawn the same way and come first: when they're
 // near, the local sailors quietly step back so the water never gets crowded.
+import { mergeStatic } from './merge-static.js';
 import { ROSTER, stateAt, recentEvents, statusText } from './cpu-captains.js';
 import { PORT } from './station.js';
 import { follower } from './boat-motion.js';
@@ -35,6 +36,11 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     g.traverse(o => { o.visible = o.visible || o === g; if (!o.isMesh || !o.material) return;
       const one = mat => { const col = colourOf[mat.name]; if (!col) return mat; if (!made.has(mat)) { const k = mat.clone(); k.onBeforeCompile = mat.onBeforeCompile; k.map = null; k.color = new THREE.Color(col); k.needsUpdate = true; made.set(mat, k); } return made.get(mat); };
       o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material); });
+    // nothing on a local sailor's boat moves by itself: all of it is merged per material (a few dozen draw calls, not
+    // hundreds), and its lamps keep their glow but not a light of their own (each light costs every lit surface, and a
+    // boat coming into view would change the count, which makes every material rebuild)
+    const lamps = []; g.traverse(o => { if (o.isLight) lamps.push(o); }); lamps.forEach(l => l.removeFromParent());
+    mergeStatic(THREE, g);
     g.traverse(o => { o.userData.cpu = m.c.id; });
     scene.add(g); return g;
   }

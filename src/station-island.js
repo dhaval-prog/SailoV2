@@ -528,9 +528,10 @@ export function buildIsland(ctx) {
   }
 
   root.traverse(o => { if (o.isMesh && !o.userData.ink && o.material.type !== 'MeshBasicMaterial') o.castShadow = o.receiveShadow = true; });
+  crabs.forEach(c => c.g.traverse(o => { o.castShadow = false; })); // (a crab's shadow is a few pixels: not worth drawing its ~40 parts again)
 
   // ---------------- per frame (source: treeTick, crabTick, flags, beacon, foam, rowboats, night) ----------------
-  const tq = new THREE.Quaternion(), te = new THREE.Euler();
+  const tq = new THREE.Quaternion(), te = new THREE.Euler(), crabW = new V3(), CRAB_SEEN = 45; // (metres)
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function tick(t, dt, night, camera) {
     // trees: wind travels up the trunk, fronds ripple with a lag
@@ -538,7 +539,9 @@ export function buildIsland(ctx) {
     palms.forEach(p => p.joints.forEach(({ j, q0, k }, i) => { te.set(wind * (0.012 + 0.032 * k) * Math.sin(t * 1.05 - i * 0.35 + p.ph), 0, wind * (0.01 + 0.024 * k) * Math.sin(t * 0.8 - i * 0.3 + p.ph * 1.7)); j.quaternion.copy(q0).multiply(tq.setFromEuler(te)); }));
     fronds.forEach(f => { f.inner.rotation.z = f.base0 + (0.05 + 0.06 * wind) * Math.sin(t * 1.7 + f.ph); f.outer.rotation.z = f.ob + (0.1 + 0.12 * wind) * Math.sin(t * 1.7 + f.ph - 1.1); f.fr.rotation.x = 0.07 * wind * Math.sin(t * 1.3 + f.ph * 0.7); });
     // crabs: dash, freeze, look around, pick at the sand
+    // (only near enough to see: a crab is ~40 small parts, and from farther off it's a dot or less)
     crabs.forEach(c => { const g = c.g; let walk = 0;
+      g.visible = crabW.copy(g.position).applyMatrix4(root.matrixWorld).distanceToSquared(camera.position) < CRAB_SEEN * CRAB_SEEN; if (!g.visible) return;
       if (c.wait > 0) c.wait -= dt;
       else { const dx = c.tx - g.position.x, dz = c.tz - g.position.z, d = Math.hypot(dx, dz);
         if (d < 0.05) { c.wait = rnd2() < 0.3 ? 3 + rnd2() * 4 : 0.3 + rnd2() * 1.4; c.speed = 0.7 + rnd2() * 2.4;

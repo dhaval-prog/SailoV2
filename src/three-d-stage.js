@@ -214,7 +214,12 @@ class ThreeDStage extends HTMLElement {
       camera.updateProjectionMatrix();
     };
     fit();
-    this._ro = new ResizeObserver(fit);
+    // where the stage is on screen, measured once and kept until it can have changed: the per-frame code places labels
+    // and markers with it, and measuring between their moves made the browser lay the page out again each time
+    let rect = null; const stale = () => { rect = null; };
+    this._rect = () => rect || (rect = this.getBoundingClientRect());
+    addEventListener('resize', stale); addEventListener('scroll', stale, true); visualViewport?.addEventListener('resize', stale); visualViewport?.addEventListener('scroll', stale);
+    this._ro = new ResizeObserver(() => { stale(); fit(); });
     // world matrices: only for what's shown. three.js walks every object each frame, hidden or not, and much of the scene
     // waits hidden at the top level (pooled gulls, dolphins, planks and smoke, the island while it's far off); a hidden
     // thing is brought up to date the frame it's shown again

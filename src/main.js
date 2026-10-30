@@ -9,6 +9,7 @@ import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
 import { createCombat } from './combat.js';
 import { createSalvage } from './salvage.js';
+import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
 import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
@@ -220,6 +221,9 @@ const navFx = [];
 stage.setObject(boat);
 // ===== fleet: the tug and the sail boat share the player's boat group; one is shown at a time =====
 const tugModel = new THREE.Group(); tugModel.name = 'tug_model'; [...boat.children].forEach(c => tugModel.add(c)); boat.add(tugModel);
+// the tug's parts that never move, merged per material (a few dozen draw calls instead of ~340); wheel, propeller and
+// anemometer turn, so they stay as they are (the lighthouse beam is added later)
+{ const KEEP = moving(wheel, prop, anemo); mergeStatic(THREE, tugModel, o => KEEP.has(o)); tidyOutlines(outlines, tugModel); }
 const sailBoat = buildSailBoat({ THREE, M, emit: (...a) => emit(...a) }); sailBoat.group.visible = false; boat.add(sailBoat.group); outlines.push(...sailBoat.outlines);
 const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false; boat.add(motorYacht.group); outlines.push(...motorYacht.outlines);
 const dinghy = buildDinghy({ THREE, emit: (...a) => emit(...a) }); dinghy.group.visible = false; boat.add(dinghy.group); outlines.push(...dinghy.outlines);
@@ -724,7 +728,7 @@ const fxLayer = document.getElementById('fxlayer'), menu = document.getElementBy
 const floaters = [];
 const floatText = (pos, text, color = '#fff7ea', big = false) => { const d = document.createElement('div'); d.textContent = text; d.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-50%);font:800 ${big ? 26 : 16}px/1 system-ui,sans-serif;color:${color};text-shadow:0 2px 0 #152042,0 0 6px rgba(0,0,0,0.35);white-space:nowrap`; fxLayer.appendChild(d); floaters.push({ d, pos: pos.clone(), age: 0, life: big ? 1.0 : 1.6 }); };
 const projV = new THREE.Vector3();
-const toScreen = p => { const r = stage.getBoundingClientRect(); projV.copy(p).project(stage._camera); return [r.left + (projV.x + 1) / 2 * r.width, r.top + (1 - projV.y) / 2 * r.height, projV.z]; };
+const toScreen = p => { const r = stage._rect(); projV.copy(p).project(stage._camera); return [r.left + (projV.x + 1) / 2 * r.width, r.top + (1 - projV.y) / 2 * r.height, projV.z]; };
 const chip = (txt, bg) => `<div style="padding:8px 12px;border-radius:999px;background:${bg};color:#fff;border:1px solid rgba(255,255,255,0.6);backdrop-filter:blur(6px)">${txt}</div>`;
 let fishStatus = '';
 const setFishStatus = txt => { if (txt === fishStatus) return; fishStatus = txt; paintStatus(); };
@@ -1182,4 +1186,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, state: () => state, combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, state: () => state, swapBoat: id => swapBoat(id), combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

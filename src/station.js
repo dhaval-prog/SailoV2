@@ -582,7 +582,7 @@ export function initStation(ctx) {
 
   // ---------- per frame ----------
   const pv = new V3();
-  const place = (el, at) => { const cam = stage._camera, r = stage.getBoundingClientRect(); pv.copy(at).project(cam); const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05; el.style.display = vis ? '' : 'none';
+  const place = (el, at) => { const cam = stage._camera, r = stage._rect(); pv.copy(at).project(cam); const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05; el.style.display = vis ? '' : 'none';
     if (vis) el.style.transform = `translate(${(pv.x + 1) / 2 * r.width + r.left}px, ${(1 - pv.y) / 2 * r.height + r.top}px) translate(-50%, -100%)`; };
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function tick(t, dt) {
