@@ -5,10 +5,12 @@
 //   the harbour where voyages start.
 // - Green corals where the map is green (parks, grass, woods, pitches): seen through the water, beneath the surface.
 // Both are worked out per map tile, the same way on every device (the same tile, the same rocks), and drawn only
-// near the boat, a handful of instanced meshes in all.
+// near the boat: a mesh (and its outline) per map tile of rocks, and a handful of instanced meshes.
 import { tilesIn, tileRect, mapShapes, geoCacheGet, geoCachePut, provider } from './geo.js';
 import { WORLD } from './world.js';
 import { TERRAIN as T } from './world-config.js';
+import { rockBuilder } from './rock-shapes.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const h01 = (a, b, s = 0) => { let h = Math.imul((a * 73856093) ^ (b * 19349663) ^ (s * 83492791), 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
 const area = ring => { let a = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]); return Math.abs(a / 2); };
@@ -30,7 +32,7 @@ function rocksOf(shapes, rect, clear) {
     if (Math.abs(c.x) > WORLD.half - 60 || Math.abs(c.z) > WORLD.half - 60 || clear(c.x, c.z, c.r)) return;
     if (out.some(o => Math.hypot(o.x - c.x, o.z - c.z) < o.r + c.r + T.gap)) return;
     const s = h01(Math.round(c.x), Math.round(c.z), 1);
-    out.push({ x: c.x, z: c.z, r: c.r, h: c.huge ? 5 + s * 4 : 2.5 + s * 3, k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
+    out.push({ x: c.x, z: c.z, r: c.r, h: c.huge ? 11 + s * 10 : 4 + s * 5, k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
   });
   return out;
 }
@@ -53,7 +55,7 @@ function coralsOf(shapes, clear) {
  * @param o.stations [{ x, z }]   every Paradise Station (kept clear)
  * @param o.getBoat () => ({ x, z })
  */
-export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1 }) {
+export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1, light = () => 1 }) {
   const on = provider === 'mapbox'; // (OpenStreetMap has no footprints at this scale: then there are none)
   const clear = (x, z, r) => Math.hypot(x, z) < T.startClear + r || stations.some(s => Math.hypot(s.x - x, s.z - z) < T.stationClear + r);
   const rocks = new Map(), corals = new Map(), loading = new Set(); // tile key → list
@@ -62,12 +64,12 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   async function load(kind, z, x, y) {
     const key = `${kind}:${z}/${x}/${y}`, store = kind === 'rocks' ? rocks : corals; if (store.has(key) || loading.has(key)) return; loading.add(key);
     try {
-      let list = await geoCacheGet('terrain-v4:' + key);
+      let list = await geoCacheGet('terrain-v6:' + key);
       if (!list) {
         const shapes = await mapShapes(kind === 'rocks' ? 'building' : 'landuse', x, y, z, kind === 'rocks' ? () => true : cls => GREEN.test(cls));
         if (!shapes) return; // (offline: try again later)
         list = kind === 'rocks' ? rocksOf(shapes, tileRect(x, y, z), clear) : coralsOf(shapes, clear);
-        geoCachePut('terrain-v4:' + key, list);
+        geoCachePut('terrain-v6:' + key, list);
       }
       store.set(key, list);
       if (kind === 'rocks') list.forEach(r => { const e = r.r + T.boatPad; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const k = gkey(r.x + i * e, r.z + j * e); if (!grid.has(k)) grid.set(k, new Set()); grid.get(k).add(r); } });
@@ -75,18 +77,24 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     } finally { loading.delete(key); }
   }
 
-  // ---------- drawing: rocks (three shapes, each with its ink outline and a ring of foam) and corals (five kinds) ----------
-  const rockGeos = [0, 1, 2].map(k => { const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position, v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = 1 + 0.22 * Math.sin(v.x * (3 + k) + k) * Math.cos(v.z * (2.6 + k)) + 0.12 * Math.sin(v.y * 5.3 + k * 2); v.multiplyScalar(n); if (v.y < -0.2) v.y = -0.2 - (v.y + 0.2) * 0.3; p.setXYZ(i, v.x, v.y, v.z); }
-    // painted sandstone: warm layers (ochre, terracotta, sand, warm grey) wobbling round the rock, darker and wet low down
-    const bands = ['#c9874c', '#e3b070', '#b3603b', '#d99c5b', '#a89482', '#e8c08a'].map(c => new THREE.Color(c)), wet = new THREE.Color('#5b4a40'), cols = [], cc = new THREE.Color();
-    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const y = v.y + 0.06 * Math.sin(Math.atan2(v.z, v.x) * 3 + k); const b = Math.floor((y + 0.3) * 6.5);
-      cc.copy(bands[((b % bands.length) + bands.length) % bands.length]).lerp(wet, Math.max(0, Math.min(1, (0.08 - v.y) / 0.3))); cols.push(cc.r, cc.g, cc.b); }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    g.computeVertexNormals(); return g; });
-  const rockMat = new THREE.MeshStandardMaterial({ name: 'sea_rock', vertexColors: true, roughness: 0.9, flatShading: true });
-  const uTime = { value: 0 };
-  const inkMat = new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#152042', side: THREE.BackSide });
+  // ---------- drawing: rocks (each one built from its own seed: rock-shapes.js), a tile's worth in one mesh with its
+  // ink outline; a ring of foam and a glow of shallows round each; and corals (five kinds) ----------
+  const RB = rockBuilder(THREE), uTime = { value: 0 }, uCam = { value: new THREE.Vector2() }, uBoat = { value: new THREE.Vector2() }, uLight = { value: 1 };
+  // a rock between the camera and the boat folds away (on the GPU), so it never hides your boat; the outline is the rock
+  // again, a touch bigger round each part's middle, drawn from the inside
+  const rockShader = (mat, ink) => { mat.onBeforeCompile = sh => { Object.assign(sh.uniforms, { uCam, uBoat, uLight });
+    sh.vertexShader = 'attribute vec3 aRock; attribute vec3 aPart; uniform vec2 uCam, uBoat;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      ${ink ? 'transformed = aPart + (transformed - aPart) * 1.045 + normalize(transformed - aPart + vec3(0.0, 0.001, 0.0)) * 0.09;' : ''}
+      { vec2 ab = uBoat - uCam; float u = dot(aRock.xy - uCam, ab) / max(dot(ab, ab), 1.0); vec2 q = uCam + ab * u;
+        if (u > 0.0 && u < 1.0 && distance(aRock.xy, q) < aRock.z + 3.0) transformed = vec3(aRock.x, -80.0, aRock.y); }`);
+    sh.fragmentShader = 'uniform float uLight;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= uLight;\n#include <opaque_fragment>'); };
+    mat.customProgramCacheKey = () => ink ? 'sea-rock-ink' : 'sea-rock'; return mat; }; // (the two differ only inside: keep their shaders apart)
+  const rockMat = rockShader(new THREE.MeshBasicMaterial({ name: 'sea_rock', vertexColors: true }), false);
+  const inkMat = rockShader(new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#4a1d24', side: THREE.BackSide }), true);
+  const tileMeshes = new Map(), toBuild = []; // tile key → { rock, ink }
+  function buildTile(key) { const list = rocks.get(key); if (!list?.length || tileMeshes.has(key)) return;
+    const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;
+    g.computeBoundingSphere(); const rock = new THREE.Mesh(g, rockMat), ink = new THREE.Mesh(g, inkMat); rock.castShadow = true; scene.add(rock, ink); tileMeshes.set(key, { rock, ink }); }
   const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fbff', transparent: true, opacity: 0.55, depthWrite: false });
   // the foam breathes with the swell: each ring swells and fades on its own beat
   foamMat.onBeforeCompile = sh => { sh.uniforms.uTime = uTime;
@@ -98,10 +106,10 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     g.addColorStop(0, 'rgba(120,240,220,0.95)'); g.addColorStop(0.45, 'rgba(70,215,205,0.55)'); g.addColorStop(1, 'rgba(40,190,200,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const glowGeo = new THREE.PlaneGeometry(1, 1); glowGeo.rotateX(-Math.PI / 2);
   const foamGeo = new THREE.RingGeometry(1.02, 1.28, 32); foamGeo.rotateX(-Math.PI / 2);
-  const MAXR = 900, VIS = 0.86, rockIM = rockGeos.map(g => new THREE.InstancedMesh(g, rockMat, MAXR)), inkIM = rockGeos.map(g => new THREE.InstancedMesh(g, inkMat, MAXR)), foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR * 3),
-    glowIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.6, depthWrite: false }), MAXR * 3);
+  const MAXR = 2700, foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR),
+    glowIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.6, depthWrite: false }), MAXR);
   glowIM.renderOrder = -2;
-  [...rockIM, ...inkIM, foamIM, glowIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); }); rockIM.forEach(m => { m.castShadow = m.receiveShadow = true; });
+  [foamIM, glowIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); });
   // corals: drawn on canvases (branching staghorn, a brain coral, a fan, tubes, kelp), in greens, seen through the water
   const coralTex = [0, 1, 2, 3, 4].map(k => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.translate(64, 64); x.lineCap = 'round';
     const rnd = (n => () => (n = (n * 16807) % 2147483647) / 2147483647)(k * 977 + 5);
@@ -127,11 +135,8 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     m.count = 0; m.frustumCulled = false; m.renderOrder = -1; scene.add(m); return m; });
   const GREENS = ['#2fbf71', '#6ad46b', '#1f9e6e', '#9be15d', '#3ccf9a', '#7fbf3f'].map(c => new THREE.Color(c));
 
-  let dirty = false, at = { x: 0, z: 0 }, gat = null, lastLoad = 0;
+  let dirty = false, gat = null, lastLoad = 0;
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-  // a rock between the camera and the boat isn't drawn, so it never hides your boat
-  let cam = null; const hides = r => { if (!cam) return false; const ax = cam.x, az = cam.z, bx = at.x - ax, bz = at.z - az, L2 = bx * bx + bz * bz; if (!L2) return false;
-    const u = ((r.x - ax) * bx + (r.z - az) * bz) / L2; if (u <= 0 || u >= 1) return false; return Math.hypot(r.x - (ax + bx * u), r.z - (az + bz * u)) < r.r + 3; };
   let nearR = [], nearC = [];
   function gather(b) { const near = (o, d) => Math.abs(o.x - b.x) < d && Math.abs(o.z - b.z) < d; nearR = []; nearC = [];
     rocks.forEach(list => list.forEach(r => { if (near(r, T.drawRocks)) nearR.push(r); })); corals.forEach(list => list.forEach(c => { if (near(c, T.drawCorals)) nearC.push(c); }));
@@ -140,15 +145,11 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       Q.setFromAxisAngle(UP, c.a); V.set(c.x, WL + 0.03, c.z); Sc.set(c.s, 1, c.s); M4.compose(V, Q, Sc); coralIM[k].setMatrixAt(i, M4);
       col.copy(GREENS[Math.floor(c.g * GREENS.length)]); coralIM[k].setColorAt(i, col); });
     coralIM.forEach((m, k) => { m.count = nc[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }); }
-  function paint() { // (the rocks near the boat, every time the camera moves: one between it and the boat isn't drawn)
-    const nr = [0, 0, 0]; let nf = 0;
-    nearR.forEach(r => { const k = r.k, i = nr[k]; if (i >= MAXR) return;
+  function paint() { // (the foam and the shallows round the rocks near the boat)
+    let nf = 0;
+    nearR.forEach(r => { if (nf >= MAXR) return; const fr = r.r * 0.95;
       Q.setFromAxisAngle(UP, r.a); V.set(r.x, WL + 0.02, r.z); Sc.set(r.r * 2.4, 1, r.r * 2.4); M4.compose(V, Q, Sc); glowIM.setMatrixAt(nf, M4);
-      V.set(r.x, WL + 0.06, r.z); Sc.set(r.r * VIS * 1.02, 1, r.r * VIS * 1.02); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4);
-      if (hides(r)) return; nr[k]++;
-      V.set(r.x, WL - r.h * 0.18, r.z); Sc.set(r.r * VIS, r.h, r.r * VIS); M4.compose(V, Q, Sc); rockIM[k].setMatrixAt(i, M4);
-      Sc.multiplyScalar(1.05); M4.compose(V, Q, Sc); inkIM[k].setMatrixAt(i, M4); });
-    rockIM.forEach((m, k) => { m.count = nr[k]; m.instanceMatrix.needsUpdate = true; inkIM[k].count = nr[k]; inkIM[k].instanceMatrix.needsUpdate = true; });
+      V.set(r.x, WL + 0.06, r.z); Sc.set(fr, 1, fr); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4); });
     foamIM.count = nf; foamIM.instanceMatrix.needsUpdate = true; glowIM.count = nf; glowIM.instanceMatrix.needsUpdate = true;
   }
 
@@ -189,13 +190,16 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       if (now - lastLoad > 1500) { lastLoad = now; const R = T.loadAround;
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 15).forEach(([x, y]) => load('rocks', 15, x, y));
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 14).forEach(([x, y]) => load('corals', 14, x, y)); }
-      const moved = camera && (!cam || Math.hypot(camera.position.x - cam.x, camera.position.z - cam.z) > 2);
-      if (dirty || !gat || Math.hypot(b.x - gat.x, b.z - gat.z) > T.repaint) { dirty = false; gat = { x: b.x, z: b.z }; gather(b); paint(); }
-      else if (moved || Math.hypot(b.x - at.x, b.z - at.z) > 2) paint();
-      at = { x: b.x, z: b.z }; if (camera) cam = { x: camera.position.x, z: camera.position.z };
+      if (camera) uCam.value.set(camera.position.x, camera.position.z); uBoat.value.set(b.x, b.z); uLight.value = light();
+      if (dirty || !gat || Math.hypot(b.x - gat.x, b.z - gat.z) > T.repaint) { dirty = false; gat = { x: b.x, z: b.z }; gather(b); paint();
+        // the rock meshes: built for the tiles near the boat (one a frame), let go once well behind
+        rocks.forEach((list, key) => { const near = list.some(r => Math.abs(r.x - b.x) < T.drawRocks + 600 && Math.abs(r.z - b.z) < T.drawRocks + 600);
+          if (near && !tileMeshes.has(key) && !toBuild.includes(key)) toBuild.push(key);
+          if (!near && tileMeshes.has(key)) { const m = tileMeshes.get(key); scene.remove(m.rock, m.ink); m.rock.geometry.dispose(); tileMeshes.delete(key); } }); }
+      if (toBuild.length) buildTile(toBuild.shift());
     },
     /** (tests) the nearest coral to a point */
     _coralNear(x, z) { let best = null, bd = Infinity; corals.forEach(l => l.forEach(c => { const d = Math.hypot(c.x - x, c.z - z); if (d < bd) { bd = d; best = c; } })); return best; },
-    get counts() { let r = 0, c = 0; rocks.forEach(l => { r += l.length; }); corals.forEach(l => { c += l.length; }); return { rocks: r, corals: c, drawn: rockIM.reduce((a, m) => a + m.count, 0), coralsDrawn: coralIM.reduce((a, m) => a + m.count, 0) }; },
+    get counts() { let r = 0, c = 0; rocks.forEach(l => { r += l.length; }); corals.forEach(l => { c += l.length; }); return { rocks: r, corals: c, drawn: [...tileMeshes.keys()].reduce((a, k) => a + rocks.get(k).length, 0), tiles: tileMeshes.size, coralsDrawn: coralIM.reduce((a, m) => a + m.count, 0) }; },
   };
 }

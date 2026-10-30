@@ -1024,7 +1024,7 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
-terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp,
+terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night,
   onHit: k => { hud.note('Rocks! Steer round them.', 2500); const p = 3 + 7 * k; // (the picture jolts: harder the faster you hit)
     stage.animate?.([{ transform: 'translate(0,0)' }, { transform: `translate(${p}px,${-p * 0.6}px)` }, { transform: `translate(${-p * 0.8}px,${p * 0.5}px)` }, { transform: `translate(${p * 0.4}px,${-p * 0.3}px)` }, { transform: 'translate(0,0)' }], { duration: 320, easing: 'ease-out' }); },
   onWarn: () => hud.note('Rocks ahead!', 1800) });
