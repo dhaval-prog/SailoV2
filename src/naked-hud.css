@@ -335,3 +335,9 @@ body #joy #helm-anchor { left: auto; right: calc(100% + 16px); }
   body.tl-brief #compass-strip { top: calc(var(--nh-tl) + 30px); }
   body.tl-brief #status { top: calc(var(--nh-tl) + 92px); }
 }
+
+/* rocks close by on the compass strip (terrain.js): a red dot, not something to tap */
+body #compass-strip .cs-m.cs-rock { pointer-events: none; }
+body #compass-strip .cs-m.cs-rock i { width: 8px; height: 8px; left: -4px; top: 20px; background: #FF5A4E; opacity: 1; box-shadow: 0 0 0 2px rgba(255, 90, 78, 0.35), 0 0 8px rgba(255, 90, 78, 0.8); animation: cs-rock 1s ease-in-out infinite; }
+body #compass-strip .cs-m.cs-rock b { display: none; }
+@keyframes cs-rock { 50% { transform: scale(1.35); } }

@@ -53,7 +53,7 @@ function coralsOf(shapes, clear) {
  * @param o.stations [{ x, z }]   every Paradise Station (kept clear)
  * @param o.getBoat () => ({ x, z })
  */
-export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit }) {
+export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1 }) {
   const on = provider === 'mapbox'; // (OpenStreetMap has no footprints at this scale: then there are none)
   const clear = (x, z, r) => Math.hypot(x, z) < T.startClear + r || stations.some(s => Math.hypot(s.x - x, s.z - z) < T.stationClear + r);
   const rocks = new Map(), corals = new Map(), loading = new Set(); // tile key → list
@@ -78,13 +78,30 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit }) {
   // ---------- drawing: rocks (three shapes, each with its ink outline and a ring of foam) and corals (five kinds) ----------
   const rockGeos = [0, 1, 2].map(k => { const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position, v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = 1 + 0.22 * Math.sin(v.x * (3 + k) + k) * Math.cos(v.z * (2.6 + k)) + 0.12 * Math.sin(v.y * 5.3 + k * 2); v.multiplyScalar(n); if (v.y < -0.2) v.y = -0.2 - (v.y + 0.2) * 0.3; p.setXYZ(i, v.x, v.y, v.z); }
+    // painted sandstone: warm layers (ochre, terracotta, sand, warm grey) wobbling round the rock, darker and wet low down
+    const bands = ['#c9874c', '#e3b070', '#b3603b', '#d99c5b', '#a89482', '#e8c08a'].map(c => new THREE.Color(c)), wet = new THREE.Color('#5b4a40'), cols = [], cc = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const y = v.y + 0.06 * Math.sin(Math.atan2(v.z, v.x) * 3 + k); const b = Math.floor((y + 0.3) * 6.5);
+      cc.copy(bands[((b % bands.length) + bands.length) % bands.length]).lerp(wet, Math.max(0, Math.min(1, (0.08 - v.y) / 0.3))); cols.push(cc.r, cc.g, cc.b); }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
     g.computeVertexNormals(); return g; });
-  const rockMat = new THREE.MeshStandardMaterial({ name: 'sea_rock', color: '#8a8276', roughness: 0.95, flatShading: true });
+  const rockMat = new THREE.MeshStandardMaterial({ name: 'sea_rock', vertexColors: true, roughness: 0.9, flatShading: true });
+  const uTime = { value: 0 };
   const inkMat = new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#152042', side: THREE.BackSide });
-  const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fbff', transparent: true, opacity: 0.4, depthWrite: false });
+  const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fbff', transparent: true, opacity: 0.55, depthWrite: false });
+  // the foam breathes with the swell: each ring swells and fades on its own beat
+  foamMat.onBeforeCompile = sh => { sh.uniforms.uTime = uTime;
+    sh.vertexShader = 'uniform float uTime; varying float vPulse;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float ph = (instanceMatrix[3].x + instanceMatrix[3].z) * 0.13; vPulse = 0.55 + 0.45 * sin(uTime * 1.4 + ph); transformed.xz *= 1.0 + 0.08 * sin(uTime * 1.4 + ph - 0.6);`);
+    sh.fragmentShader = 'varying float vPulse;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'diffuseColor.a *= vPulse;\n#include <opaque_fragment>'); };
+  // shallow water round every rock: a soft turquoise glow (it also says "hurdle ahead" from a way off)
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 18, 64, 64, 64);
+    g.addColorStop(0, 'rgba(120,240,220,0.95)'); g.addColorStop(0.45, 'rgba(70,215,205,0.55)'); g.addColorStop(1, 'rgba(40,190,200,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const glowGeo = new THREE.PlaneGeometry(1, 1); glowGeo.rotateX(-Math.PI / 2);
   const foamGeo = new THREE.RingGeometry(1.02, 1.28, 32); foamGeo.rotateX(-Math.PI / 2);
-  const MAXR = 900, VIS = 0.86, rockIM = rockGeos.map(g => new THREE.InstancedMesh(g, rockMat, MAXR)), inkIM = rockGeos.map(g => new THREE.InstancedMesh(g, inkMat, MAXR)), foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR * 3);
-  [...rockIM, ...inkIM, foamIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); }); rockIM.forEach(m => { m.castShadow = m.receiveShadow = true; });
+  const MAXR = 900, VIS = 0.86, rockIM = rockGeos.map(g => new THREE.InstancedMesh(g, rockMat, MAXR)), inkIM = rockGeos.map(g => new THREE.InstancedMesh(g, inkMat, MAXR)), foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR * 3),
+    glowIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.6, depthWrite: false }), MAXR * 3);
+  glowIM.renderOrder = -2;
+  [...rockIM, ...inkIM, foamIM, glowIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); }); rockIM.forEach(m => { m.castShadow = m.receiveShadow = true; });
   // corals: drawn on canvases (branching staghorn, a brain coral, a fan, tubes, kelp), in greens, seen through the water
   const coralTex = [0, 1, 2, 3, 4].map(k => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.translate(64, 64); x.lineCap = 'round';
     const rnd = (n => () => (n = (n * 16807) % 2147483647) / 2147483647)(k * 977 + 5);
@@ -97,7 +114,16 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit }) {
     else { x.strokeStyle = '#fff'; for (let i = 0; i < 9; i++) { x.lineWidth = 5; x.beginPath(); const sx = (i - 4) * 11; x.moveTo(sx, 58); for (let t = 0; t <= 1; t += 0.1) x.lineTo(sx + Math.sin(t * 6 + i) * 9, 58 - t * 112); x.stroke(); } }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; });
   const MAXC = 1400, coralGeo = new THREE.PlaneGeometry(1, 1); coralGeo.rotateX(-Math.PI / 2);
-  const coralIM = coralTex.map(map => { const m = new THREE.InstancedMesh(coralGeo, new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.72, depthWrite: false, color: '#ffffff' }), MAXC);
+  // sunlight dancing over them through the water (caustics): a shimmer of light lines drifting across each coral
+  const caustic = mat => { mat.onBeforeCompile = sh => { sh.uniforms.uTime = uTime;
+    sh.vertexShader = 'varying vec2 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vWp = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xz;');
+    sh.fragmentShader = 'uniform float uTime; varying vec2 vWp;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
+      float c1 = sin(vWp.x * 0.9 + uTime * 1.1) + sin(vWp.y * 0.8 - uTime * 0.9) + sin((vWp.x + vWp.y) * 0.55 + uTime * 0.7);
+      float c2 = sin(vWp.x * 1.7 - uTime * 1.3 + 1.7) + sin((vWp.y - vWp.x) * 1.3 + uTime);
+      float lite = pow(max(0.0, 1.0 - abs(c1) * 0.55), 6.0) * 0.8 + pow(max(0.0, 1.0 - abs(c2) * 0.6), 8.0) * 0.6;
+      outgoingLight += vec3(0.75, 1.0, 0.9) * lite * 0.55;
+      #include <opaque_fragment>`); }; return mat; };
+  const coralIM = coralTex.map(map => { const m = new THREE.InstancedMesh(coralGeo, caustic(new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.72, depthWrite: false, color: '#ffffff' })), MAXC);
     m.count = 0; m.frustumCulled = false; m.renderOrder = -1; scene.add(m); return m; });
   const GREENS = ['#2fbf71', '#6ad46b', '#1f9e6e', '#9be15d', '#3ccf9a', '#7fbf3f'].map(c => new THREE.Color(c));
 
@@ -117,12 +143,13 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit }) {
   function paint() { // (the rocks near the boat, every time the camera moves: one between it and the boat isn't drawn)
     const nr = [0, 0, 0]; let nf = 0;
     nearR.forEach(r => { const k = r.k, i = nr[k]; if (i >= MAXR) return;
-      V.set(r.x, WL + 0.06, r.z); Sc.set(r.r * VIS * 1.02, 1, r.r * VIS * 1.02); Q.setFromAxisAngle(UP, r.a); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4);
+      Q.setFromAxisAngle(UP, r.a); V.set(r.x, WL + 0.02, r.z); Sc.set(r.r * 2.4, 1, r.r * 2.4); M4.compose(V, Q, Sc); glowIM.setMatrixAt(nf, M4);
+      V.set(r.x, WL + 0.06, r.z); Sc.set(r.r * VIS * 1.02, 1, r.r * VIS * 1.02); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4);
       if (hides(r)) return; nr[k]++;
       V.set(r.x, WL - r.h * 0.18, r.z); Sc.set(r.r * VIS, r.h, r.r * VIS); M4.compose(V, Q, Sc); rockIM[k].setMatrixAt(i, M4);
       Sc.multiplyScalar(1.05); M4.compose(V, Q, Sc); inkIM[k].setMatrixAt(i, M4); });
     rockIM.forEach((m, k) => { m.count = nr[k]; m.instanceMatrix.needsUpdate = true; inkIM[k].count = nr[k]; inkIM[k].instanceMatrix.needsUpdate = true; });
-    foamIM.count = nf; foamIM.instanceMatrix.needsUpdate = true;
+    foamIM.count = nf; foamIM.instanceMatrix.needsUpdate = true; glowIM.count = nf; glowIM.instanceMatrix.needsUpdate = true;
   }
 
   /** Would a boat here hit a rock? (radius: the boat's own clearance) */
@@ -131,14 +158,34 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit }) {
     for (const r of s) if (Math.hypot(r.x - x, r.z - z) < r.r * 1.02 + pad) return r; // (to the rock's visible edge)
     return false;
   }
-  let hitT = 0;
+  // a bump: a hollow knock, chips and spray off the rock, a shake and a buzz (harder the faster you were going)
+  let hitT = 0, ac = null;
+  function thunk(k) { try { ac ||= new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.25); g.gain.setValueAtTime(0.5 * k, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.4); } catch { /* no audio */ } }
+  let warnT = 0, sprayT = 0;
   return {
     blocked,
-    /** A bump: the note, at most every few seconds. */
-    hit() { const now = performance.now(); if (now - hitT > 3000) { hitT = now; onHit?.(); } },
+    /** The boat met a rock at this speed (m/s) and point. */
+    hit(speed = 0, x, z) { const now = performance.now(), k = Math.min(1, Math.abs(speed) / 5); if (now - hitT < 1800 || Math.abs(speed) < 1) return; hitT = now; // (pressing on against it isn't another bump)
+      thunk(0.3 + 0.7 * k); if (navigator.vibrate) navigator.vibrate(Math.round(15 + 35 * k));
+      if (emit && x != null) for (let i = 0; i < 8 + 14 * k; i++) emit(x + (Math.random() - 0.5) * 2, WL + 0.6, z + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 6, 2 + Math.random() * 4 * k, (Math.random() - 0.5) * 6);
+      onHit?.(k); },
+    /** Rocks close by (for the compass): the nearest few within 60 m. */
+    hazards() { const b = getBoat(); return nearR.map(r => ({ r, d: Math.hypot(r.x - b.x, r.z - b.z) - r.r })).filter(o => o.d < 60).sort((a, c) => a.d - c.d).slice(0, 3).map(o => ({ name: 'Rocks', x: o.r.x, z: o.r.z })); },
+    /** Every rock known so far (the map). */
+    all() { const out = []; rocks.forEach(l => l.forEach(r => out.push(r))); return out; },
     /** Every frame: load the tiles round the boat, and draw what's near. */
-    update(camera) {
+    update(camera, t = 0, dt = 0) {
+      uTime.value = t;
       if (!on) return; const b = getBoat(), now = performance.now();
+      // spray off the windward side of the rocks near the boat (more in a heavy sea)
+      if (emit && (sprayT -= dt) < 0) { sprayT = 0.35 / Math.max(0.4, amp()); const near = nearR.filter(r => Math.abs(r.x - b.x) < 140 && Math.abs(r.z - b.z) < 140);
+        const r = near[Math.floor(Math.random() * near.length)]; if (r) { const a = Math.PI + (Math.random() - 0.5) * 1.2, ex = r.x + Math.cos(a) * r.r * 0.95, ez = r.z + Math.sin(a) * r.r * 0.95;
+          for (let i = 0; i < 5 + 4 * amp(); i++) emit(ex, WL + 0.3, ez, Math.cos(a) * (1 + Math.random() * 2), 2.5 + Math.random() * 2.5 * amp(), Math.sin(a) * (1 + Math.random() * 2) + (Math.random() - 0.5)); } }
+      // rocks ahead at speed: a word of warning (and the compass shows them)
+      if (b.vel > 3 && now - warnT > 7000) { const fx = Math.cos(b.yaw), fz = -Math.sin(b.yaw);
+        if (nearR.some(r => { const dx = r.x - b.x, dz = r.z - b.z, d = Math.hypot(dx, dz) - r.r; return d < 35 && d > 0 && (dx * fx + dz * fz) / Math.hypot(dx, dz) > 0.9; })) { warnT = now; onWarn?.(); } }
       if (now - lastLoad > 1500) { lastLoad = now; const R = T.loadAround;
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 15).forEach(([x, y]) => load('rocks', 15, x, y));
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 14).forEach(([x, y]) => load('corals', 14, x, y)); }

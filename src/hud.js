@@ -190,6 +190,10 @@ export function initHud(api) {
   el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, class: 'map-edge', 'stroke-width': u * 0.6, 'data-sw': u * 0.6 });
   // Pune place names (redrawn for the zoom level, see paintGeo)
   const geoG = el('g', { class: 'map-geo' });
+  // rocks met so far (terrain.js), faint, so a route through the channels can be planned
+  const rocksG = el('g', { class: 'map-rocks' }); let rocksDrawn = 0;
+  const paintRocks = () => { const all = api.rocks?.() || []; if (all.length === rocksDrawn) return; rocksDrawn = all.length; rocksG.innerHTML = '';
+    all.forEach(r => el('circle', { cx: r.x.toFixed(0), cy: r.z.toFixed(0), r: Math.max(r.r, 9).toFixed(0), class: 'map-rock' }, rocksG)); };
   // harbour at the centre
   { const g = el('g', { class: 'map-mark', 'data-x': 0, 'data-y': 0 });
     el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 }, g);
@@ -320,7 +324,7 @@ export function initHud(api) {
   let mapOpen = false, lastFocus = null;
   const setMap = open => {
     if (open === mapOpen) return; mapOpen = open;
-    if (open) { lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
+    if (open) { paintRocks(); lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
     else { mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
     document.body.classList.toggle('map-open', open);
   };

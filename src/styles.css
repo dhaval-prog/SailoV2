@@ -659,6 +659,7 @@ body.view-top #you-tag { opacity: 1; }
 .map-edge { fill: none; stroke: #ffb21a; stroke-dasharray: 1% 1%; }
 .map-harbour { fill: #fff7ea; stroke: var(--ink); }
 .map-island { fill: #e9a23a; stroke: var(--ink); }
+.map-rock { fill: #8a5a3a; opacity: 0.55; } /* rocks met so far (terrain.js) */
 .map-palm { fill: none; stroke: #3fae4a; stroke-linecap: round; }
 .map-label { fill: rgba(255, 255, 255, 0.85); font-family: system-ui, sans-serif; font-weight: 700; text-anchor: middle; }
 .map-north { fill: #ff7a59; }
