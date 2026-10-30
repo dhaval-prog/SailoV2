@@ -3,7 +3,7 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, CHART, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
-import { initStation, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LOCAL_FISH, harbourKey, addStations } from './station.js';
+import { initStation, SPEED_UP, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LOCAL_FISH, harbourKey, addStations } from './station.js';
 import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
@@ -577,6 +577,8 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
   const paintLever = () => { const R = LEV(), v = HELM.lever, t = travel();
     knob.style.transform = isTablet() ? 'none' : `translate(0px, ${(-v * R * base.getBoundingClientRect().width / 170).toFixed(1)}px)`;
     base.classList.toggle('fwd', v > 0); base.classList.toggle('rev', v < 0);
+    // the slot fills from idle to the hub, deepening with speed: teal to bright green ahead, orange to red astern
+    base.style.setProperty('--lev', Math.abs(v).toFixed(3)); base.style.setProperty('--lev-col', v > 0 ? `hsl(${Math.round(170 - 45 * v)} 78% ${Math.round(40 + 10 * v)}%)` : v < 0 ? `hsl(${Math.round(30 - 26 * -v)} 88% ${Math.round(52 - 4 * -v)}%)` : '#fff');
     thumb.style.transform = `translateY(${(-v * t).toFixed(1)}px)`;
     fill.style.cssText = v > 0 ? `bottom:50%;height:${(v * t).toFixed(1)}px` : v < 0 ? `top:50%;height:${(-v * t).toFixed(1)}px` : 'height:0';
     thr.classList.toggle('fwd', v > 0); thr.classList.toggle('rev', v < 0); thr.setAttribute('aria-valuenow', String(Math.round(v * 100)));
@@ -586,8 +588,11 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 360 };
   // phones: the idle stop is wider and holds the lever (it clicks into place: a tick, and the hub settles with a bounce)
   const idleZone = () => phoneQ.matches ? 0.2 : 0.12; let snapT = 0;
   { const notch = document.createElement('i'); notch.className = 'joy-notch'; notch.setAttribute('aria-hidden', 'true'); base.insertBefore(notch, knob); } // (phone.css draws it)
+  { const t = document.createElement('i'); t.className = 'joy-ticks'; t.setAttribute('aria-hidden', 'true'); base.insertBefore(t, knob); } // (gear marks along the slot: phone.css)
   const setLever = v => { v = Math.max(-1, Math.min(1, v)); const was = HELM.lever; HELM.lever = Math.abs(v) < idleZone() ? 0 : v;
-    if (!was !== !HELM.lever) { if (navigator.vibrate) navigator.vibrate(6); if (!HELM.lever) { base.classList.remove('idle-snap'); void base.offsetWidth; base.classList.add('idle-snap'); clearTimeout(snapT); snapT = setTimeout(() => base.classList.remove('idle-snap'), 400); } }
+    // a step felt at every quarter (a light buzz), and a clunk landing in idle
+    if (was && HELM.lever && Math.sign(was) === Math.sign(HELM.lever) && Math.min(3, Math.floor(Math.abs(was) * 4)) !== Math.min(3, Math.floor(Math.abs(HELM.lever) * 4)) && navigator.vibrate) navigator.vibrate(8);
+    if (!was !== !HELM.lever) { if (navigator.vibrate) navigator.vibrate(HELM.lever ? 10 : 28); if (!HELM.lever) { base.classList.remove('idle-snap'); void base.offsetWidth; base.classList.add('idle-snap'); clearTimeout(snapT); snapT = setTimeout(() => base.classList.remove('idle-snap'), 400); } }
     paintLever(); }; // (a tick through idle)
   // the lever: on a phone it moves with the thumb from wherever it's picked up (no jump), elsewhere it goes where it's touched
   let grab = null;
@@ -692,7 +697,7 @@ const rodPivot = new THREE.Group(); rodPivot.position.set(-3.9, 2.35, -1.35); ro
 let onBoatApplied = null; // set once the station (which owns fuel and holds) exists
 // switch the active boat: swap the model and move the shared fittings (anchor, hawse pipe, fishing rod, hull foam)
 function applyBoat(id) {
-  boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit; MAXV = BOAT_SPECS[boatId].kn / 1.944; onBoatApplied?.(boatId);
+  boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit; MAXV = BOAT_SPECS[boatId].kn * SPEED_UP / 1.944; onBoatApplied?.(boatId);
   tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy';
   Object.assign(ANC, FIT.anchor); anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s);
   hawsePipe.position.set(ANC.x, FIT.hawseY + 0.03, ANC.z - 0.25 * ANC.s / 1.5);
@@ -1127,7 +1132,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
   if (!stage._exporting) {
     // NOS: while it burns (and you're driving ahead) the boat may go faster and gets there quicker; after, it eases back
     const nosOn = boostT > 0 && thr > 0 && ACT.anchor === 'up' && !busy; if (boostT > 0) boostT = Math.max(0, boostT - dt);
-    vel += (thr * MAXV * (nosOn ? ECONOMY.nos.speed : 1) * fuelK - vel) * Math.min(1, dt * 0.7 * (nosOn ? ECONOMY.nos.accel : 1));
+    vel += (thr * MAXV * (nosOn ? ECONOMY.nos.speed : 1) * fuelK - vel) * Math.min(1, dt * 0.95 * (nosOn ? ECONOMY.nos.accel : 1)); // (picks up speed briskly too)
     const sv = vel / MAXV;
     yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
@@ -1184,7 +1189,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     lights.key.target.position.set(cx, 0, cz); lights.key.position.set(cx, 0, cz).addScaledVector(keyDir, 120);
     if (kc.right !== span) { kc.left = kc.bottom = -span; kc.right = kc.top = span; kc.near = 20; kc.far = 260; kc.updateProjectionMatrix(); } }
   { const off = stage._camera.position.clone().sub(stage._controls.target);
-    hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
+    hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, maxKn: MAXV * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });

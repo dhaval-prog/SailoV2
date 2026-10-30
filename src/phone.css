@@ -49,3 +49,30 @@ body #joy.lever-armed #knob .hub { transform: scale(1.12); box-shadow: 0 0 0 4px
   body #joy #joy-dir::before { top: -11px; border-bottom: 6px solid #05070d; opacity: 1; } body #joy #joy-dir::after { bottom: -11px; border-top: 6px solid #05070d; opacity: 1; }
   body #joy .joy-notch { width: 26px; height: 3px; margin: -1.5px 0 0 -13px; background: #fff; }
 }
+
+/* the lever (phones): gear marks, a fill that deepens with speed, the long press shown, a warning astern */
+@property --lw { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
+  /* marks: a tick at each quarter both ways, the idle notch bold in the middle (the gear itself shows under the wheel) */
+  body #joy .joy-ticks { display: block; position: absolute; left: 50%; top: 50%; width: 27px; height: 80px; margin: -40px 0 0 -13.5px; pointer-events: none; z-index: 1;
+    background: linear-gradient(#fff, #fff) 0 12.5% / 6px 1.5px, linear-gradient(#fff, #fff) 0 25% / 6px 1.5px, linear-gradient(#fff, #fff) 0 37.5% / 6px 1.5px,
+      linear-gradient(#fff, #fff) 0 62.5% / 6px 1.5px, linear-gradient(#fff, #fff) 0 75% / 6px 1.5px, linear-gradient(#fff, #fff) 0 87.5% / 6px 1.5px,
+      linear-gradient(#fff, #fff) 100% 12.5% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 25% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 37.5% / 6px 1.5px,
+      linear-gradient(#fff, #fff) 100% 62.5% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 75% / 6px 1.5px, linear-gradient(#fff, #fff) 100% 87.5% / 6px 1.5px;
+    background-repeat: no-repeat; opacity: 0.75; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
+  body #joy .joy-notch { width: 30px; height: 4px; margin: -2px 0 0 -15px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 255, 0.6); z-index: 1; }
+  /* the fill: from the idle notch to the hub, in the speed's colour */
+  body #joy.fwd #joy-dir { background: linear-gradient(to top, #05070d 50%, var(--lev-col) 50%, var(--lev-col) calc(50% + var(--lev) * 50%), #05070d calc(50% + var(--lev) * 50%)); }
+  body #joy.rev #joy-dir { background: linear-gradient(to bottom, #05070d 50%, var(--lev-col) 50%, var(--lev-col) calc(50% + var(--lev) * 50%), #05070d calc(50% + var(--lev) * 50%));
+    animation: lev-rev 1.6s ease-in-out infinite; }
+  @keyframes lev-rev { 50% { box-shadow: 0 0 0 3px rgba(255, 170, 40, 0.75), 0 0 14px rgba(255, 140, 30, 0.8); } } /* (astern: a slow amber pulse, so it's never missed) */
+  /* the long press: a ring fills round the hub while you hold; picked up, the hub swells and pulses */
+  body #joy #knob::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; opacity: 0;
+    background: conic-gradient(#6EE7C5 var(--lw), transparent 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); }
+  body #joy.lever-wait #knob::after { opacity: 1; animation: lev-fill 0.28s linear forwards; }
+  body #joy.lever-armed #knob::after { opacity: 1; --lw: 360deg; }
+  @keyframes lev-fill { from { --lw: 0deg; } to { --lw: 360deg; } }
+  body #joy.lever-armed #knob .hub { animation: lev-pulse 0.9s ease-in-out infinite; }
+  @keyframes lev-pulse { 0%, 100% { transform: scale(1.12); } 50% { transform: scale(1.2); } }
+}
+.joy-ticks { display: none; }
