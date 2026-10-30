@@ -224,7 +224,7 @@ class ThreeDStage extends HTMLElement {
       const kids = scene.children;
       for (let i = 0; i < kids.length; i++) if (kids[i].visible) kids[i].updateMatrixWorld();
       renderer.render(scene, camera);
-      this._afterRender?.(renderer); // (main.js: reads the colour along the picture's bottom edge)
+      this._afterRender?.(renderer); // (main.js: the page background follows the sea along the bottom edge)
     };
     // Detached while three.js was fetching? Stay idle — the
     // connectedCallback resume starts the loop and observer on
