@@ -19,7 +19,7 @@ const P = C.plank;
  * @param o.fishName (id) => name
  * @param o.send (kind, payload)               tell the other captains (online.js radio)
  */
-export function createSalvage({ THREE, scene, WL, wave, splash, chartId, station, edge, getBoat, canSalvage, report, applyEcon, fishName, send, note }) {
+export function createSalvage({ THREE, scene, WL, wave, splash, chartId, station, stations = [station], edge, getBoat, canSalvage, report, applyEcon, fishName, send, note }) {
   let signedIn = false; serverEconomy().then(on => { signedIn = on; if (on) { refreshTaken(); refresh(); } });
   const wood = new THREE.MeshStandardMaterial({ color: '#b07a45', roughness: 0.85 }), woodDark = new THREE.MeshStandardMaterial({ color: '#6e4526', roughness: 0.9 });
   const halo = new THREE.MeshBasicMaterial({ color: '#fff3d6', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
@@ -37,7 +37,7 @@ export function createSalvage({ THREE, scene, WL, wave, splash, chartId, station
   function plankAt(i, j, k) {
     const s = key(i, j, k); if (u32('plk:' + s) >= P.chance) return null;
     const x = (i + 0.15 + 0.7 * u32('plkx:' + s)) * P.cell, z = (j + 0.15 + 0.7 * u32('plkz:' + s)) * P.cell;
-    if (Math.hypot(x - station.x, z - station.z) < P.awayFromStation || edge(x, z) < 150) return null;
+    if (stations.some(st => Math.hypot(x - st.x, z - st.z) < P.awayFromStation) || edge(x, z) < 150) return null; // (never in a harbour)
     return { i, j, k, x, z, id: `${i}:${j}:${k}`, spin: u32('plkr:' + s) * Math.PI * 2 };
   }
   const taken = new Set(); let near = [], scanT = 0, picking = null, signNote = 0;

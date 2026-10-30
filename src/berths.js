@@ -9,7 +9,9 @@ import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 import { currentSession } from './auth.js';
 import { berthsHeld } from './cpu-captains.js';
 
-export function createBerths({ chartId, online, playerName, fleet, cpu }) {
+export function createBerths({ chartId: harbour, home = () => true, online, playerName, fleet, cpu }) {
+  // (the harbour: the nearest station's; the local sailors only use the home port's berths)
+  let chartId = harbour(); const atHome = () => home();
   let bookings = new Map(), mine = null, beat = 0, lastRead = 0;
   const rest = async (path, { method = 'GET', body, keepalive = false } = {}) => {
     const s = await currentSession(); if (!s) throw Object.assign(new Error('signed out'), { code: 'signed_out' });
@@ -19,7 +21,7 @@ export function createBerths({ chartId, online, playerName, fleet, cpu }) {
     const t = await r.text(); return t ? JSON.parse(t) : null;
   };
   async function refresh() {
-    lastRead = Date.now();
+    lastRead = Date.now(); if (!mine) { const c = harbour(); if (c !== chartId) { chartId = c; bookings = new Map(); } } // (a booking keeps its harbour till it's freed)
     try { const rows = await rest(`berth_bookings?select=berth,user_id,captain,state,expires_at&chart=eq.${encodeURIComponent(chartId)}&expires_at=gt.${new Date().toISOString()}`);
       bookings = new Map(rows.map(r => [r.berth, r])); }
     catch { /* offline: keep what we knew */ }
@@ -27,14 +29,14 @@ export function createBerths({ chartId, online, playerName, fleet, cpu }) {
   }
   const meId = () => online?.me;
   // tell the fleet which berths real captains hold, so a local sailor due at one waits offshore
-  const push = () => fleet?.setBooked?.(new Map([...bookings].map(([b, r]) => [b, r.captain])));
+  const push = () => { if (atHome()) fleet?.setBooked?.(new Map([...bookings].map(([b, r]) => [b, r.captain]))); };
   const nudge = () => online?.radio('berth', {});
 
   /** Who holds berth i now: { by: 'you' | 'captain' | 'local', name } or null. */
   function info(i) {
     const r = bookings.get(i);
     if (r && Date.parse(r.expires_at) > Date.now()) return { by: r.user_id === meId() ? 'you' : 'captain', name: r.captain, state: r.state };
-    if (cpu) { const c = berthsHeld().get(i); if (c) return { by: 'local', name: c.name }; }
+    if (cpu && atHome()) { const c = berthsHeld().get(i); if (c) return { by: 'local', name: c.name }; }
     return null;
   }
   /** Book berth i before sailing in: { ok, offline?, msg? }. */

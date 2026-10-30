@@ -3,13 +3,14 @@ import './three-d-stage.js';
 import { initHud } from './hud.js';
 import { WORLD, CHART, clampToWorld, edgeDistance } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
-import { initStation, STATION, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LOCAL_FISH } from './station.js';
+import { initStation, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LOCAL_FISH, harbourKey, addStations } from './station.js';
 import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createNos } from './nos.js';
 import { createCombat } from './combat.js';
 import { createSalvage } from './salvage.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
+import { rpc } from './econ.js';
 import { ECONOMY } from './world-config.js';
 import { createFishing, fishLog, stars } from './fishing.js';
 import { createSeaLabels } from './geo-labels.js';
@@ -258,6 +259,7 @@ const NOISE = `
 // calm, shallow water around Paradise Station (from the station file: calm ellipse and turquoise shallows, in island units x 1/0.6)
 const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATION.z + z * SK);
 const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
+addEventListener('sailo:station', () => { CALM.c.copy(stW(2, 2)); SHORE.c.copy(stW(-6, -3)); }); // (the calm water and shallows go with the nearest station)
 const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 2) return 1; const k = Math.max(0, u - 1); return 0.12 + 0.88 * k * k * (3 - 2 * k); };
 const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
@@ -981,7 +983,7 @@ const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: 
 // the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
 const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }),
-  station: { x: STATION.x, z: STATION.z, points: () => [...PORT.berths.map(b => ({ x: b.pos[0], z: b.pos[1] })), { x: PORT.sea0[0], z: PORT.sea0[1] }] },
+  station: { get x() { return STATION.x; }, get z() { return STATION.z; }, all: STATIONS, points: () => station.harbourPoints() },
   spots: () => fishing.spots(), species: FISH.map(f => ({ f, w: localOdds(f) })).filter(s => s.w > 0), minutes: () => liveClock().mins,
   captains: isPuneChart ? () => ROSTER.map(c => ({ c, s: stateAt(c) })).filter(q => q.s?.kind === 'fish').map(q => ({ id: q.c.id, x: q.s.x, z: q.s.z })) : null });
 // harbour ambience (gulls calling, the dock at work) and the Fish Market's news when a price moves a long way
@@ -1005,7 +1007,7 @@ const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPu
 // NOS: the button at the helm; a boost granted is spent by the boat's motion (the frame loop below)
 createNos({ station, orbit: helmOrbit, moving: () => vel > 0.5 && ACT.anchor === 'up' && station.mode === 'sea', boost: s => { boostT = s; }, note: t => hud.note(t, 4000) });
 // naval combat: the cannon at the helm, shots and hits (checked by the server), damage, and the safe harbour
-combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, emit, station, chartId: CHART.id, stationPos: STATION, orbit: helmOrbit,
+combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, emit, station, chartId: CHART.id, stationPos: STATION, home: HOME, orbit: helmOrbit,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw, vel }),
   targets: () => [...(online ? online.list().map(p => ({ kind: 'player', id: p.id, name: p.name, x: p.st.x, z: p.st.z })) : []),
     ...cpuFleet.everyone().filter(e => !e.c.live && !combat.npcHull(e.c.id)?.sunk).map(e => ({ kind: 'npc', id: e.c.id, name: e.c.name, x: e.x, z: e.z }))],
@@ -1019,7 +1021,7 @@ combat = createCombat({ THREE, scene: stage._scene, WL, wave: waveJS, splash, em
     station.refresh().then(() => { const dc = c0 - station.coins(), df = f0 - station.holdInfo().n; salvage?.refresh();
       if (dc > 0 || df > 0) setTimeout(() => hud.note(`Your wreck holds ${[dc > 0 && `${dc} coins`, df > 0 && `${df} fish`].filter(Boolean).join(' and ')} for anyone who salvages it.`, 6000), 6500); }); } });
 // salvage: planks floating at sea, and wrecks to salvage (salvage.js; settings in world-config.js)
-salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: { x: STATION.x, z: STATION.z }, edge: edgeDistance,
+salvage = createSalvage({ THREE, scene: stage._scene, WL, wave: waveJS, splash, chartId: CHART.id, station: STATION, stations: STATIONS, edge: edgeDistance,
   getBoat: () => ({ x: boat.position.x, z: boat.position.z, yaw }), report: () => combat.reportNow(), applyEcon: st => station.applyEcon(st),
   canSalvage: () => wreckT > 0 ? 'Your boat is wrecked.' : station.mode !== 'sea' ? 'Cast off first.' : '',
   fishName: id => FISH.find(f => f.id === id)?.name || id, send: (k, p) => online?.radio(k, p), note: t => hud.note(t, 3500) });
@@ -1028,12 +1030,18 @@ addEventListener('sailo:hull', e => combat.repaired({ hp: e.detail.hp, hull: e.d
 function stepWreck(dt) {
   if (wreckT <= 0) return; wreckT += dt; boat.position.y -= dt * 0.9; boat.rotation.x = Math.min(0.5, boat.rotation.x + dt * 0.15);
   if (wreckT < 3.2) { if (Math.random() < 0.6) combat.smokeFrom(boat.position.x, boat.position.z, 1); return; }
-  wreckT = 0; const [x, z] = PORT.sea0, dx = x + 30 - boat.position.x, dz = z + 30 - boat.position.z;
+  wreckT = 0; const [x, z] = station.seaMouth(), dx = x + 30 - boat.position.x, dz = z + 30 - boat.position.z; // (to the nearest station)
   [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); boat.position.y = 0; boat.rotation.x = 0; vel = 0;
   combat.respawn().then(() => hud.note('Towed back to Paradise Station. The hull is patched up.', 5000));
 }
 // berths at Paradise Station: real captains book them in the database; the local sailors' come from their schedule
-var berths = createBerths({ chartId: CHART.id, online, playerName: hud.captainName, fleet: cpuFleet, cpu: isPuneChart });
+var berths = createBerths({ chartId: () => harbourKey(STATION), home: () => STATION.id === 'home', online, playerName: hud.captainName, fleet: cpuFleet, cpu: isPuneChart });
+addEventListener('sailo:station', () => berths.refresh()); // (each station has its own berths)
+// other cities: a station in each major neighbourhood as the live map finds them (Pune's ship with the game); the
+// server is told, so they're safe harbours there too
+if (!isPuneChart) { const fromMap = () => { const add = addStations(geo.placeList().filter(p => p.kind === 'major').map(p => ({ name: p.name, lat: p.lat, lng: p.lng })));
+  if (add.length) rpc('chart_stations_add', { p_chart: CHART.id, p_list: add.map(({ id, x, z }) => ({ id, x: +x.toFixed(1), z: +z.toFixed(1) })) }).catch(() => {}); };
+  geo.onChange(fromMap); fromMap(); }
 // SOS, saved messages, blocks and reports (signed-in captains)
 const radioHelp = createRadioHelp({ radio, online, chartId: CHART.id, chartName: WORLD.name, playerPos: () => boat.position, playerName: hud.captainName, fleet: cpuFleet, hud,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), cpu: isPuneChart, myScreen: () => toScreen(boat.position) });
@@ -1050,7 +1058,7 @@ const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
   onZone: z => { document.querySelector('#loc .loc-text b').textContent = z ? z.name : WORLD.name; },
   // tap a name (on the sea or the compass strip) to sail there
   sailTo: (x, z, name) => { const ok = setCourse(new THREE.Vector3(x, WL, z), true); if (ok) floatText(boat.position.clone().setY(9), `Course set · ${name}`, '#7ff0c8'); return ok; },
-  station: { x: STATION.x, z: STATION.z, name: 'Paradise Station' }, course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off', night: () => E.night > 0.5 });
+  station: STATION, course: () => course.on ? course.p : null, busy: () => ACT.fish !== 'off', night: () => E.night > 0.5 });
 // beside the boat while fishing or anchored: stop fishing and raise / drop anchor
 const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),

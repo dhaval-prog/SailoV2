@@ -21,7 +21,7 @@ const TAU = Math.PI * 2, wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
  * @param o.seaPoint (pointer event) => Vector3 | null                    where on the water the pointer is
  * @param o.onSank (wreck id) => void                                       a boat you hit went down (salvage.js shows the wreck)
  */
-export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, station, chartId, stationPos, targets, canFire, send, seaPoint, orbit, note, onWrecked, onHull, onSank }) {
+export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, station, chartId, stationPos, targets, canFire, send, seaPoint, orbit, note, onWrecked, onHull, onSank, home = stationPos }) {
   const V3 = THREE.Vector3;
   let signedIn = false, hull = { hp: C.hull, max: C.hull, wrecked: false }, aiming = false, reloadUntil = 0, busy = false;
   serverEconomy().then(on => { signedIn = on; if (on) refreshHull(); });
@@ -148,7 +148,7 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
     if (hit && Date.now() - heardAt > 4000) note(`You've been hit! Hull ${Math.round(hull.hp / hull.max * 100)}%`); // (the radio's word on who fired may not come)
     if (hull.wrecked && !was) onWrecked(lastHitBy); }
   let hereT = 0, hereEvery = 2000; async function here(force) { if (!signedIn) return; const now = Date.now(); if (!force && now - hereT < hereEvery) return; hereT = now; const b = getBoat();
-    try { setHull(await rpc('combat_here', { p_chart: chartId, p_x: +b.x.toFixed(1), p_z: +b.z.toFixed(1), p_station_x: +stationPos.x.toFixed(1), p_station_z: +stationPos.z.toFixed(1) })); } catch { /* offline */ } }
+    try { setHull(await rpc('combat_here', { p_chart: chartId, p_x: +b.x.toFixed(1), p_z: +b.z.toFixed(1), p_station_x: +home.x.toFixed(1), p_station_z: +home.z.toFixed(1) })); } catch { /* offline */ } }
   let npcHulls = new Map(), npcT = 0, npcEvery = 10000, busyT = 0;
   // how often to tell the server where you are (and hear about your hull): every couple of seconds while another captain
   // is close enough to come into range, while aiming or with a ball in the air; now and then otherwise. The local

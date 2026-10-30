@@ -26,7 +26,7 @@ export function createWildlife({ THREE, scene, WL, wave, getBoat, splash, statio
   const V3 = THREE.Vector3, seed0 = strHash('sailo:' + chartId);
   const hash = (...n) => { let h = seed0; for (const v of n) { h = Math.imul(h ^ (v | 0), 16777619); h ^= h >>> 13; } return rng(h)(); };
   const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, ...extra });
-  const nearStation = (x, z, d) => Math.hypot(x - station.x, z - station.z) < d;
+  const nearStation = (x, z, d) => (station.all || [station]).some(st => Math.hypot(x - st.x, z - st.z) < d); // (any Paradise Station)
   let now = 0; // seconds (wall clock), the shared timeline
 
   // ================================================== dolphins ==================================================
@@ -136,7 +136,7 @@ export function createWildlife({ THREE, scene, WL, wave, getBoat, splash, statio
   const releaseGull = g => { if (g.role !== 'leave') { g.role = 'leave'; g.t = 0; g.awayX = Math.cos(g.ph * 9) ; g.awayZ = Math.sin(g.ph * 9); } };
   const dropGull = g => { g.on = false; g.mesh.visible = false; gullByKey.delete(g.key); };
   const spawnAround = (b, r, h) => { const a = Math.random() * TAU; return new V3(b.x + Math.cos(a) * r, WL + h, b.z + Math.sin(a) * r); };
-  let harbourSpots = null;
+  let harbourSpots = null, harbourAt = null;
 
   function scanGulls(b) {
     const want = new Set();
@@ -144,7 +144,7 @@ export function createWildlife({ THREE, scene, WL, wave, getBoat, splash, statio
     spotList.forEach(s => { for (let k = 0; k < G.atSpot; k++) { const key = `spot:${s.id}:${k}`; want.add(key); const g = takeGull(key, 'spot', spawnAround(s, 60, 18)); if (g) { g.cx = s.x; g.cz = s.z; g.r = 5 + k * 2.5; g.alt = 6 + k * 1.5; } } });
     // the harbour: gulls over the docks and the market, some sitting on the water by the piers
     if (nearStation(b.x, b.z, 520)) {
-      harbourSpots ||= station.points();
+      if (harbourAt !== station.x) { harbourAt = station.x; harbourSpots = station.points(); } // (the nearest station's)
       for (let k = 0; k < G.atStation; k++) { const key = `harbour:${k}`, at = harbourSpots[k % harbourSpots.length]; want.add(key);
         const g = takeGull(key, 'harbour', spawnAround(at, 40, 16)); if (g) { g.cx = at.x; g.cz = at.z; g.r = 6 + (k % 3) * 3; g.alt = 7 + (k % 4) * 2; g.sitter = k % 3 === 2; } }
     }
