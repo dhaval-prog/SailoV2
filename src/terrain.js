@@ -110,6 +110,9 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   const MAXR = 2700, foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR),
     glowIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.6, depthWrite: false }), MAXR);
   glowIM.renderOrder = -2;
+  // shallow water over the reefs too: a softer turquoise wash under every coral, so a coral field reads as shallows
+  const reefIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.32, depthWrite: false, color: '#bff7ff' }), 1400);
+  reefIM.renderOrder = -3; reefIM.count = 0; reefIM.frustumCulled = false; scene.add(reefIM);
   [foamIM, glowIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); });
   // corals: drawn on canvases (branching staghorn, a brain coral, a fan, tubes, kelp), in greens, seen through the water
   const coralTex = [0, 1, 2, 3, 4].map(k => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.translate(64, 64); x.lineCap = 'round';
@@ -145,7 +148,9 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     nearC.forEach(c => { const k = c.k, i = nc[k]; if (i >= MAXC) return; nc[k]++;
       Q.setFromAxisAngle(UP, c.a); V.set(c.x, WL + 0.03, c.z); Sc.set(c.s, 1, c.s); M4.compose(V, Q, Sc); coralIM[k].setMatrixAt(i, M4);
       col.copy(GREENS[Math.floor(c.g * GREENS.length)]); coralIM[k].setColorAt(i, col); });
-    coralIM.forEach((m, k) => { m.count = nc[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }); }
+    coralIM.forEach((m, k) => { m.count = nc[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+    let nr = 0; nearC.forEach(c => { if (nr >= 1400) return; Q.setFromAxisAngle(UP, c.a); V.set(c.x, WL + 0.015, c.z); Sc.set(c.s * 3.2, 1, c.s * 3.2); M4.compose(V, Q, Sc); reefIM.setMatrixAt(nr++, M4); });
+    reefIM.count = nr; reefIM.instanceMatrix.needsUpdate = true; }
   function paint() { // (the foam and the shallows round the rocks near the boat)
     let nf = 0;
     nearR.forEach(r => { if (nf >= MAXR) return; const fr = r.r * 0.95;
