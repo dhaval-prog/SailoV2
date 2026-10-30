@@ -86,7 +86,7 @@ export function rockBuilder(THREE) {
   function build(rock) {
     let n = Math.floor(rock.x * 7.31 + rock.z * 3.17) % 2147483646; if (n <= 0) n += 2147483646;
     const rng = () => (n = (n * 16807) % 2147483647) / 2147483647; for (let i = 0; i < 3; i++) rng();
-    const big = rock.r >= 13, kinds = big ? BIG : MID, kind = kinds[Math.floor(rng() * kinds.length)], parts = [];
+    const big = rock.r >= 13.5, kinds = big ? BIG : MID, kind = kinds[Math.floor(rng() * kinds.length)], parts = [];
     KINDS[kind](rng, rock.r, rock.h, parts);
     const Mx = new M4().makeTranslation(rock.x, rock.y0, rock.z).multiply(new M4().makeRotationY(rock.a)), c0 = new V();
     parts.forEach(p => { strip(p).applyMatrix4(Mx); const pp = p.attributes.position, ap = new Float32Array(pp.count * 3); c0.set(0, 0, 0);

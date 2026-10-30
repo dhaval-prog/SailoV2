@@ -11,9 +11,9 @@
 import { isLefty } from './tablet.js';
 
 const ORBIT = {
-  wide: { radio: 152, anchor: 208, nos: 98, cannon: 60 },
-  phone: { radio: 162, anchor: 208, top: 124, chase: 90, nos: 52, cannon: 16 },
-  flat: { radio: 162, anchor: 208, top: 32, chase: 335, nos: 118, cannon: 74 },
+  wide: { radio: 152, anchor: 208, nos: 98, cannon: 60, map: 22 },
+  phone: { radio: 162, anchor: 208, top: 124, chase: 90, nos: 52, cannon: 16, map: 340 },
+  flat: { radio: 162, anchor: 208, top: 32, chase: 335, nos: 118, cannon: 74, map: 290 },
 };
 const GAP = 12; // px between the wheel's rim and an icon
 const mirror = o => Object.fromEntries(Object.entries(o).map(([k, a]) => [k, (540 - a) % 360]));
@@ -37,7 +37,7 @@ export function initHelmOrbit() {
     if (api.radioAt && (b.contains('anchored') || b.contains('fishing') || b.contains('stn-bar-on') || b.contains('boat-sel') || b.contains('stn-docked'))) return; // (the helm is away: keep the last layout)
     if (phone.matches && b.contains('view-top')) { // (Follow's corner is set in phone.css)
       if (chaseB.style.position !== 'fixed') chaseB.style.cssText = 'position:fixed;margin:0';
-      api.radioAt = size => { const r = chaseB.getBoundingClientRect(); return [r.left - 16 - size / 2, r.top + r.height / 2]; }; api.nosAt = api.cannonAt = null; return; }
+      api.radioAt = size => { const r = chaseB.getBoundingClientRect(); return [r.left - 16 - size / 2, r.top + r.height / 2]; }; api.nosAt = api.cannonAt = api.mapAt = null; return; }
     const w = wheel(); if (!w) return;
     const A = !phone.matches ? (isLefty() ? mirror(ORBIT.wide) : ORBIT.wide) : flat.matches ? ORBIT.flat : ORBIT.phone;
     // the anchor lives inside the wheel's box (it scales with the helm): place it in that box's own units
@@ -48,10 +48,11 @@ export function initHelmOrbit() {
     api.radioAt = size => at(null, A.radio, size);
     api.nosAt = size => at(null, A.nos, size); // (the NOS button, when the boat has it: nos.js)
     api.cannonAt = size => at(null, A.cannon, size); // (the cannon: combat.js)
+    api.mapAt = size => at(null, A.map, size); // (the map: main.js)
     if (phone.matches) [[topB, A.top], [chaseB, A.chase]].forEach(([b, deg]) => { const size = b.offsetWidth, [x, y] = at(b, deg, size);
       b.style.cssText = `position:fixed;left:${(x - size / 2).toFixed(1)}px;top:${(y - size / 2).toFixed(1)}px;margin:0`; });
   }
-  const api = { place, radioAt: null, nosAt: null, cannonAt: null };
+  const api = { place, radioAt: null, nosAt: null, cannonAt: null, mapAt: null };
   phone.addEventListener?.('change', () => setTimeout(place, 50));
   addEventListener('resize', () => setTimeout(place, 200)); addEventListener('sailo:controls', () => setTimeout(place, 50));
   setTimeout(place, 0); setInterval(place, 500); // (the helm eases in and out; keep up with it)

@@ -39,3 +39,13 @@
 /* the lever: a long press picks it up (the hub swells), then it moves */
 body #joy.lever-wait #knob .hub { transform: scale(0.94); transition: transform 0.28s ease-out; }
 body #joy.lever-armed #knob .hub { transform: scale(1.12); box-shadow: 0 0 0 4px rgba(110, 231, 197, 0.55); transition: transform 0.12s; }
+
+/* the lever's slot: as long as the wheel is tall, bold and black */
+@media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) {
+  body #joy #joy-dir { width: 13px; height: 104px; margin: -52px 0 0 -6.5px; border-radius: 7px; border: 2px solid #05070d; background: linear-gradient(to right, #1a1f2b, #05070d 55%, #1a1f2b);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.12); opacity: 1; }
+  body #joy.fwd #joy-dir { background: linear-gradient(to top, #05070d 50%, #18a98f 50%); border-color: #05070d; }
+  body #joy.rev #joy-dir { background: linear-gradient(to bottom, #05070d 50%, #e0612f 50%); border-color: #05070d; }
+  body #joy #joy-dir::before { top: -11px; border-bottom: 6px solid #05070d; opacity: 1; } body #joy #joy-dir::after { bottom: -11px; border-top: 6px solid #05070d; opacity: 1; }
+  body #joy .joy-notch { width: 26px; height: 3px; margin: -1.5px 0 0 -13px; background: #fff; }
+}

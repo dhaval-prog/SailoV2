@@ -113,9 +113,10 @@ export const SALVAGE = {
 export const TERRAIN = {
   cell: 40,              // metres: buildings are counted in squares this size…
   dense: 0.32,           // …and a square this built-up becomes a medium rock
-  medMin: 6, medMax: 13, // a medium rock's radius (metres)
-  hugeArea: 3500,        // a footprint this big (m²: a mall, a campus) becomes a huge rock…
-  hugeMin: 14, hugeMax: 30, // …this size
+  hugeArea: 3500,        // a footprint this big (m²: a mall, a campus) becomes a huge rock
+  // sizes against the boat (the tug: ~10.7 m long, ~10 m tall): a medium rock twice as wide and tall, a huge one three times
+  medR: 10.7, medH: 20,  // radius, height (metres)
+  bigR: 16, bigH: 30,
   gap: 22,               // metres of open water kept between two rocks, at least
   edge: 14,              // and a lane along every map tile's edge
   startClear: 260,       // no rocks round the harbour where voyages start…
