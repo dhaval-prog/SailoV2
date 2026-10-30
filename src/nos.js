@@ -27,14 +27,17 @@ export function createNos({ station, orbit, moving, boost, note }) {
   }
   btn.addEventListener('click', fire);
   addEventListener('keydown', e => { if ((e.key === 'n' || e.key === 'N') && !e.target.closest?.('input, textarea')) fire(); });
+  // (written to only when something changed: writes between the frame's measurements cost a layout)
+  const shown = {}, put = (k, v, fn) => { if (shown[k] !== v) { shown[k] = v; fn(v); } };
   function paint() {
-    const n = station.nos(); btn.hidden = !n.owned; if (!n.owned) return;
+    const n = station.nos(); put('hidden', !n.owned, v => { btn.hidden = v; }); if (!n.owned) return;
     const boosting = Date.now() < until, cooling = !boosting && n.readyIn > 0;
     const k = boosting ? (until - Date.now()) / (N.burst * 1000) : n.charge / n.cap; // (while boosting: the burst running out)
-    charge.style.strokeDasharray = `${(Math.max(0, k) * C).toFixed(1)} ${C.toFixed(1)}`;
-    btn.classList.toggle('on', boosting); btn.classList.toggle('cool', cooling); btn.classList.toggle('empty', n.charge <= 0.05 && !boosting);
-    btn.setAttribute('aria-label', boosting ? 'NOS boosting' : n.charge <= 0.05 ? 'NOS empty: refill at the Boathouse' : cooling ? 'NOS cooling down' : `NOS boost (${n.charge.toFixed(1)} s left)`);
-    const p = orbit.nosAt?.(56); if (p) { btn.style.left = `${Math.round(p[0] - 28)}px`; btn.style.top = `${Math.round(p[1] - 28)}px`; btn.style.visibility = ''; } else btn.style.visibility = 'hidden';
+    put('k', Math.max(0, k).toFixed(3), v => { charge.style.strokeDasharray = `${(v * C).toFixed(1)} ${C.toFixed(1)}`; });
+    put('state', `${boosting}|${cooling}|${n.charge <= 0.05 && !boosting}`, () => { btn.classList.toggle('on', boosting); btn.classList.toggle('cool', cooling); btn.classList.toggle('empty', n.charge <= 0.05 && !boosting); });
+    put('label', boosting ? 'NOS boosting' : n.charge <= 0.05 ? 'NOS empty: refill at the Boathouse' : cooling ? 'NOS cooling down' : `NOS boost (${n.charge.toFixed(1)} s left)`, v => btn.setAttribute('aria-label', v));
+    const p = orbit.nosAt?.(56); put('at', p ? `${Math.round(p[0] - 28)},${Math.round(p[1] - 28)}` : '', v => { if (!v) { btn.style.visibility = 'hidden'; return; } const [x, y] = v.split(',');
+      btn.style.left = `${x}px`; btn.style.top = `${y}px`; btn.style.visibility = ''; });
   }
   addEventListener('sailo:econ', paint); setInterval(paint, 250); paint();
   return { get boosting() { return Date.now() < until; } };

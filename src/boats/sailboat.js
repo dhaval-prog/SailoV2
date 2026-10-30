@@ -1,5 +1,6 @@
 // Sail boat, built in code exactly as in Sail_Boat.html (same hull, rig, sails, pennants, nav lights
 // and ink outlines). The game shows it inside the player's boat group when it is the active boat.
+import { mergeStatic, tidyOutlines, moving } from '../merge-static.js';
 
 export function buildSailBoat(ctx) {
   const { THREE, M } = ctx;
@@ -324,6 +325,10 @@ export function buildSailBoat(ctx) {
     mat.glass.emissiveIntensity = 0.3 + 1.6 * night;
     stepSails(t, dt, anchor);
   }
+
+  // the parts that never move, merged per material (far fewer draw calls); the moving and furling ones stay as they are
+  const KEEP = moving(prop, wheel, anemo, radar, mainG, SAILS);
+  mergeStatic(THREE, boat, o => KEEP.has(o)); tidyOutlines(outlines, boat);
 
   return {
     group: boat, tick, outline, HB, ANC_LIFT, outlines,

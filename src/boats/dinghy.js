@@ -2,6 +2,7 @@
 // with varnished deck, tall wooden mast, mainsail on a varnished boom, big genoa, transom rudder and
 // tiller, mast and deck nav lights, ink outlines, night-aware shading; sails furl at anchor, it heels
 // under sail, and the sail colour / image is customisable.
+import { mergeStatic, tidyOutlines, moving } from '../merge-static.js';
 
 export function buildDinghy(ctx) {
   const { THREE } = ctx;
@@ -273,6 +274,10 @@ export function buildDinghy(ctx) {
     // heels a little under sail (source), less as the sails come down
     const want = -(0.1 + 0.22 * Math.abs(vel / maxV)) * (1 - SAILS.f); heel += (want - heel) * Math.min(1, dt * 3); boat.rotation.x = heel;
   }
+
+  // the parts that never move, merged per material (far fewer draw calls); the moving and furling ones stay as they are
+  const KEEP = moving(prop, wheel, ring, anemo, radar, mainG, SAILS);
+  mergeStatic(THREE, boat, o => KEEP.has(o)); tidyOutlines(outlines, boat);
 
   return {
     group: boat, tick, outline, HB, ANC_LIFT, outlines,

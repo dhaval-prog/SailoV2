@@ -163,14 +163,17 @@ export function createCombat({ THREE, scene, WL, wave, getBoat, splash, emit, st
     if (kind === 'hit') { lastHitBy = p?.name || 'another captain'; heardAt = Date.now(); note(`You were hit by ${lastHitBy}!`); refreshHull(); }
   }
 
+  // (the button is written to only when something on it changed: writes between the frame's measurements cost a layout)
+  const shown = {}, put = (k, v, fn) => { if (shown[k] !== v) { shown[k] = v; fn(v); } };
   function paint() {
-    const cn = station.cannon(), p = orbit.cannonAt?.(56); btn.hidden = !cn.owned;
+    const cn = station.cannon(), p = orbit.cannonAt?.(56); put('hidden', !cn.owned, v => { btn.hidden = v; });
     if (!cn.owned) { if (aiming) setAim(false); return; }
-    count.textContent = cn.balls; btn.classList.toggle('empty', cn.balls <= 0);
+    put('n', cn.balls, v => { count.textContent = v; btn.classList.toggle('empty', v <= 0); });
     const k = Math.max(0, Math.min(1, 1 - (reloadUntil - Date.now()) / (C.reload * 1000)));
-    load.style.strokeDasharray = `${(k * 100).toFixed(1)} 100`; btn.classList.toggle('loading', k < 1);
-    btn.setAttribute('aria-label', `Cannon · ${cn.balls} balls${k < 1 ? ' · reloading' : ''}${aiming ? ' · aiming' : ''}`);
-    if (p) { btn.style.left = `${Math.round(p[0] - 28)}px`; btn.style.top = `${Math.round(p[1] - 28)}px`; btn.style.visibility = ''; } else btn.style.visibility = 'hidden';
+    put('load', k.toFixed(2), v => { load.style.strokeDasharray = `${(v * 100).toFixed(1)} 100`; btn.classList.toggle('loading', v < 1); });
+    put('label', `Cannon · ${cn.balls} balls${k < 1 ? ' · reloading' : ''}${aiming ? ' · aiming' : ''}`, v => btn.setAttribute('aria-label', v));
+    put('at', p ? `${Math.round(p[0] - 28)},${Math.round(p[1] - 28)}` : '', v => { if (!v) { btn.style.visibility = 'hidden'; return; } const [x, y] = v.split(',');
+      btn.style.left = `${x}px`; btn.style.top = `${y}px`; btn.style.visibility = ''; });
   }
   addEventListener('sailo:econ', paint);
 

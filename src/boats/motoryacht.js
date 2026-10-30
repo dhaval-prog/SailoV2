@@ -1,6 +1,7 @@
 // Motor Yacht, built in code exactly as in Motor_Yacht.html (hull with window ports, saloon, flybridge,
 // hardtop, radar arch, dressing line, nav lights, ink outlines) with its own night shading
 // (rim light fades out and colours warm at night) and the optional custom flag on the arch.
+import { mergeStatic, tidyOutlines, moving } from '../merge-static.js';
 
 export function buildMotorYacht(ctx) {
   const { THREE } = ctx;
@@ -269,6 +270,10 @@ export function buildMotorYacht(ctx) {
       for (let i = 0; i < fp.count; i++) { const bx = fbase[i * 3], d = Math.min(0, bx + 0.03), k = -d / 1.5; fp.setZ(i, Math.sin(t * 6 + d * 7 + fbase[i * 3 + 1] * 1.5) * a * k * 1.4); fp.setX(i, bx + k * k * 0.04 * Math.sin(t * 3)); }
       fp.needsUpdate = true; fg.computeVertexNormals(); }
   }
+
+  // the parts that never move, merged per material (far fewer draw calls); the moving and furling ones stay as they are
+  const KEEP = moving(prop, wheel, anemo, radar, FG);
+  mergeStatic(THREE, boat, o => KEEP.has(o)); tidyOutlines(outlines, boat);
 
   return {
     group: boat, tick, outline, HB, ANC_LIFT, outlines,
