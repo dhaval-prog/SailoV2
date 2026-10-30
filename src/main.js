@@ -618,16 +618,23 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }
 // installed on the Home Screen, iPad and iPhone can leave a strip under the game (by the home indicator) that the game
 // can't draw in: it shows the page's own background. That background takes the colour of the sea along the picture's
-// bottom edge (read twice a second, as the light and weather change), so the strip blends in.
-// (the whole bottom row is read and the pale foam left out: the darker 60% of it, averaged, is the sea's own colour)
-{ const root = document.documentElement; let next = 0, last = '', px = null;
-  stage._afterRender = r => { const now = performance.now(); if (now < next) return; next = now + 500;
-    const gl = r.getContext(), w = gl.drawingBufferWidth; if (!px || px.length !== w * 4) px = new Uint8Array(w * 4);
-    gl.readPixels(0, 0, w, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-    const s = []; for (let i = 0; i < w; i += 8) if (px[i * 4 + 3]) s.push([px[i * 4], px[i * 4 + 1], px[i * 4 + 2]]); if (!s.length) return;
-    s.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2])); const k = Math.max(1, Math.round(s.length * 0.6)), m = [0, 0, 0];
-    for (let i = 0; i < k; i++) for (let j = 0; j < 3; j++) m[j] += s[i][j] / k;
-    const c = `rgb(${m.map(Math.round).join(', ')})`; if (c !== last) { last = c; root.style.backgroundColor = document.body.style.backgroundColor = c; } }; }
+// bottom edge, so the strip blends in. It's worked out the way the sea's shader colours that water (its distance from the
+// camera, the weather's tint, night, the haze), twice a second: reading the picture back from the GPU instead stalled
+// the frame each time.
+{ const root = document.documentElement, rc = new THREE.Raycaster(), water = new THREE.Plane(new THREE.Vector3(0, 1, 0), -WL), at = new THREE.Vector3(), edge = new THREE.Vector2(0, -1);
+  const DEEP = [0.07, 0.33, 0.66], MID = [0.11, 0.55, 0.84], FAR = [0.24, 0.76, 0.93], MOON = [0.2, 0.3, 0.56], MOON_ADD = [0, 0.015, 0.05];
+  const ss = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  let next = 0, last = '';
+  const seaEdge = () => {
+    rc.setFromCamera(edge, stage._camera); if (!rc.ray.intersectPlane(water, at)) return null; // (the water at the bottom middle of the picture)
+    const cam = stage._camera.position, d = Math.hypot(at.x - cam.x, at.z - cam.z), T = seaU.uTint.value, H = seaU.uHaze.value, F = seaU.uFog.value, n = seaU.uNight.value;
+    const tint = [T.r, T.g, T.b], haze = [H.r, H.g, H.b], m = ss(4, 70, d), f = ss(50, 200, d), h = ss(F.x, F.y, d);
+    return DEEP.map((v, i) => { let c = v + (MID[i] - v) * m; c += (FAR[i] - c) * f; c *= tint[i]; c += (c * MOON[i] + MOON_ADD[i] - c) * n; c += (haze[i] - c) * h; return Math.round(Math.min(1, c) * 255); });
+  };
+  stage._seaEdge = seaEdge;
+  stage._afterRender = () => { const now = performance.now(); if (now < next) return; next = now + 500;
+    const rgb = seaEdge(); if (!rgb) return; const c = `rgb(${rgb.join(', ')})`;
+    if (c !== last) { last = c; root.style.backgroundColor = document.body.style.backgroundColor = c; } }; }
 // ?vp: a small readout of the screen and page sizes (to check the installed app reaches the bottom of the screen)
 if (/[?&]vp\b/.test(location.search)) { const el = document.createElement('pre'), probe = document.createElement('i');
   probe.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.append(probe);
@@ -1175,4 +1182,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, state: () => state, combat: () => combat, salvage: () => salvage, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
