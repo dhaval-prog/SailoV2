@@ -455,7 +455,8 @@ const fogCol = new THREE.Color(), shaderHaze = new THREE.Color(), NIGHT_MIST = n
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
-const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 53, side: 79, up: 55 } };
+// top: 80 units from the boat, tilted 30° from straight down (80·cos30 ≈ 69 up, 80·sin30 = 40 across, from the same side as before)
+const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 40 * 53 / Math.hypot(53, 79), side: 40 * 79 / Math.hypot(53, 79), up: 80 * Math.cos(Math.PI / 6) } };
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
 stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
@@ -464,6 +465,8 @@ stage._controls.maxPolarAngle = Math.PI / 2 - 0.1; stage._minY = () => WL + 1.6 
 let zoomAnim = null;
 const zoomBy = f => { const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
 let camAnim = null;
+const UPY = new THREE.Vector3(0, 1, 0); let camDrag = false; // (while you drag the camera, it doesn't follow the boat's turns)
+stage.addEventListener('pointerdown', () => { camDrag = true; }); addEventListener('pointerup', () => { camDrag = false; }); addEventListener('pointercancel', () => { camDrag = false; });
 const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new THREE.Vector3();
 // interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
@@ -1125,7 +1128,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
     const nosOn = boostT > 0 && thr > 0 && ACT.anchor === 'up' && !busy; if (boostT > 0) boostT = Math.max(0, boostT - dt);
     vel += (thr * MAXV * (nosOn ? ECONOMY.nos.speed : 1) * fuelK - vel) * Math.min(1, dt * 0.95 * (nosOn ? ECONOMY.nos.accel : 1)); // (picks up speed briskly too)
     const sv = vel / MAXV;
-    yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
+    const yaw0 = yaw; yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
     // Pune Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
     let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
@@ -1139,6 +1142,8 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
     if (!busy) fuelK = station.burn(Math.hypot(dx, dz), Math.abs(thr));
     boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
     stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz;
+    // chase view: as the boat turns, the camera swings round with it (keeping its place behind, or wherever you set it)
+    if (state.view === 'chase' && !camAnim && !camDrag && yaw !== yaw0) { const tg = stage._controls.target; tmpV.copy(stage._camera.position).sub(tg).applyAxisAngle(UPY, yaw - yaw0); stage._camera.position.copy(tg).add(tmpV); }
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
     const hC = waveJS(bx, bz, t), hF = waveJS(bx + fx * 3, bz + fz * 3, t), hB = waveJS(bx - fx * 3, bz - fz * 3, t), hS = waveJS(bx + sx * 2, bz + sz * 2, t), hP = waveJS(bx - sx * 2, bz - sz * 2, t);
     boat.position.y += ((hC + hF + hB) / 3 * 0.85 - boat.position.y) * Math.min(1, dt * 3);
