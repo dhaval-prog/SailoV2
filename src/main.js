@@ -478,7 +478,7 @@ stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._contr
 // the camera never goes under the water: at most a low look along the surface, and always a little above the swell
 stage._controls.maxPolarAngle = Math.PI / 2 - 0.1; stage._minY = () => WL + 1.6 + Math.max(0, waveJS(stage._camera.position.x, stage._camera.position.z, seaU.time.value));
 let zoomAnim = null;
-const zoomBy = f => { const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
+const zoomBy = f => { if (state.view === 'top') return; /* (the top view keeps its height and zoom) */ const off = (zoomAnim ? zoomAnim.to : stage._camera.position.clone().sub(stage._controls.target)); const l = Math.min(260, Math.max(8, off.length() * f)); zoomAnim = { from: stage._camera.position.clone().sub(stage._controls.target), to: off.clone().setLength(l), k: 0 }; stage._controls.autoRotate = false; };
 let camAnim = null;
 const UPY = new THREE.Vector3(0, 1, 0); let camDrag = false; // (while you drag the camera, it doesn't follow the boat's turns)
 stage.addEventListener('pointerdown', () => { camDrag = true; }); addEventListener('pointerup', () => { camDrag = false; }); addEventListener('pointercancel', () => { camDrag = false; });
@@ -486,7 +486,9 @@ const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new 
 // interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
 const animCam = (to, ty1, dur = 1.3, focus = null) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0, fo: focus || new THREE.Vector3() }; };
-const setView = v => { state.view = v; animCam(viewOffset(v), v === 'top' ? WL : 2.5); };
+const setView = v => { state.view = v; const top = v === 'top', d = VIEWS.top.up / Math.cos(Math.PI / 6);
+  stage._controls.minDistance = top ? d : 8; stage._controls.maxDistance = top ? d : 260; // the top view is always the same height and zoom
+  animCam(viewOffset(v), top ? WL : 2.5); };
 const recenter = () => setView(state.view);
 const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };
 const E = { top: C('#33a8e8'), mid: C('#8cd9f5'), hor: C('#f0fcff'), tint: C('#ffffff'), cover: 0.32, dark: 0, amp: 1, fogN: 170, fogF: 390, cfade: 1, rain: 0, snow: 0, sun: 1, night: 0 };
@@ -516,7 +518,7 @@ function stepEnv(t, dt) {
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
   if (P.storm) { nextBolt -= dt; if (nextBolt <= 0) { flash = 1; nextBolt = 2.5 + Math.random() * 6; setTimeout(() => { flash = 0.8; }, 140); } }
   flash = Math.max(0, flash - dt * 4.5);
-  ENV.amp = 0; seaU.uAmp.value = 0; seaU.uTint.value.copy(E.tint); // a flat, calm surface: the diorama look has no waves (E.amp is kept for the clouds / weather). // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
+  ENV.amp = E.amp * 0.32; seaU.uAmp.value = E.amp * 0.32; // a gentle swell: calm, but alive seaU.uTint.value.copy(E.tint); // a flat, calm surface: the diorama look has no waves (E.amp is kept for the clouds / weather). // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
   const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);
   { const g = (E.gold || 0) * clearish * (1 - E.night); E.fogN = THREE.MathUtils.lerp(E.fogN, Math.min(E.fogN, 70), g * k * 2); E.fogF = THREE.MathUtils.lerp(E.fogF, Math.min(E.fogF, 270), g * k * 2); } // (golden haze: distant things fade to silhouettes)
   let fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy); let fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
@@ -588,6 +590,7 @@ sky.renderOrder = -1;
 const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fdff', transparent: true, opacity: 0.85, depthWrite: false });
 const hugShape = outline(1.1); hugShape.holes.push(outline(1.0, new THREE.Path()));
 const hug = new THREE.Mesh(new THREE.ShapeGeometry(hugShape, 24), foamMat); hug.rotation.x = -Math.PI / 2; hug.position.y = WL + 0.01; seaGroup.add(hug);
+const ringShape = () => { const s = BOATS[boatId].outline(1.04); s.holes.push(BOATS[boatId].outline(1.0, new THREE.Path())); return new THREE.ShapeGeometry(s, 24); };
 const rings = [0, 1, 2].map(i => { const r = new THREE.Mesh(new THREE.RingGeometry(1, 1.04, 96), foamMat.clone()); r.rotation.x = -Math.PI / 2; r.position.y = WL + 0.008 + i * 0.001; seaGroup.add(r); return r; });
 
 const wakeMat = new THREE.MeshBasicMaterial({ color: '#f2fdff', map: softTex, transparent: true, opacity: 0.85, depthWrite: false });
@@ -1246,7 +1249,8 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, maxKn: MAXV * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
-  rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
+  { const still = Math.max(0, 1 - Math.abs(vel) / 1.2); // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
+    rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
   theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
