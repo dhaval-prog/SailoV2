@@ -190,7 +190,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
         if (nearR.some(r => { const dx = r.x - b.x, dz = r.z - b.z, d = Math.hypot(dx, dz) - r.r; return d < 35 && d > 0 && (dx * fx + dz * fz) / Math.hypot(dx, dz) > 0.9; })) { warnT = now; onWarn?.(); } }
       if (now - lastLoad > 1500) { lastLoad = now; const R = T.loadAround;
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 15).forEach(([x, y]) => load('rocks', 15, x, y));
-        tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 14).forEach(([x, y]) => load('corals', 14, x, y)); }
+        /* (no corals: the seabed stays clear) */ }
       if (camera) uCam.value.set(camera.position.x, camera.position.z); uBoat.value.set(b.x, b.z); uLight.value = light();
       if (dirty || !gat || Math.hypot(b.x - gat.x, b.z - gat.z) > T.repaint) { dirty = false; gat = { x: b.x, z: b.z }; gather(b); paint();
         // the rock meshes: built for the tiles near the boat (one a frame), let go once well behind
