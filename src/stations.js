@@ -2,7 +2,7 @@
 // real harbour) stays the home port, the local sailors' one; each major neighbourhood gets another at its centre, kept
 // clear of the start of every voyage, of the ocean's edge and of each other.
 // - Pune's neighbourhoods ship with the game (geo-seed.js), so every captain gets the same stations at once, and the
-//   server knows them too (migration …_sailov2_stations.sql: safe harbours, no planks inside).
+//   server knows them too (migration …_sailov2_stations.sql).
 // - Other cities take their major neighbourhoods from the live map as it loads; the server is told of them (and keeps
 //   them, spaced the same way).
 import { WORLD, project } from './world.js';
