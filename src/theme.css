@@ -24,3 +24,14 @@ html body .topbar .tb-btn:hover, html body .topbar .tb-chip:hover, html body #do
 html body #dock .dk.on { background: var(--dio-cap-hi); }
 html body .topbar .tb-btn { width: 46px; height: 46px; }
 html body .topbar .tb-chip { height: 46px; }
+
+/* time of day: Day · Sunset · Night (three segments) */
+html body #tod { grid-template-columns: repeat(3, 1fr); }
+html body #tod .thumb { width: calc(33.333% - 3px); }
+html body #tod.sunset .thumb { transform: translateX(100%); background: linear-gradient(180deg, #ffd9a6, #f6a46e); }
+html body #tod.night .thumb { transform: translateX(200%); }
+html body #tod button { gap: 6px; padding-left: 4px; padding-right: 4px; }
+html body #tod[aria-label] [data-t="sunset"][aria-checked="true"] { color: #6a3418; }
+/* golden hour: the dark navy scrim along the top would turn the orange sky mauve, so it eases off */
+html body #hud-scrim .s-top { opacity: calc(1 - var(--gold, 0) * 0.75); }
+html body #hud-scrim .s-bl, html body #hud-scrim .s-br { opacity: calc(1 - var(--gold, 0) * 0.4); }

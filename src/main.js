@@ -333,8 +333,8 @@ const makeSea = waves => new THREE.ShaderMaterial({
       // afternoon: the same jade, a little deeper
       col *= mix(1.0, 0.92, uAft * (1.0 - uGold));
       // golden hour: teal-jade underfoot, purple-blue in the middle distance, magenta-pink near the far shore
-      vec3 gold = mix(col * vec3(0.9, 1.0, 1.0), vec3(0.42, 0.42, 0.72), smoothstep(30.0, 110.0, d));
-      gold = mix(gold, vec3(0.9, 0.52, 0.64), smoothstep(110.0, 260.0, d));
+      vec3 gold = mix(col * vec3(0.9, 1.0, 1.0), vec3(0.4, 0.4, 0.74), smoothstep(22.0, 85.0, d));
+      gold = mix(gold, vec3(0.92, 0.5, 0.66), smoothstep(80.0, 190.0, d));
       float lines = smoothstep(0.82, 0.97, noise(vec2(p.x * 0.05, p.y * 1.6 + time * 0.12))) * (1.0 - smoothstep(30.0, 220.0, d)); // fine horizontal ripple lines catch the light
       gold += vec3(1.0, 0.72, 0.6) * lines * 0.35;
       col = mix(col, gold, uGold);
@@ -465,7 +465,8 @@ const PRESET = {
 // NIGHT_MIST_RAW is the same mist for the hand-written sea/sky shaders, which take colours without the sRGB conversion
 const fogCol = new THREE.Color(), shaderHaze = new THREE.Color(), NIGHT_MIST = new THREE.Color('#4a5b73'), NIGHT_MIST_RAW = NIGHT_MIST.clone().convertLinearToSRGB();
 // daytime skies: midday is the clear preset; afternoon softer blue with cream at the horizon; golden hour orange to peach to pale yellow
-const AFT = { top: C('#6fb3d6'), mid: C('#b8d8e4'), hor: C('#f6efd8') }, GOLD = { top: C('#f08646'), mid: C('#f8b98c'), hor: C('#fbe3a6') };
+const AFT = { top: C('#6fb3d6'), mid: C('#b8d8e4'), hor: C('#f6efd8') }, GOLD = { top: C('#ec7a3c'), mid: C('#f7ae7e'), hor: C('#fbe0a0') };
+const GOLD_HAZE = C('#f2b08e'), GOLD_HAZE_RAW = GOLD_HAZE.clone().convertLinearToSRGB(); // (pink-orange; the RAW copy is for the hand-written shaders, like NIGHT_MIST_RAW)
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
@@ -518,8 +519,11 @@ function stepEnv(t, dt) {
   ENV.amp = 0; seaU.uAmp.value = 0; seaU.uTint.value.copy(E.tint); // a flat, calm surface: the diorama look has no waves (E.amp is kept for the clouds / weather). // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
   const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);
   { const g = (E.gold || 0) * clearish * (1 - E.night); E.fogN = THREE.MathUtils.lerp(E.fogN, Math.min(E.fogN, 70), g * k * 2); E.fogF = THREE.MathUtils.lerp(E.fogF, Math.min(E.fogF, 270), g * k * 2); } // (golden haze: distant things fade to silhouettes)
-  const fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy), fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
+  let fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy); let fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
   fogCol.copy(E.hor).lerp(NIGHT_MIST, foggy * E.night * 0.85); shaderHaze.copy(E.hor).lerp(NIGHT_MIST_RAW, foggy * E.night * 0.7);
+  // golden hour: a heavy pink-orange haze closes in, so distant islands, palms and boats fade to flat silhouettes
+  const gh = (E.gold || 0) * clearish * (1 - E.night);
+  if (gh > 0.001) { fogNear = THREE.MathUtils.lerp(fogNear, Math.max(30, camD * 0.55), gh); fogFar = THREE.MathUtils.lerp(fogFar, camD + 170, gh); fogCol.lerp(GOLD_HAZE, gh * 0.9); shaderHaze.lerp(GOLD_HAZE_RAW, gh * 0.9); }
   seaU.uHaze.value.copy(shaderHaze); seaU.uFog.value.set(fogNear, fogFar); seaU.uFlash.value = flash;
   // the sun: overhead at midday, from the side in the afternoon, low behind the scene at golden hour
   sunDir.copy(SUN_NOON).lerp(SUN_AFT, E.aft || 0).lerp(SUN_GOLD, E.gold || 0).normalize();
@@ -529,7 +533,7 @@ function stepEnv(t, dt) {
   seaU.uSpec.value = Math.max(0, 1.1 - E.cover * 0.4 - E.dark) * (1 - 0.4 * E.night);
   skyU.uTop.value.copy(E.top).lerp(shaderHaze, foggy * E.night * 0.35); skyU.uMid.value.copy(E.mid).lerp(shaderHaze, foggy * E.night * 0.7); skyU.uHor.value.copy(shaderHaze); skyU.uStars.value = E.night * Math.max(0, 1 - E.cover * 0.75); skyU.uFlash.value = flash;
   cloudU.cover.value = E.cover; cloudU.dark.value = E.dark; cloudU.fade.value = E.cfade; cloudU.flash.value = flash;
-  cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#fff1d8'), (E.aft || 0) * 0.5).lerp(C('#ffb48a'), (E.gold || 0) * clearish * 0.8).lerp(C('#4a5c86'), E.night * 0.85);
+  cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#fff1d8'), (E.aft || 0) * 0.5).lerp(C('#ff9f68'), (E.gold || 0) * clearish).lerp(C('#4a5c86'), E.night * 0.85);
   stage._scene.fog.color.copy(fogCol); stage._scene.fog.near = fogNear; stage._scene.fog.far = fogFar;
   { const a = (E.aft || 0) * clearish, g = (E.gold || 0) * clearish; // midday: white light, cool teal shadows; afternoon: warm white; golden: peach light, violet shadows
     lights.hemi.color.set('#f4f8f4').lerp(C('#f8f0dc'), a).lerp(C('#ffc4a6'), g).lerp(C('#5d7ab0'), E.night);
@@ -1148,7 +1152,7 @@ const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   onFish: () => { ACT.fish === 'off' ? startFishing() : stopFishing(); }, onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
 // the diorama look: no outlines, flat-shaded pastel faces, a hazy glow of sun (theme.js)
-const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
+const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let lastGoldCss = '';
 (function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
@@ -1243,7 +1247,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
