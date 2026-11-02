@@ -289,7 +289,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
   fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
-      vec3 deep = vec3(0.19, 0.55, 0.46), mid = vec3(0.25, 0.66, 0.54), far = vec3(0.36, 0.77, 0.63), lite = vec3(0.6, 0.88, 0.76); // jade #3FA88A -> #5CC4A0, minty lights
+      vec3 deep = vec3(0.12, 0.45, 0.37), mid = vec3(0.15, 0.5, 0.41), far = vec3(0.22, 0.58, 0.48), lite = vec3(0.6, 0.88, 0.76); // emerald out in the deep // jade #3FA88A -> #5CC4A0, minty lights
       vec3 col = mix(deep, mid, smoothstep(4.0, 70.0, d));
       col = mix(col, far, smoothstep(50.0, 200.0, d));
       float blot = fbm(p * 0.035 + vec2(time * 0.008, 0.0));
@@ -301,7 +301,11 @@ const makeSea = waves => new THREE.ShaderMaterial({
       col = mix(col, lite, smoothstep(0.6, 0.78, glow) * 0.45);
       // turquoise shallows around Paradise Station
       float sd = length((p - shoreC) / shoreR) + (fbm(p * 0.07) - 0.5) * 0.35, shl = 1.0 - smoothstep(0.82, 1.5, sd);
-      col = mix(col, vec3(0.5, 0.84, 0.7), shl * 0.9); col = mix(col, vec3(0.74, 0.93, 0.84), smoothstep(0.5, 1.0, shl) * 0.6); // minty near the shore
+      // depth near the islands: bright mint over shallow sand, turquoise, then dropping off to emerald
+      float dep = smoothstep(0.78, 2.4, sd);
+      vec3 shallowC = mix(vec3(0.62, 0.95, 0.84), vec3(0.32, 0.84, 0.76), smoothstep(0.0, 0.35, dep));
+      shallowC = mix(shallowC, vec3(0.2, 0.66, 0.58), smoothstep(0.3, 0.7, dep));
+      col = mix(shallowC, col, smoothstep(0.55, 1.0, dep));
       float st = fbm(vec2(p.x * 0.09, p.y * 0.55) + vec2(time * 0.05, 0.0));
       col = mix(col, lite, smoothstep(0.66, 0.7, st) * 0.4);
       float cr = noise(vec2(p.x * 0.55 + time * 0.35, p.y * 2.8));
@@ -495,7 +499,7 @@ function stepEnv(t, dt) {
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
   if (P.storm) { nextBolt -= dt; if (nextBolt <= 0) { flash = 1; nextBolt = 2.5 + Math.random() * 6; setTimeout(() => { flash = 0.8; }, 140); } }
   flash = Math.max(0, flash - dt * 4.5);
-  ENV.amp = E.amp; seaU.uAmp.value = E.amp; seaU.uTint.value.copy(E.tint); // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
+  ENV.amp = 0; seaU.uAmp.value = 0; // a flat, calm surface: the diorama look has no waves (E.amp is kept for the clouds / weather) seaU.uTint.value.copy(E.tint); // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
   const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);
   const fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy), fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
   fogCol.copy(E.hor).lerp(NIGHT_MIST, foggy * E.night * 0.85); shaderHaze.copy(E.hor).lerp(NIGHT_MIST_RAW, foggy * E.night * 0.7);
@@ -559,6 +563,28 @@ const rings = [0, 1, 2].map(i => { const r = new THREE.Mesh(new THREE.RingGeomet
 const wakeMat = new THREE.MeshBasicMaterial({ color: '#f2fdff', map: softTex, transparent: true, opacity: 0.85, depthWrite: false });
 const wake = Array.from({ length: 40 }, () => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), wakeMat.clone()); m.rotation.x = -Math.PI / 2; m.position.y = WL + 0.012; m.visible = false; m.userData.age = 99; seaGroup.add(m); return m; });
 let wakeI = 0, wakeT = 0;
+// the V wake: short foam dashes dropped at both sides of the stern. The water stays put while each dash drifts outward,
+// so behind a moving boat they open into the two arms of a V, then fade (the strongest cue that the boat is moving)
+const vDashTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 16; const x = c.getContext('2d'), g = x.createRadialGradient(32, 8, 0, 32, 8, 30);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.save(); x.scale(1, 0.27); x.beginPath(); x.arc(32, 30, 30, 0, 7); x.fill(); x.restore(); return new THREE.CanvasTexture(c); })();
+const vWake = Array.from({ length: 220 }, () => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#f4fbf6', map: vDashTex, transparent: true, opacity: 0, depthWrite: false }));
+  m.rotation.order = 'YXZ'; m.rotation.x = -Math.PI / 2; m.position.y = WL + 0.02; m.visible = false; m.userData = { age: 99, vx: 0, vz: 0, len: 1 }; seaGroup.add(m); return m; });
+let vI = 0, vT = 0;
+const VLIFE = 3.2;
+function dropVWake(fx, fz, sv, speed) { // fx, fz: heading; sv: share of top speed (sign: ahead / astern)
+  const back = Math.sign(sv) || 1, sx = -fz, sz = fx; // (sx, sz): to starboard
+  [-1, 1].forEach(side => { const m = vWake[vI++ % vWake.length], u = m.userData, st = 4.8;
+    m.position.x = boat.position.x - fx * st * back + sx * side * 1.4; m.position.z = boat.position.z - fz * st * back + sz * side * 1.4;
+    const out = speed * 0.36; u.vx = sx * side * out; u.vz = sz * side * out; // outward drift: arms open at about 20 degrees
+    u.age = 0; u.len = 2.4 + Math.abs(sv) * 2.4; u.w = 0.75 + Math.abs(sv) * 0.4;
+    m.rotation.y = Math.atan2(-(fz * back - sz * side * 0.36), fx * back - sx * side * 0.36); // lies along its arm
+    m.visible = true; });
+}
+function stepVWake(dt) {
+  vWake.forEach(m => { if (!m.visible) return; const u = m.userData; u.age += dt; const a = u.age / VLIFE; if (a >= 1) { m.visible = false; return; }
+    m.position.x += u.vx * dt; m.position.z += u.vz * dt; u.vx *= Math.pow(0.6, dt); u.vz *= Math.pow(0.6, dt);
+    m.scale.set(u.len * (1 + a * 0.8), u.w * (1 + a * 1.6), 1); m.material.opacity = Math.pow(1 - a, 1.6) * 0.85 * (1 - 0.5 * E.night); });
+}
 hug.rotation.order = 'YXZ'; rings.forEach(r => r.rotation.order = 'YXZ'); boat.rotation.order = 'YXZ';
 // drive input: steering wheel + keyboard
 const drive = { jx: 0, jy: 0, keys: new Set() };
@@ -1160,8 +1186,10 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
     if (boatId === 'dinghy') dinghy.tick(t, dt, { steer: steerS, vel, anchor: ACT.anchor, night: E.night, amp: E.amp, maxV: MAXV });
     if (boatId === 'yacht') motorYacht.tick(t, dt, { steer: steerS, vel, night: E.night, amp: E.amp, maxV: MAXV });
     wakeT += dt;
+    vT += Math.abs(vel) * dt; if (Math.abs(vel) > 0.8 && vT > 1.1) { vT = 0; dropVWake(fx, fz, sv, Math.abs(vel)); } // (a pair every metre or so: an unbroken V at any frame rate)
     if (Math.abs(vel) > 0.6 && wakeT > (nosOn ? 0.035 : 0.07)) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }
   }
+  stepVWake(dt);
   wake.forEach(w => { if (!w.visible) return; w.userData.age += dt; const a = w.userData.age / 2.6; if (a >= 1) { w.visible = false; return; } w.scale.setScalar(w.userData.s * (0.6 + a * 2.4)); w.position.y = WL + waveJS(w.position.x, w.position.z, t) + 0.05; w.material.opacity = (1 - a) * 0.7 * (1 - 0.5 * E.night); });
   seaU.bp.value.set(boat.position.x, boat.position.z); seaU.yaw.value = yaw;
   seaMesh.position.x = seaNear.position.x = sky.position.x = cloudGroup.position.x = hug.position.x = boat.position.x;
