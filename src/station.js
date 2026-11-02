@@ -205,7 +205,7 @@ export function initStation(ctx) {
   const bump = id => { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
   const renderWallet = () => { const f = S.fuel / S.cap; $('coinN').textContent = S.coins; $('fuelN').textContent = `${Math.round(S.fuel)} L`; $('fuelPill').title = `Fuel ${Math.round(S.fuel)} of ${S.cap} L`;
     $('fuelFill').style.width = (f * 100) + '%'; $('fuelFill').classList.toggle('mid', f < 0.35 && f >= 0.15); $('fuelFill').classList.toggle('low', f < 0.15);
-    const hk = hull.hp / hull.max; $('hullPill').hidden = hk >= 1; $('hullN').textContent = `Hull ${Math.round(hk * 100)}%`; $('hullPill').classList.toggle('low', hk <= 0.25); // (shown once damaged)
+    $('hullPill').hidden = true; // (no hull chip on the HUD: hull health shows in the Boathouse and in the 'hit' notice)
     $('plankPill').hidden = !S.planks; $('plankN').textContent = S.planks; $('plankPill').title = `${S.planks} wooden plank${S.planks === 1 ? '' : 's'}`; }; // (once you have some)
 
   // ---------- the economy: on the server for a signed-in captain (econ.js), on this device otherwise ----------
