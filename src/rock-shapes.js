@@ -6,13 +6,13 @@
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // palettes: top (sunlit flats), lit side, side, shade (cool)
-const PALETTES = [
-  ['#f4ae72', '#e27b52', '#c35b45', '#6c5a8c'], // desert orange
-  ['#f6a48e', '#e2715f', '#c65a5c', '#5f5f97'], // salmon
-  ['#eb8ea4', '#cb5d7c', '#a9496b', '#5a4a82'], // gully magenta
-  ['#f7d2c6', '#e6a69b', '#cc8a8f', '#7d78a2'], // pale stream
-  ['#f2b470', '#da824f', '#b6593b', '#6b5579'], // terracotta
-];
+const PALETTES = [ // cool slate, faceted like crystals: near-white tops, pale lit faces, slate sides, blue-grey shade
+  ['#d8e0e4', '#aebac4', '#8c9aa8', '#4a5868'],
+  ['#dfe6e6', '#b4c0c2', '#909ea2', '#4c5c64'],
+  ['#d2dce2', '#a6b4c0', '#8494a4', '#46546a'],
+  ['#e2e8ea', '#bcc6cc', '#98a4ae', '#52606e'],
+  ['#d6dee0', '#aab8bc', '#88989e', '#485a62'],
+]
 const SUN = [0.45, 0.75, 0.35], SL = Math.hypot(...SUN); SUN.forEach((v, i) => { SUN[i] = v / SL; });
 
 export function rockBuilder(THREE) {

@@ -35,6 +35,7 @@ import { createOnline } from './online.js';
 import { createRadio } from './radio.js';
 import { initHelmOrbit } from './helm-orbit.js';
 import { createRadioHelp } from './radio-help.js';
+import { createTheme } from './theme.js';
 import { createBerths } from './berths.js';
 import { isTablet } from './tablet.js';
 import { createWildlife } from './wildlife.js';
@@ -45,7 +46,8 @@ import './radio.css';
 import './cpu.css';
 import './voyage.css';
 import './tablet.css'; // tablets: both thumbs drive
-import './phone.css'; // phones: the lever's idle stop, top view, the first-voyage card (loaded last)
+import './phone.css'; // phones: the lever's idle stop, top view, the first-voyage card
+import './theme.css'; // the diorama look (loaded last)
 // a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
@@ -242,9 +244,9 @@ let FIT = BOATS[boatId].fit;
 
 // lighting: warm key, cool sky/ground wash, cyan back light
 stage._scene.traverse(o => {
-  if (o.isHemisphereLight) { o.color.set('#fff3dc'); o.groundColor.set('#4f86d6'); o.intensity = 1.15; }
+  if (o.isHemisphereLight) { o.color.set('#f6f2e2'); o.groundColor.set('#4a8a7a'); o.intensity = 1.25; }
   else if (o.isDirectionalLight && o === stage._key) { o.color.set('#fff0d2'); o.intensity = 2.6; }
-  else if (o.isDirectionalLight) { o.color.set('#8fe1ff'); o.intensity = 1.3; o.position.set(-6, 4, -5); }
+  else if (o.isDirectionalLight) { o.color.set('#bfe8da'); o.intensity = 0.8; o.position.set(-6, 4, -5); }
 });
 stage._ground.visible = false;
 { const tgt = stage._controls.target, d = stage._camera.position.distanceTo(tgt) * 1.9; tgt.y = 2.5;
@@ -287,20 +289,23 @@ const makeSea = waves => new THREE.ShaderMaterial({
   fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
-      vec3 deep = vec3(0.07, 0.33, 0.66), mid = vec3(0.11, 0.55, 0.84), far = vec3(0.24, 0.76, 0.93), lite = vec3(0.36, 0.82, 0.96);
+      vec3 deep = vec3(0.19, 0.55, 0.46), mid = vec3(0.25, 0.66, 0.54), far = vec3(0.36, 0.77, 0.63), lite = vec3(0.6, 0.88, 0.76); // jade #3FA88A -> #5CC4A0, minty lights
       vec3 col = mix(deep, mid, smoothstep(4.0, 70.0, d));
       col = mix(col, far, smoothstep(50.0, 200.0, d));
       float blot = fbm(p * 0.035 + vec2(time * 0.008, 0.0));
       col = mix(col, deep * 0.82, smoothstep(0.55, 0.72, blot) * 0.55);
+      // things seen down through the milky water: soft darker-green shapes of sunken logs and rocks
+      float sunk = fbm(vec2(p.x * 0.11 + p.y * 0.04, p.y * 0.05 - p.x * 0.02) + 3.1), logs = noise(vec2(p.x * 0.05, p.y * 0.32) + 11.0);
+      col = mix(col, vec3(0.13, 0.4, 0.33), (smoothstep(0.66, 0.74, sunk) * 0.42 + smoothstep(0.8, 0.86, logs) * 0.3) * (1.0 - smoothstep(60.0, 180.0, d)));
       float glow = fbm(p * 0.05 + 7.3);
       col = mix(col, lite, smoothstep(0.6, 0.78, glow) * 0.45);
       // turquoise shallows around Paradise Station
       float sd = length((p - shoreC) / shoreR) + (fbm(p * 0.07) - 0.5) * 0.35, shl = 1.0 - smoothstep(0.82, 1.5, sd);
-      col = mix(col, vec3(0.2, 0.74, 0.86), shl * 0.9); col = mix(col, lite, smoothstep(0.5, 1.0, shl) * 0.55);
+      col = mix(col, vec3(0.5, 0.84, 0.7), shl * 0.9); col = mix(col, vec3(0.74, 0.93, 0.84), smoothstep(0.5, 1.0, shl) * 0.6); // minty near the shore
       float st = fbm(vec2(p.x * 0.09, p.y * 0.55) + vec2(time * 0.05, 0.0));
       col = mix(col, lite, smoothstep(0.66, 0.7, st) * 0.4);
       float cr = noise(vec2(p.x * 0.55 + time * 0.35, p.y * 2.8));
-      col = mix(col, vec3(0.93, 0.99, 1.0), step(0.96, cr) * 0.6 * (1.0 - smoothstep(25.0, 110.0, d)));
+      col = mix(col, vec3(0.9, 0.98, 0.93), step(0.96, cr) * 0.5 * (1.0 - smoothstep(25.0, 110.0, d)));
       vec2 dd = p - bp - vec2(-0.6, 0.9); vec2 lc = vec2(dot(dd, vec2(cos(yaw), -sin(yaw))), dot(dd, vec2(sin(yaw), cos(yaw)))); float sh = length(lc / vec2(6.8, 3.4));
       col *= mix(0.72, 1.0, smoothstep(0.55, 1.15, sh));
       #ifdef WAVES
@@ -312,16 +317,16 @@ const makeSea = waves => new THREE.ShaderMaterial({
       col *= mix(1.0, 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb), wf);
       col = mix(col, lite, smoothstep(0.25, 0.55, vh) * 0.45);
       float capN = noise(p * 1.3 + vec2(time * 0.6, 0.0));
-      col = mix(col, vec3(0.95, 1.0, 1.0), smoothstep(0.42, 0.5, vh + (capN - 0.5) * 0.35) * 0.75);
+      col = mix(col, vec3(0.9, 0.98, 0.93), smoothstep(0.42, 0.5, vh + (capN - 0.5) * 0.35) * 0.6);
       vec3 vdir = normalize(cameraPosition - wp);
       float spec = pow(max(dot(reflect(-sunD, n), vdir), 0.0), 60.0);
       float tw = step(0.72, noise(p * 2.6 + vec2(time * 1.7, -time * 1.3)));
       col *= uTint;
-      col += vec3(1.0, 0.98, 0.9) * step(0.35, spec * tw) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec * wf;
+      col += vec3(1.0, 0.97, 0.86) * 0.8 * step(0.35, spec * tw) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec * wf;
       #else
       col *= uTint;
       #endif
-      col = mix(col, col * vec3(0.2, 0.3, 0.56) + vec3(0.0, 0.015, 0.05), uNight); // moonlit sea (as in the station file)
+      col = mix(col, col * vec3(0.2, 0.34, 0.44) + vec3(0.0, 0.02, 0.04), uNight); // moonlit sea (as in the station file)
       col += uFlash * vec3(0.25, 0.3, 0.38);
       col = mix(col, uHaze, smoothstep(uFog.x, uFog.y, d));
       gl_FragColor = vec4(col, 1.0);
@@ -384,7 +389,7 @@ const cloudFS = `uniform float seed; uniform float time; uniform float cover; un
     float a = smoothstep(0.16, 0.44, dens) * base * smoothstep(rank - 0.06, rank + 0.06, cover) * fade;
     if (a < 0.01) discard;
     float lit = smoothstep(-0.55, 0.65, q.y + (n2 - 0.5) * 0.9 + (n - 0.5) * 0.5);
-    vec3 col = mix(vec3(0.6, 0.69, 0.8), vec3(1.0, 0.995, 0.975), lit);
+    vec3 col = mix(vec3(0.66, 0.76, 0.76), vec3(1.0, 0.99, 0.97), lit);
     col = mix(col, vec3(1.0), (1.0 - smoothstep(0.16, 0.34, dens)) * 0.5 * lit);
     col = mix(col, vec3(0.3, 0.33, 0.39) * (0.65 + 0.45 * lit), dark);
     col *= tint; col += flash * vec3(0.85, 0.9, 1.0) * (0.4 + 0.6 * (1.0 - lit));
@@ -438,12 +443,12 @@ const lanternW = new THREE.Vector3();
 // weather + time of day
 const C = c => new THREE.Color(c);
 const PRESET = {
-  clear:  { top: '#33a8e8', mid: '#8cd9f5', hor: '#f0fcff', tint: [1, 1, 1], cover: 0.32, dark: 0, amp: 1, fog: [170, 390], cfade: 1, rain: 0, snow: 0, sun: 1, storm: 0 },
-  cloudy: { top: '#6d9cc0', mid: '#a9cadc', hor: '#e6f0f4', tint: [0.86, 0.9, 0.95], cover: 0.8, dark: 0.25, amp: 1.25, fog: [150, 380], cfade: 1, rain: 0, snow: 0, sun: 0.6, storm: 0 },
-  rain:   { top: '#5a7590', mid: '#8ea3b4', hor: '#c3cfd6', tint: [0.68, 0.76, 0.84], cover: 1, dark: 0.55, amp: 1.6, fog: [90, 300], cfade: 1, rain: 1, snow: 0, sun: 0.35, storm: 0 },
-  storm:  { top: '#26313f', mid: '#47525f', hor: '#76828c', tint: [0.46, 0.55, 0.63], cover: 1, dark: 0.88, amp: 2.5, fog: [60, 240], cfade: 1, rain: 1.6, snow: 0, sun: 0.18, storm: 1 },
-  fog:    { top: '#b8d0dc', mid: '#d4e2e8', hor: '#e4edf0', tint: [0.86, 0.9, 0.93], cover: 0.6, dark: 0.1, amp: 0.7, fog: [6, 75], cfade: 0.12, rain: 0, snow: 0, sun: 0.5, storm: 0 },
-  snow:   { top: '#9fb6cc', mid: '#c9d8e3', hor: '#eef3f6', tint: [0.76, 0.84, 0.9], cover: 0.9, dark: 0.22, amp: 0.9, fog: [70, 280], cfade: 1, rain: 0, snow: 1, sun: 0.5, storm: 0 },
+  clear:  { top: '#7ec2b8', mid: '#bfe3d6', hor: '#eef7ef', tint: [1, 1, 1], cover: 0.32, dark: 0, amp: 1, fog: [170, 390], cfade: 1, rain: 0, snow: 0, sun: 1, storm: 0 },
+  cloudy: { top: '#7fa6a2', mid: '#b4cec8', hor: '#e2ece8', tint: [0.86, 0.9, 0.95], cover: 0.8, dark: 0.25, amp: 1.25, fog: [150, 380], cfade: 1, rain: 0, snow: 0, sun: 0.6, storm: 0 },
+  rain:   { top: '#5c7a7a', mid: '#8fa6a2', hor: '#c2d0cc', tint: [0.68, 0.76, 0.84], cover: 1, dark: 0.55, amp: 1.6, fog: [90, 300], cfade: 1, rain: 1, snow: 0, sun: 0.35, storm: 0 },
+  storm:  { top: '#2a3a3c', mid: '#4a5a5a', hor: '#78868a', tint: [0.46, 0.55, 0.63], cover: 1, dark: 0.88, amp: 2.5, fog: [60, 240], cfade: 1, rain: 1.6, snow: 0, sun: 0.18, storm: 1 },
+  fog:    { top: '#b6d2cc', mid: '#d2e4de', hor: '#e4eeea', tint: [0.86, 0.9, 0.93], cover: 0.6, dark: 0.1, amp: 0.7, fog: [6, 75], cfade: 0.12, rain: 0, snow: 0, sun: 0.5, storm: 0 },
+  snow:   { top: '#a2bcc0', mid: '#cadcdc', hor: '#eef4f2', tint: [0.76, 0.84, 0.9], cover: 0.9, dark: 0.22, amp: 0.9, fog: [70, 280], cfade: 1, rain: 0, snow: 1, sun: 0.5, storm: 0 },
 };
 // NIGHT_MIST_RAW is the same mist for the hand-written sea/sky shaders, which take colours without the sRGB conversion
 const fogCol = new THREE.Color(), shaderHaze = new THREE.Color(), NIGHT_MIST = new THREE.Color('#4a5b73'), NIGHT_MIST_RAW = NIGHT_MIST.clone().convertLinearToSRGB();
@@ -498,13 +503,13 @@ function stepEnv(t, dt) {
   cloudU.cover.value = E.cover; cloudU.dark.value = E.dark; cloudU.fade.value = E.cfade; cloudU.flash.value = flash;
   cloudU.tint.value.setRGB(1, 1, 1).lerp(C('#4a5c86'), E.night * 0.85);
   stage._scene.fog.color.copy(fogCol); stage._scene.fog.near = fogNear; stage._scene.fog.far = fogFar;
-  lights.hemi.color.set('#fff3dc').lerp(C('#5d70b8'), E.night); lights.hemi.groundColor.set('#4f86d6').lerp(C('#0b1430'), E.night);
+  lights.hemi.color.set('#f6f2e2').lerp(C('#5d7ab0'), E.night); lights.hemi.groundColor.set('#4a8a7a').lerp(C('#0b1c26'), E.night);
   lights.hemi.intensity = (0.55 + 0.6 * E.sun) * (1 - E.night) + 0.45 * E.night + flash * 2.5;
-  lights.key.color.set('#fff0d2').lerp(C('#9db4f5'), E.night); lights.key.intensity = 2.6 * E.sun * (1 - E.night) + 0.55 * E.night;
+  lights.key.color.set('#fff2da').lerp(C('#9db4f5'), E.night); lights.key.intensity = 2.25 * E.sun * (1 - E.night) + 0.55 * E.night;
   // deck lights per boat (from each boat's file): the yacht's are softer and warm, so it stays dark and warm at night
   const yachtLit = boatId === 'yacht' || boatId === 'dinghy'; // both files use the softer, warm deck lights
   deckLight.intensity = E.night * (yachtLit ? 14 : 26) + E.dark * (1 - E.night) * 10; deckLight2.intensity = deckLight.intensity * 0.6; deckLight2.color.set(boatId === 'dinghy' ? '#ffc890' : yachtLit ? '#ffe0c0' : '#cfe0ff');
-  lights.back.color.set('#8fe1ff').lerp(C('#6fb7ff'), E.night); lights.back.intensity = 1.3 * (0.5 + 0.5 * E.sun) * (1 - E.night) + 0.9 * E.night;
+  lights.back.color.set('#bfe8da').lerp(C('#6fb7ff'), E.night); lights.back.intensity = 0.8 * (0.5 + 0.5 * E.sun) * (1 - E.night) + 0.9 * E.night;
   moon.material.opacity = E.night * Math.max(0.15, 1 - E.cover * 0.85); moonHalo.material.opacity = moon.material.opacity * 0.12;
   mat.glass.emissiveIntensity = 0.3 + 1.6 * E.night;
   beamMat.opacity = Math.max(E.night, (1 - E.cfade) * 0.6, E.dark * 0.5) * 0.16; beamPivot.rotation.y = t * 0.9;
@@ -1087,6 +1092,8 @@ const boatQuick = initBoatQuick({ THREE, boat, toScreen,
   state: () => ({ fishing: ACT.fish !== 'off' && ACT.fish !== 'reelin' && ACT.fish !== 'card', anchored: ACT.anchor === 'down', anchorBusy: ACT.anchor === 'dropping' || ACT.anchor === 'raising' }),
   onFish: () => { ACT.fish === 'off' ? startFishing() : stopFishing(); }, onAnchor: () => { ACT.anchor === 'up' ? dropAnchor() : raiseAnchor(); } });
 const stationBusy = () => station.mode === 'docking' || station.mode === 'docked' || station.mode === 'leaving';
+// the diorama look: no outlines, flat-shaded pastel faces, a hazy glow of sun (theme.js)
+const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] });
 (function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
@@ -1177,7 +1184,7 @@ const stationBusy = () => station.mode === 'docking' || station.mode === 'docked
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   rings.forEach((r, i) => { const p = ((t * 0.22 + i / 3) % 1); r.scale.set(5.5 + p * 9 * 1.4, 3.2 + p * 9, 1); r.material.opacity = (1 - p) * 0.5; });
-  seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); combat?.update(t, dt); salvage?.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); stepWreck(dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 

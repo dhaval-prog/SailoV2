@@ -96,7 +96,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   function buildTile(key) { const list = rocks.get(key); if (!list?.length || tileMeshes.has(key)) return;
     const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;
     g.computeBoundingSphere(); const rock = new THREE.Mesh(g, rockMat), ink = new THREE.Mesh(g, inkMat); rock.castShadow = true; scene.add(rock, ink); tileMeshes.set(key, { rock, ink }); }
-  const foamMat = new THREE.MeshBasicMaterial({ color: '#f2fbff', transparent: true, opacity: 0.55, depthWrite: false });
+  const foamMat = new THREE.MeshBasicMaterial({ color: '#eefaf2', transparent: true, opacity: 0.55, depthWrite: false });
   // the foam breathes with the swell: each ring swells and fades on its own beat
   foamMat.onBeforeCompile = sh => { sh.uniforms.uTime = uTime;
     sh.vertexShader = 'uniform float uTime; varying float vPulse;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -104,7 +104,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     sh.fragmentShader = 'varying float vPulse;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'diffuseColor.a *= vPulse;\n#include <opaque_fragment>'); };
   // shallow water round every rock: a soft turquoise glow (it also says "hurdle ahead" from a way off)
   const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 18, 64, 64, 64);
-    g.addColorStop(0, 'rgba(120,240,220,0.95)'); g.addColorStop(0.45, 'rgba(70,215,205,0.55)'); g.addColorStop(1, 'rgba(40,190,200,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+    g.addColorStop(0, 'rgba(176,236,206,0.9)'); g.addColorStop(0.45, 'rgba(132,214,180,0.5)'); g.addColorStop(1, 'rgba(100,196,160,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const glowGeo = new THREE.PlaneGeometry(1, 1); glowGeo.rotateX(-Math.PI / 2);
   const foamGeo = new THREE.RingGeometry(1.02, 1.28, 32); foamGeo.rotateX(-Math.PI / 2);
   const MAXR = 2700, foamIM = new THREE.InstancedMesh(foamGeo, foamMat, MAXR),
@@ -134,7 +134,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       #include <opaque_fragment>`); }; return mat; };
   const coralIM = coralTex.map(map => { const m = new THREE.InstancedMesh(coralGeo, caustic(new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.72, depthWrite: false, color: '#ffffff' })), MAXC);
     m.count = 0; m.frustumCulled = false; m.renderOrder = -1; scene.add(m); return m; });
-  const GREENS = ['#2fbf71', '#6ad46b', '#1f9e6e', '#9be15d', '#3ccf9a', '#7fbf3f'].map(c => new THREE.Color(c));
+  const GREENS = ['#2e7a5e', '#3f8660', '#2a6c58', '#5a8a52', '#357c68', '#6a8448'] // muted, sunken greens seen through the jade water.map(c => new THREE.Color(c));
 
   let dirty = false, gat = null, lastLoad = 0;
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
