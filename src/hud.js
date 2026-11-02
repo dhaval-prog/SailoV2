@@ -30,7 +30,7 @@ function ripple(el, e) {
 export function initHud(api) {
   const $ = id => document.getElementById(id);
   const saved = load();
-  const prefs = { name: saved.name || 'Captain', night: !!saved.night, w: saved.w || 'clear', live: saved.live !== false };
+  const prefs = { name: saved.name || 'Captain', night: !!saved.night, sunset: !!saved.sunset && !saved.night, w: saved.w || 'clear', live: saved.live !== false };
 
   // ---- account panel ----
   const btn = $('acct-btn'), panel = $('acct-panel'), nameIn = $('acct-name');
@@ -65,14 +65,16 @@ export function initHud(api) {
   const tod = $('tod');
   const paint = () => {
     const st = api.getState();
-    tod.classList.toggle('night', st.night);
-    tod.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-checked', String((b.dataset.t === 'night') === st.night)));
+    const mode = st.night ? 'night' : prefs.sunset && !prefs.live ? 'sunset' : 'day'; tod.classList.toggle('night', mode === 'night'); tod.classList.toggle('sunset', mode === 'sunset');
+    tod.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.t === mode)));
     document.querySelectorAll('.wx').forEach(b => b.setAttribute('aria-checked', String(b.dataset.w === st.w)));
     document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view)); // (on phones they orbit the wheel, outside the dock)
     document.body.classList.toggle('view-top', st.view === 'top');
   };
   // picking a time of day or weather by hand switches live mode off
-  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; setLive(false); api.setNight(prefs.night); api.setDayTime?.(null); save(prefs); paint(); }));
+  // Day (midday), Sunset (the golden hour look) or Night; picking one turns live time off
+  const manualDay = () => api.setDayTime?.(prefs.sunset ? { mins: 1095, set: 1110 } : null);
+  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; prefs.sunset = b.dataset.t === 'sunset'; setLive(false); api.setNight(prefs.night); manualDay(); save(prefs); paint(); }));
   document.querySelectorAll('.wx').forEach(b => b.addEventListener('click', () => { prefs.w = b.dataset.w; setLive(false); api.setWeather(prefs.w); save(prefs); paint(); }));
   document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => api.exportModel(b.dataset.export)));
 
@@ -116,7 +118,7 @@ export function initHud(api) {
     prefs.live = on; liveSw.setAttribute('aria-checked', String(on)); document.body.classList.toggle('live', on); save(prefs);
     if (on) applyLive();
   }
-  liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setDayTime?.(null); api.setWeather(prefs.w); paint(); } });
+  liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); manualDay(); api.setWeather(prefs.w); paint(); } });
   // tablets: left-handed captains swap the wheel and the throttle (tablet.js)
   { const sw = $('lefty-sw'), show = () => sw.setAttribute('aria-checked', String(isLefty()));
     sw.addEventListener('click', () => { setLefty(!isLefty()); show(); }); addEventListener('sailo:controls', show); show(); }
@@ -153,7 +155,7 @@ export function initHud(api) {
   };
 
   // apply saved preferences, then let live mode take over
-  api.setNight(prefs.night);
+  api.setNight(prefs.night); manualDay();
   api.setWeather(prefs.w);
   setLive(prefs.live);
   paint();
