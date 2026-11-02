@@ -1,0 +1,26 @@
+/* Diorama theme (theme.js): soft, calm, toy-like. The HUD becomes semi-transparent dark capsules with
+   white text and icons; the fuel bar a pale cyan pill. Loaded last. */
+:root { --dio-cap: rgba(22, 46, 44, 0.42); --dio-cap-hi: rgba(22, 46, 44, 0.58); --dio-rim: rgba(255, 255, 255, 0.14); --dio-cyan: #bdeff0; }
+
+/* hazy sunlight glowing in from the top left, like bloom on the water's edge */
+#sun-haze { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 1; mix-blend-mode: screen; transition: opacity 1.2s ease;
+  background: radial-gradient(ellipse 70% 55% at 4% 0%, rgba(255, 248, 226, 0.62), rgba(255, 246, 220, 0.22) 40%, rgba(255, 246, 220, 0) 72%),
+              radial-gradient(ellipse 120% 40% at 0% 0%, rgba(214, 246, 230, 0.25), rgba(214, 246, 230, 0) 60%); }
+
+/* capsules behind the top-left rows */
+html body #hud-tl #loc { padding: 6px 16px 6px 8px; border-radius: 999px; background: var(--dio-cap); box-shadow: inset 0 0 0 1px var(--dio-rim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); align-self: flex-start; }
+html body #hud-tl #clock { align-self: flex-start; padding: 7px 14px; border-radius: 999px; background: var(--dio-cap); box-shadow: inset 0 0 0 1px var(--dio-rim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html body #hud-tl #stn-wallet { gap: 8px; }
+html body #hud-tl #stn-wallet .pill { padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--dio-cap); box-shadow: inset 0 0 0 1px var(--dio-rim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html body #hud-tl #fuelPill { margin-left: 0; }
+/* the fuel bar: a pale cyan pill */
+html body #fuelPill .fuelbar { height: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 2px rgba(0, 20, 30, 0.25); }
+html body #fuelPill .fuelbar i, html body #fuelPill .fuelbar i.mid { border-radius: 8px; background-color: var(--dio-cyan); background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 60%); animation: none; }
+html body #fuelPill .fuelbar i.low { background-color: #ffb3a6; }
+
+/* round icon buttons in the corners: dark glass circles */
+html body .topbar .tb-btn, html body .topbar .tb-chip, html body #dock .dk, html body #dock .dk-zoom { background: var(--dio-cap); box-shadow: inset 0 0 0 1px var(--dio-rim), 0 4px 14px rgba(10, 30, 30, 0.18); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html body .topbar .tb-btn:hover, html body .topbar .tb-chip:hover, html body #dock .dk:hover { background: var(--dio-cap-hi); }
+html body #dock .dk.on { background: var(--dio-cap-hi); }
+html body .topbar .tb-btn { width: 46px; height: 46px; }
+html body .topbar .tb-chip { height: 46px; }

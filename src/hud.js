@@ -72,7 +72,7 @@ export function initHud(api) {
     document.body.classList.toggle('view-top', st.view === 'top');
   };
   // picking a time of day or weather by hand switches live mode off
-  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; setLive(false); api.setNight(prefs.night); save(prefs); paint(); }));
+  tod.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { prefs.night = b.dataset.t === 'night'; setLive(false); api.setNight(prefs.night); api.setDayTime?.(null); save(prefs); paint(); }));
   document.querySelectorAll('.wx').forEach(b => b.addEventListener('click', () => { prefs.w = b.dataset.w; setLive(false); api.setWeather(prefs.w); save(prefs); paint(); }));
   document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => api.exportModel(b.dataset.export)));
 
@@ -108,6 +108,7 @@ export function initHud(api) {
   const applyLive = () => {
     if (!prefs.live) return;
     api.setNight(isNight(clock().mins, wx));
+    api.setDayTime?.({ mins: clock().mins, set: wx?.sunset ?? 1110 }); // midday, afternoon, golden hour
     if (wx) api.setWeather(wx.preset);
     paint();
   };
@@ -115,7 +116,7 @@ export function initHud(api) {
     prefs.live = on; liveSw.setAttribute('aria-checked', String(on)); document.body.classList.toggle('live', on); save(prefs);
     if (on) applyLive();
   }
-  liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setWeather(prefs.w); paint(); } });
+  liveSw.addEventListener('click', () => { setLive(!prefs.live); if (!prefs.live) { api.setNight(prefs.night); api.setDayTime?.(null); api.setWeather(prefs.w); paint(); } });
   // tablets: left-handed captains swap the wheel and the throttle (tablet.js)
   { const sw = $('lefty-sw'), show = () => sw.setAttribute('aria-checked', String(isLefty()));
     sw.addEventListener('click', () => { setLefty(!isLefty()); show(); }); addEventListener('sailo:controls', show); show(); }

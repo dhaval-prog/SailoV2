@@ -492,8 +492,16 @@ export function buildIsland(ctx) {
   // ---------------- source: foam around the shore, pier posts, rowboats and stacks ----------------
   const foamMat = o => new THREE.MeshBasicMaterial({ color: '#f2fdff', transparent: true, opacity: o, depthWrite: false });
   const FY = 0.1;
-  const shoreFoam = [[0.9, 3.6, 1.6, 0.32], [0.9, 2.0, 0.7, 0.8]].map(([d0, d1, j, o]) => { const s = shapeOf(isl, d1, j); s.holes.push(shapeOf(isl, d0, 0, new THREE.Path())); const g = new THREE.ShapeGeometry(s); g.translate(-IC.x, IC.z, 0);
-    const m = new THREE.Mesh(g, foamMat(o)); m.rotation.x = -Math.PI / 2; m.position.set(IC.x, FY, IC.z); m.userData.o = o; root.add(m); return m; });
+  // the shore foam: a broken, jagged double band (a wide one hugging the shore, a thin one a little further
+  // out) that laps in and out; the gaps come from a blotchy texture that slides slowly round the island
+  const foamTex = (() => { let fs = 3; const rnd = () => (fs = (fs * 16807) % 2147483647) / 2147483647; // (its own seed: the island's layout stays as it was)
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 128, 128);
+    x.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 30; i++) { const cx = rnd() * 128, cy = rnd() * 128, r = 3 + rnd() * 9, g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g;
+      [[0, 0], [128, 0], [-128, 0], [0, 128], [0, -128]].forEach(([ox, oy]) => { x.beginPath(); x.arc(cx + ox, cy + oy, r, 0, 7); x.fill(); }); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 9, 1 / 9); return t; })();
+  const shoreFoam = [[0.4, 2.6, 1.4, 1, 1], [3.6, 4.5, 1.8, 0.8, 0.6]].map(([d0, d1, j, o, gaps]) => { const s = shapeOf(isl, d1, j); s.holes.push(shapeOf(isl, d0, j * 0.6, new THREE.Path())); const g = new THREE.ShapeGeometry(s); g.translate(-IC.x, IC.z, 0);
+    const mt = foamMat(o); mt.map = foamTex.clone(); mt.map.needsUpdate = true; mt.map.repeat.set(gaps / 9, gaps / 9); mt.alphaTest = 0.02;
+    const m = new THREE.Mesh(g, mt); m.rotation.x = -Math.PI / 2; m.position.set(IC.x, FY, IC.z); m.userData.o = o; root.add(m); return m; });
   const postFoam = posts.filter(p => p.water).map((p, i) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.26, 0.48, 18), foamMat(0.7)); m.rotation.x = -Math.PI / 2; m.position.set(p.x, FY, p.z); m.userData.ph = i * 0.7; root.add(m); return m; });
   const boatFoam = boats.map(b => { const m = new THREE.Mesh(new THREE.RingGeometry(1, 1.1, 48), foamMat(0.6)); m.rotation.order = 'YXZ'; m.rotation.set(-Math.PI / 2, b.ry, 0); m.position.set(b.x, FY, b.z); root.add(m); return m; });
   stacks.forEach(([x, z]) => { const m = new THREE.Mesh(new THREE.RingGeometry(2.2, 3.4, 28), foamMat(0.6)); m.rotation.x = -Math.PI / 2; m.position.set(x, FY, z + 0.5); m.scale.set(1.3, 1, 1); root.add(m); });
@@ -564,7 +572,8 @@ export function buildIsland(ctx) {
     // end-of-pier beacon blinks
     const on = (t % 1.4) < 0.85 ? 1 : 0.12; mat.navRed.emissiveIntensity = on; beaconHalo.material.opacity = 0.5 * on; beaconPL.intensity = 4 * BK * on;
     // foam breathes along the shore and around the posts
-    shoreFoam.forEach((m, i) => { const s = 1 + Math.sin(t * 0.9 + i * 1.7) * 0.008; m.scale.set(s, s, 1); m.material.opacity = m.userData.o * (0.8 + 0.2 * Math.sin(t * 1.3 + i)); });
+    shoreFoam.forEach((m, i) => { const s = 1 + Math.sin(t * (i ? 0.75 : 1.1) + i * 1.7) * (i ? 0.03 : 0.012); m.scale.set(s, s, 1); m.material.opacity = m.userData.o * (0.75 + 0.25 * Math.sin(t * 1.3 + i));
+      m.material.map.offset.set(t * (i ? -0.006 : 0.004), t * (i ? 0.004 : -0.003)); }); // (laps in and out; the breaks slide round)
     postFoam.forEach(m => { const p = (t * 0.5 + m.userData.ph) % 1; m.scale.setScalar(0.9 + p * 0.9); m.material.opacity = 0.75 * (1 - p * 0.8); });
     // rowboats ride the swell
     boats.forEach((b, i) => { const h = ctx.waveAt(b.x, b.z, t); b.rb.position.y = WL - 0.12 + h + Math.sin(t * 1.3 + b.ph) * 0.05; b.rb.rotation.x = Math.sin(t * 1.1 + b.ph) * 0.045; b.rb.rotation.z = Math.sin(t * 0.8 + b.ph * 2) * 0.025; b.rb.rotation.y = b.ry + Math.sin(t * 0.3 + b.ph) * 0.04;
