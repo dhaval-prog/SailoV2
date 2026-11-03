@@ -11,9 +11,11 @@ import figtree600 from '@fontsource/figtree/files/figtree-latin-600-normal.woff2
 import figtree700 from '@fontsource/figtree/files/figtree-latin-700-normal.woff2?url';
 import figtree800 from '@fontsource/figtree/files/figtree-latin-800-normal.woff2?url';
 import dmmono400 from '@fontsource/dm-mono/files/dm-mono-latin-400-normal.woff2?url';
+import bricolage800 from '@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-800-normal.woff2?url';
 import dmmono500 from '@fontsource/dm-mono/files/dm-mono-latin-500-normal.woff2?url';
 
 const FACES = [
+  ['BricolageGrotesque', 800, 'ExtraBold', bricolage800],
   ['Caveat', 400, 'Regular', caveat400],
   ['Caveat', 500, 'Medium', caveat500],
   ['Caveat', 600, 'SemiBold', caveat600],

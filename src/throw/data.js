@@ -51,7 +51,7 @@ export async function createThrowStore() {
   const db = sb(), subs = new Set();
   const S = {
     myId, loading: true, myLocation: null, locationVisibility: 'all', myName: 'Myself', myAvatarUrl: null,
-    connections: [], profiles: {}, friendLocations: {}, rows: [], streaks: {}, latestIncoming: null,
+    connections: [], profiles: {}, friendLocations: {}, rows: [], streaks: {}, points: {}, latestIncoming: null,
     // derived (rebuilt by derive())
     friends: [], letters: [], inbox: [], unreadCount: 0,
   };
@@ -80,12 +80,12 @@ export async function createThrowStore() {
       db.from('throw_profiles').select('city,country,latitude,longitude,updated_at,location_visibility').eq('user_id', myId).maybeSingle(),
       db.from('throws').select('*').or(`sender_id.eq.${myId},recipient_id.eq.${myId}`).order('created_at', { ascending: false }),
       db.from('throw_streaks').select('counterpart_id,current_streak,last_throw_date').eq('user_id', myId),
-      db.from('profiles').select('full_name,display_name,avatar_url').eq('id', myId).maybeSingle(),
+      db.from('profiles').select('full_name,display_name,avatar_url,avatar_color,friend_code').eq('id', myId).maybeSingle(),
       loadFriends(),
     ]);
     warn('load my location', meRes.error); warn('load throws', throwsRes.error); warn('load streaks', streakRes.error); warn('load my profile', profileRes.error);
     if (meRes.data) { const d = meRes.data; S.myLocation = { city: d.city, country: d.country, latitude: d.latitude, longitude: d.longitude, updatedAt: d.updated_at ?? undefined }; S.locationVisibility = d.location_visibility ?? 'all'; }
-    if (profileRes.data) { const p = profileRes.data; S.myName = (p.full_name || p.display_name || '').trim() || 'Myself'; S.myAvatarUrl = p.avatar_url; }
+    if (profileRes.data) { const p = profileRes.data; S.myName = (p.full_name || p.display_name || '').trim() || 'Myself'; S.myAvatarUrl = p.avatar_url; S.myAvatarColor = p.avatar_color; S.myFriendCode = p.friend_code; }
     if (!streakRes.error) { const m = {}; (streakRes.data || []).forEach(r => { m[r.counterpart_id] = r.last_throw_date === utcDate(0) || r.last_throw_date === utcDate(-1) ? r.current_streak : 0; }); S.streaks = m; }
     // a letter deleted on my side stays in the shared row until the other side deletes it too
     if (!throwsRes.error) S.rows = (throwsRes.data || []).filter(r => !(r.sender_id === myId && r.deleted_by_sender) && !(r.recipient_id === myId && r.deleted_by_recipient));
@@ -93,9 +93,12 @@ export async function createThrowStore() {
     if (fids.length) { const { data: locs, error } = await db.from('throw_profiles').select('user_id,city,country,latitude,longitude,updated_at').in('user_id', fids); warn('load friend locations', error);
       if (!error) { const m = {}; (locs || []).forEach(r => { m[r.user_id] = { city: r.city, country: r.country, latitude: r.latitude, longitude: r.longitude, updatedAt: r.updated_at ?? undefined }; }); S.friendLocations = m; } }
     else S.friendLocations = {};
+    // game points (MySpace's GameStatsContext reads the same table): shown on the letter's stamp badge
+    if (fids.length) { const { data: gs, error } = await db.from('player_game_stats').select('user_id,total_points').in('user_id', fids); warn('load points', error);
+      if (!error) { const m = {}; (gs || []).forEach(r => { m[r.user_id] = r.total_points ?? 0; }); S.points = m; } }
     S.loading = false;
-    try { const { myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks } = S;
-      localStorage.setItem(CACHE(myId), JSON.stringify({ myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks })); } catch { /* storage full or blocked */ }
+    try { const { myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks, points } = S;
+      localStorage.setItem(CACHE(myId), JSON.stringify({ myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks, points })); } catch { /* storage full or blocked */ }
     emit();
   }
 
@@ -118,6 +121,7 @@ export async function createThrowStore() {
     dispose() { clearInterval(poll); db.removeChannel(channel); subs.clear(); },
     unreadCountFor: id => S.inbox.filter(l => l.counterpartId === id && l.status === 'thrown').length,
     streakFor: id => S.streaks[id] ?? 0,
+    pointsFor: id => S.points?.[id] ?? 0,
     clearLatestIncoming() { S.latestIncoming = null; emit(); },
     async setMyLocation(loc) {
       const attempt = () => db.from('throw_profiles').upsert({ user_id: myId, city: loc.city, country: loc.country, latitude: loc.latitude, longitude: loc.longitude, updated_at: new Date().toISOString() });
@@ -152,6 +156,10 @@ export async function createThrowStore() {
     async markRead(id) { const { error } = await db.rpc('mark_throw_read', { p_throw_id: id }); warn('mark_throw_read', error); await reload(); },
     async deleteThrow(id) { const { error } = await db.rpc('delete_throw', { p_throw_id: id }); if (error) return { error: error.message }; await reload(); return { error: null }; },
     async hugThrow(id, count) { const { data, error } = await db.rpc('hug_throw', { p_throw_id: id, p_count: count }); warn('hug_throw', error); return error ? null : data; },
+    async sendFriendRequest(userId) { const { error } = await db.rpc('send_friend_request_by_user_id', { p_target_user_id: userId, p_message: null }); if (error) return { error: error.message }; reload(); return { error: null }; },
+    async respondFriendRequest(connectionId, accept) { const { error } = await db.rpc('respond_friend_request', { p_connection_id: connectionId, p_accept: accept }); warn('respond request', error); reload(); return { error: error?.message ?? null }; },
+    async searchProfiles(q) { const { data, error } = await db.rpc('search_profiles', { p_query: q.trim() }); warn('search profiles', error); return (data || []).map(r => ({ userId: r.user_id, name: r.full_name || r.username || 'Someone', avatarUrl: r.avatar_url, mutual: r.mutual_friend_count ?? 0, status: r.connection_status ?? 'none' })); },
+    async nearbySuggestions(limit = 10) { const { data, error } = await db.rpc('suggested_nearby_friends', { p_limit: limit }); warn('nearby suggestions', error); return (data || []).map(r => ({ userId: r.user_id, name: r.full_name || r.username || 'Someone', avatarUrl: r.avatar_url, mutual: r.mutual_friend_count ?? 0, distanceMeters: r.distance_meters ?? 0 })); },
     async confirmThrowAlert(id, schedule) { const { error } = await db.rpc('confirm_throw_alert', { p_throw_id: id, p_next_trigger_at: computeNextTrigger(schedule).toISOString() }); if (error) return { error: error.message }; await reload(); return { error: null }; },
   };
   derive(); reload();

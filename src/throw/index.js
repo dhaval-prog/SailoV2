@@ -5,12 +5,14 @@
 import './throw.css';
 import { h } from './ui.js';
 import { loadThrowFonts } from './fonts.js';
-import { createThrowStore, sb } from './data.js';
+import { createThrowStore } from './data.js';
 import { startThrowAlerts } from './alerts.js';
+import { createStoriesStore } from './stories.js';
+import { createNotifications } from './notifications.js';
 import { createThrowHome } from './home.js';
 import { locationSetup } from './location.js';
 import { letterDetail, receivedList } from './detail.js';
-import { isDaytimeNow } from './solarTime.js';
+import { loadPrefs, throwSettings } from './settings.js';
 
 let open = null;
 
@@ -24,14 +26,15 @@ export async function openThrow(ctx = {}) {
   requestAnimationFrame(() => root.classList.add('in'));
   let keyHandler = null;
   const close = () => { if (!open) return; const o = open; open = null; if (keyHandler) removeEventListener('keydown', keyHandler); root.classList.remove('in'); document.body.classList.remove('throw-open');
-    setTimeout(() => { o.screen?.destroy?.(); o.store?.dispose(); root.remove(); }, 260); };
+    setTimeout(() => { o.screen?.destroy?.(); o.stories?.dispose(); o.notifications?.dispose(); o.store?.dispose(); root.remove(); }, 260); };
   open = { root, close };
   let store;
   try { [store] = await Promise.all([createThrowStore(), loadThrowFonts()]); }
   catch (e) { close(); ctx.note?.(e?.message === 'signed_out' ? 'Sign in to throw letters.' : 'Throw couldn’t open. Check your connection?'); return; }
   if (!open) { store.dispose(); return; }
   open.store = store;
-  const alerts = startThrowAlerts(store.myId);
+  const alerts = startThrowAlerts(store.myId), stories = createStoriesStore(store), notifications = createNotifications(store);
+  open.stories = stories; open.notifications = notifications;
   const prefs = await loadPrefs(store.myId);
   keyHandler = e => { if (e.key === 'Escape' && !document.querySelector('.t-sheet-wrap')) nav.back(); };
   addEventListener('keydown', keyHandler);
@@ -40,10 +43,11 @@ export async function openThrow(ctx = {}) {
   const nav = {
     home(extra = {}) {
       if (!store.state.myLocation && !store.state.loading) return nav.location('setup');
-      show(createThrowHome({ store, alerts, prefs, ...extra, onClose: close, onOpenInbox: id => nav.inbox(id), onOpenLetter: id => nav.letter(id), onSettings: () => nav.location('edit'), onThrownBack: () => nav.home() }));
+      show(createThrowHome({ store, alerts, prefs, stories, notifications, note: ctx.note, ...extra, onClose: close, onOpenInbox: id => nav.inbox(id), onOpenLetter: id => nav.letter(id), onSettings: () => nav.settings(), onThrownBack: () => nav.home() }));
       nav.back = close;
     },
-    location(mode) { show(locationSetup(store, { mode, onDone: () => nav.home(), onBack: mode === 'edit' ? () => nav.home() : close })); nav.back = mode === 'edit' ? () => nav.home() : close; },
+    location(mode) { const back = mode === 'edit' ? () => nav.settings() : close; show(locationSetup(store, { mode, onDone: () => (mode === 'edit' ? nav.settings() : nav.home()), onBack: back })); nav.back = back; },
+    settings() { show(throwSettings(store, prefs, { onBack: () => nav.home(), onEditLocation: () => nav.location('edit') })); nav.back = () => nav.home(); },
     inbox(focusId) { show(receivedList(store, { focusId, onBack: () => nav.home(), onOpen: id => (id ? nav.letter(id, () => nav.inbox(focusId)) : nav.inbox()) })); nav.back = () => nav.home(); },
     letter(id, back = () => nav.inbox()) { show(letterDetail(store, id, { onBack: back, onThrowBack: (friendUserId, repliedToThrowId) => nav.home({ lockedRecipient: { friendUserId, repliedToThrowId } }) })); nav.back = back; },
     back: close,
@@ -56,14 +60,3 @@ export async function openThrow(ctx = {}) {
 
 export const closeThrow = () => open?.close();
 export const throwIsOpen = () => !!open;
-
-/** Your Throw display settings, as saved by MySpace (user_settings): paper/map colour modes and the map background. */
-async function loadPrefs(myId) {
-  const p = { mode: 'auto', mapMode: 'auto', showMap: true };
-  try { const { data } = await sb().from('user_settings').select('throw_color_mode, throw_map_color_mode, throw_map_show_background').eq('user_id', myId).maybeSingle();
-    if (data) { p.mode = data.throw_color_mode || 'auto'; p.mapMode = data.throw_map_color_mode || 'auto'; p.showMap = data.throw_map_show_background !== false; } } catch { /* defaults */ }
-  const day = isDaytimeNow();
-  p.isDay = p.mode === 'day' ? true : p.mode === 'night' ? false : day;
-  p.mapIsDay = p.mapMode === 'day' ? true : p.mapMode === 'night' ? false : day;
-  return p;
-}
