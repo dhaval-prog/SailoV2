@@ -1076,6 +1076,10 @@ const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPu
   global: heard => createOnline({ chartId: 'global', positions: false, me: () => ({ x: 0, z: 0, yaw: 0, kn: 0, kind: 'sail', boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal() }), on: { radio: heard } }) });
 // Throw and Chat: two buttons in the ring round the wheel (helm-buttons.js; placeholders for now)
 createHelmButtons({ orbit: helmOrbit, note: t => hud.note(t, 2500) });
+// your Throw reminders fire anywhere in the game, not only while Throw is open (MySpace keeps them app-wide too): started
+// a few seconds in, signed in only, so its code stays out of the first load
+setTimeout(() => import('./auth.js').then(a => a.currentSession()).then(s => s && import('./throw/alerts.js').then(m => {
+  const id = s.user?.id || JSON.parse(atob(s.access_token.split('.')[1])).sub; m.startThrowAlerts(id); })).catch(() => {}), 6000);
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
 terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night, fade: fadeFar,
