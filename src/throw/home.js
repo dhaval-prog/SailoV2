@@ -88,7 +88,7 @@ export function createThrowHome(opts) {
     onContactDragEnd: () => carousel.setLiveOffset(null),
   });
   const letterProps = () => { const f = selected(), self = isSelf();
-    return { recipientName: f?.name ?? '', streak: f && !self ? store.streakFor(f.userId) : 0, points: f && !self ? store.pointsFor(f.userId) : 0, hideBadges: self, isNight: !prefs.isDay,
+    return { recipientName: f?.name ?? '', streak: f && !self ? store.streakFor(f.userId) : 0, hideBadges: self, isNight: !prefs.isDay,
       throwLabel: self ? 'Swipe up to set alert' : opts.lockedRecipient ? 'Swipe up to throw back' : 'Swipe up to throw',
       unreadCount: S.unreadCount, alertSchedule: self ? alertSchedule : undefined, onAlertScheduleChange: self ? v => { alertSchedule = v; selfComposeLocked = true; sync(); } : undefined,
       onReminderPeekChange: self ? p => { reminderPeeking = p; renderPeek(); } : undefined,

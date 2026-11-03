@@ -130,7 +130,7 @@ class ThreeDStage extends HTMLElement {
     if (this._booted) {
       // Re-attached after a removal — resume what disconnected stopped.
       if (this._renderer) {
-        this._renderer.setAnimationLoop(this._loop);
+        if (!this._paused) this._renderer.setAnimationLoop(this._loop);
         this._ro && this._ro.observe(this);
       }
       return;
@@ -237,10 +237,17 @@ class ThreeDStage extends HTMLElement {
     // reattach.
     if (this.isConnected) {
       this._ro.observe(this);
-      renderer.setAnimationLoop(this._loop);
+      if (!this._paused) renderer.setAnimationLoop(this._loop);
     }
 
     this._readyResolve({ THREE });
+  }
+
+  /** Stop drawing frames while something covers the whole stage (Throw, full screen); false resumes. The scene and
+   *  everything moving in it are kept, only the drawing stops. */
+  setPaused(on) {
+    this._paused = !!on;
+    if (this._renderer) this._renderer.setAnimationLoop(this._paused || !this.isConnected ? null : this._loop);
   }
 
   disconnectedCallback() {

@@ -23,9 +23,11 @@ export async function openThrow(ctx = {}) {
   // keys typed in Throw (a letter, a city search) mustn't reach the game behind it (WASD steers the boat)
   ['keydown', 'keyup', 'keypress'].forEach(t => root.addEventListener(t, e => { if (e.key !== 'Escape') e.stopPropagation(); }));
   document.body.append(root); document.body.classList.add('throw-open');
+  const cover = covered => dispatchEvent(new CustomEvent('sailo:cover', { detail: { covered } }));
+  setTimeout(() => { if (open) cover(true); }, 300); // (after the slide-in, so the sea is still there behind it)
   requestAnimationFrame(() => root.classList.add('in'));
   let keyHandler = null;
-  const close = () => { if (!open) return; const o = open; open = null; if (keyHandler) removeEventListener('keydown', keyHandler); root.classList.remove('in'); document.body.classList.remove('throw-open');
+  const close = () => { if (!open) return; const o = open; open = null; if (keyHandler) removeEventListener('keydown', keyHandler); root.classList.remove('in'); document.body.classList.remove('throw-open'); cover(false);
     setTimeout(() => { o.screen?.destroy?.(); o.stories?.dispose(); o.notifications?.dispose(); o.store?.dispose(); root.remove(); }, 260); };
   open = { root, close };
   let store;

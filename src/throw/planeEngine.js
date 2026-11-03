@@ -518,6 +518,8 @@ function createPaperPlane(options) {
   }
   raf = requestAnimationFrame(frame);
   return {
+    /** Stop / restart the frame loop (the letter pauses it while the plane is hidden, i.e. while you write). */
+    setActive(on) { if (on && !raf) { last = 0; raf = requestAnimationFrame(frame); } else if (!on && raf) { cancelAnimationFrame(raf); raf = 0; } },
     fold() {
       if (phase !== "idle") return;
       phase = "folding";
