@@ -212,11 +212,84 @@ export function createFoldingLetter(sheetHost, props) {
     stop() { try { this.rec?.stop(); } catch { /* already stopped */ } },
   };
 
+  // ---------- hold to shred / shake to clear (MySpace's letterFxReal Shredder + useShake): Undo brings it back ----------
+  const HOLD_TO_SHRED_MS = 900, HOLD_HINT_DELAY_MS = 220, SHRED_MS = 1050;
+  const rnd = i => { const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+  let holdTimer = 0, holdPill = null, holdStart = null, shredding = false, undoEl = null, undoTimer = 0, shredTimers = [];
+  function cancelHold() { clearTimeout(holdTimer); holdTimer = 0; holdStart = null; holdPill?.remove(); holdPill = null; shakeBox.classList.remove('trembling'); }
+  function startHold(e) {
+    cancelHold(); if (!hasContent() || shredding) return;
+    holdStart = { x: e.clientX, y: e.clientY };
+    holdPill = h('div.t-shred-pill', h('span', 'Hold to shred'), h('div.t-shred-track', h('div.t-shred-fill', { style: { animationDuration: (HOLD_TO_SHRED_MS - HOLD_HINT_DELAY_MS) + 'ms', animationDelay: HOLD_HINT_DELAY_MS + 'ms' } })));
+    holdPill.style.animationDelay = HOLD_HINT_DELAY_MS + 'ms'; el.append(holdPill); shakeBox.classList.add('trembling');
+    holdTimer = setTimeout(() => clearLetter('Letter shredded'), HOLD_TO_SHRED_MS);
+  }
+  function shredder(width, fall, ink) {
+    const n = Math.max(8, Math.round(width / 26)), sw = width / n, total = SHRED_MS + 900;
+    const box = h('div.t-shredder', { style: { width: width + 'px' } });
+    for (let i = 0; i < n; i++) {
+      const sh = 40 + rnd(i + 500) * 50, strip = h('div.t-shred-strip', { style: { top: (-12 - sh) + 'px', left: (i * sw + 1) + 'px', width: (sw - 2) + 'px', height: sh + 'px' } });
+      for (let k = 0; k < 3; k++) { const m = rnd(i * 7 + k + 600); if (m > 0.45) strip.append(h('span', { style: { top: (6 + k * 14 + m * 4) + 'px', right: (1 + m * 3) + 'px', background: ink } })); }
+      const dir = i % 2 ? 1 : -1, drift = dir * (14 + (i % 4) * 12), spin = dir * (40 + (i % 5) * 30), f = Math.round(fall / 20) * 20;
+      const tf = (y, x, r, sy) => `translateY(${y}px) translateX(${x}px) rotate(${r}deg) scaleY(${sy})`;
+      strip.animate([{ offset: 0, opacity: 1, transform: tf(0, 0, 0, 0) }, { offset: 0.28, opacity: 1, transform: tf(0, 0, dir * 3, 1) }, { offset: 0.42, opacity: 1, transform: tf(-26, drift * 0.2, spin * 0.15, 1) },
+        { offset: 0.7, opacity: 1, transform: tf(f * 0.45, drift * 0.7, spin * 0.6, 1) }, { offset: 1, opacity: 0, transform: tf(f, drift, spin, 1) }],
+        { duration: 1500 + rnd(i + 700) * 500, delay: 150 + rnd(i + 800) * 700, easing: 'ease-in', fill: 'both' });
+      box.append(strip);
+    }
+    const teeth = h('div.t-shred-teeth'); for (let i = 0; i < n; i++) teeth.append(h('span'));
+    const head = h('div.t-shred-headwrap', h('div.t-shred-head', h('div.t-shred-slot'), h('div.t-shred-led'), teeth));
+    head.animate([{ offset: 0, opacity: 0, transform: 'translateY(-40px) scaleX(.9)' }, { offset: 0.1, opacity: 1, transform: 'translateY(4px) scaleX(1.02)' }, { offset: 0.16, opacity: 1, transform: 'translateY(0) scaleX(1)' },
+      { offset: 0.86, opacity: 1, transform: 'translateY(0) scaleX(1)' }, { offset: 1, opacity: 0, transform: 'translateY(-40px) scaleX(.95)' }], { duration: total, easing: 'ease-out', fill: 'both' });
+    box.append(head);
+    return box;
+  }
+  function clearLetter(label) {
+    if (phase !== 'writing' || !hasContent() || shredding) return;
+    cancelHold(); if (voice.recording) voice.stop(); textarea.blur();
+    const snapshot = { text, media: media.slice(), label };
+    tick(true); shredding = true; paper.classList.add('shredding'); floatBox.classList.remove('floating');
+    const pr = paper.getBoundingClientRect(), er = el.getBoundingClientRect(), ph = Math.round(pr.height / 10) * 10;
+    const sh = shredder(pr.width, pr.height + 140, P.isNight ? throwNightColor.ink : INK_BLUE);
+    sh.style.left = (pr.left - er.left) + 'px'; sh.style.top = (pr.top - er.top) + 'px'; el.append(sh);
+    const frames = [{ offset: 0, transform: 'translate(0,0)' }, { offset: 0.08, transform: 'translate(0,8px)' }];
+    for (let k = 1; k <= 12; k++) frames.push({ offset: (8 + k * 7.5) / 100, transform: `translate(${k % 2 ? 1.4 : -1.4}px,${-(k / 12) * (ph + 10)}px)` });
+    frames.push({ offset: 1, transform: `translate(0,${-(ph + 10)}px)` });
+    const into = clip.animate(frames, { duration: SHRED_MS, delay: 150, easing: 'linear', fill: 'both' });
+    for (let ms = 180; ms < SHRED_MS + 150; ms += 70) shredTimers.push(setTimeout(() => tick(), ms)); // (a buzzing rattle while it runs)
+    shredTimers.push(setTimeout(() => sh.remove(), SHRED_MS + 1500));
+    shredTimers.push(setTimeout(() => {
+      text = ''; interim = ''; textarea.value = ''; media = []; shredding = false; into.cancel(); paper.classList.remove('shredding');
+      sheetBox.className = 't-paper-sheet'; replay(sheetBox, 'slap'); renderAll(); showUndo(snapshot);
+    }, SHRED_MS + 250));
+  }
+  function showUndo(snapshot) {
+    undoEl?.remove(); clearTimeout(undoTimer);
+    undoEl = h('div.t-undo', h('span.t-undo-dot'), h('span', snapshot.label), h('button', { type: 'button', on: { click: e => { e.stopPropagation(); undoClear(snapshot); } } }, 'Undo'));
+    el.append(undoEl);
+    undoTimer = setTimeout(() => { undoEl?.remove(); undoEl = null; snapshot.media.forEach(m => { if (!media.includes(m)) URL.revokeObjectURL(m.uri); }); }, 4500);
+  }
+  function undoClear(snapshot) {
+    clearTimeout(undoTimer); undoEl?.remove(); undoEl = null;
+    text = snapshot.text; textarea.value = text; media = snapshot.media;
+    sheetBox.className = 't-paper-sheet'; replay(sheetBox, 'slap'); renderAll(); tick();
+  }
+  // a firm shake (3 jolts over 2.2 g within 0.7 s each) clears it too
+  let shakeLast = 0, shakeHits = 0, shakeAt = 0;
+  const onMotion = e => { const a = e.accelerationIncludingGravity; if (!a || a.x == null || a.y == null || a.z == null || phase !== 'writing') return;
+    const mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z) / 9.81, now = Date.now(); if (mag < 2.2) return;
+    if (now - shakeAt > 700) shakeHits = 0; shakeHits += 1; shakeAt = now;
+    if (shakeHits >= 3 && now - shakeLast > 1500) { shakeLast = now; shakeHits = 0; clearLetter('Shaken clear'); } };
+  window.addEventListener('devicemotion', onMotion);
+  // (iOS asks for motion access, and only from a tap)
+  textarea.addEventListener('focus', () => { try { window.DeviceMotionEvent?.requestPermission?.().catch(() => {}); } catch { /* not iOS */ } }, { once: true });
+
   // ---------- gestures (pointer events; MySpace's web build tracks these with raw DOM listeners too) ----------
   let rawStart = null, anchor = null, contactCaptured = false, readyActive = false, readyZone = 'center', throwLocked = false, rStart = null, lastMove = null, vy = 0;
   paper.addEventListener('pointerdown', e => {
     if (P.disabled || e.button > 0) return;
-    if (phase === 'writing') { rawStart = { x: e.clientX, y: e.clientY }; return; }
+    if (shredding) return;
+    if (phase === 'writing') { rawStart = { x: e.clientX, y: e.clientY }; if (!e.target.closest('button, .t-brow, .t-strip')) startHold(e); return; }
     if (phase === 'ready') {
       liftY.set(0); readyActive = true; throwLocked = false; rStart = { x: e.clientX, y: e.clientY }; lastMove = { y: e.clientY, t: performance.now() }; vy = 0;
       const r = paper.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, m = (1 - THROW_CENTER_ZONE) / 2;
@@ -234,6 +307,7 @@ export function createFoldingLetter(sheetHost, props) {
       if (throwLocked) stage.setReadyBank(0); else { stage.setReadyBank(dx / MAX_BANK_DX); P.onContactDragOffset?.(dx / CONTACT_DRAG_SPACING); }
       return;
     }
+    if (holdStart && Math.hypot(e.clientX - holdStart.x, e.clientY - holdStart.y) > 8) cancelHold();
     if (!rawStart || phase !== 'writing') return;
     const dx = e.clientX - rawStart.x, dy = e.clientY - rawStart.y;
     if (contactCaptured) { P.onContactDragOffset?.(-dx / CONTACT_DRAG_SPACING); return; }
@@ -241,7 +315,7 @@ export function createFoldingLetter(sheetHost, props) {
     if (Math.abs(dx) > CONTACT_FLICK_CAPTURE_DX && Math.abs(dx) > Math.abs(dy) * CONTACT_FLICK_CAPTURE_RATIO && P.onContactDragOffset) { contactCaptured = true; textarea.blur(); P.onContactDragStart?.(); P.onContactDragOffset(-dx / CONTACT_DRAG_SPACING); }
   };
   const onUp = e => {
-    rawStart = null;
+    rawStart = null; cancelHold();
     if (contactCaptured) { contactCaptured = false; P.onContactDragEnd?.(); }
     if (anchor) { anchor = null; if (phase === 'folding') settleFold(progress.get() >= 0.5 ? 1 : 0); return; }
     if (readyActive) {
@@ -286,7 +360,7 @@ export function createFoldingLetter(sheetHost, props) {
     },
     openReminder: () => setReminder('open'),
     clearReminderDraft() { text = ''; interim = ''; textarea.value = ''; media = []; reminderShown = false; reminderConfirmed = false; setReminder('closed'); unfoldSmoothly(); renderAll(); },
-    destroy() { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp);
+    destroy() { cancelHold(); clearTimeout(undoTimer); shredTimers.forEach(clearTimeout); window.removeEventListener('devicemotion', onMotion); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp);
       ro.disconnect(); clearTimeout(wheelTimer); voice.stop(); sheet?.close(); stage.dispose(); promptHost.firstChild?._stop?.(); progress.stop(); liftY.stop(); liftOpacity.stop(); el.remove(); },
   };
 }
