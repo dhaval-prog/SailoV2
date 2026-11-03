@@ -430,7 +430,9 @@ body.throw-open #hud-scrim, body.throw-open .helm-extra, body.throw-open #map-or
 .t-wx { aspect-ratio: 1; border-radius: 16px; border: 2px solid #111 !important; background: #fff !important; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-family: 'Figtree_800ExtraBold', var(--ui); font-size: 10px; color: #111 !important; }
 .t-wx.on { background: #2B4BFF !important; color: #fff !important; box-shadow: 3px 3px 0 #111; transform: translate(-1px, -2px) rotate(-3deg); }
 
-/* weather over the map (screen space, never catches touches) */
+/* weather over the map (screen space, never catches touches). The map area is its own layer so the weather stays
+   between the map and everything on top of it (letter, carousel): above them its sun glare washed the paper plane out. */
+.t-map-area { isolation: isolate; z-index: 0; }
 .t-wx-layer { position:absolute; inset:0; pointer-events:none; z-index:1; overflow:hidden; }
 
 /* hold to shred / shake to clear */

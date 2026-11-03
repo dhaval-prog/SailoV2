@@ -20,7 +20,7 @@ const I = {
   mic: 'M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z M6 11a6 6 0 0 0 12 0 M12 19v3 M9.5 22h5',
   stop: 'M6 6h12v12H6z', bell: 'M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5z M9.5 18.5a2.5 2.5 0 0 0 5 0',
   inbox: 'M3 11h5l1.8 2.8h4.4L16 11h5 M3 11V5h18v6 M3 11v7a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-7', x: 'M6 6l12 12M18 6L6 18', play: 'M8 5v14l11-7z',
-  award: 'M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M8.21 13.89 7 23l5-3 5 3-1.21-9.12', up: 'M12 19V5 M6 11l6-6 6 6',
+  up: 'M12 19V5 M6 11l6-6 6 6',
 };
 
 /** The ink prompt that writes itself in while the paper is blank, cycling through prompts with the recipient's name. */
@@ -36,9 +36,9 @@ function inkPrompt(name, color) {
   return el;
 }
 
-/** The streak flame (tap it 4 times for hearts) and the points badge that rolls up like a counter. */
+/** The streak flame (tap it 4 times for hearts). */
 const STREAK_SEEN = new Map();
-function stickerBadges(streak, points, key, label) {
+function stickerBadges(streak, key, label) {
   const row = h('div.t-badges');
   if (streak > 0) {
     const flame = h('button.t-badge.sun', { type: 'button', 'aria-label': `${streak} day throw streak with ${label}` }, h('span.t-flame'), h('b', String(streak)));
@@ -49,15 +49,11 @@ function stickerBadges(streak, points, key, label) {
       if (taps.length >= 4) { taps = []; tick(true); [0, 1, 2].forEach(i => { const hrt = h('span.t-rise', { style: { left: 2 + i * 12 + 'px', animationDelay: i * 0.12 + 's' } }, '💖'); flame.append(hrt); setTimeout(() => hrt.remove(), 1500); }); } };
     row.append(flame);
   }
-  const num = h('b', '0');
-  row.append(h('div.t-badge.white', { 'aria-label': `${points} leaderboard points with ${label}` }, icon(I.award, { size: 12, stroke: 2.2, color: '#16210C' }), num));
-  const t0 = performance.now(); const roll = () => { const p = Math.min(1, (performance.now() - t0) / 700); num.textContent = Math.round(points * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(roll); };
-  requestAnimationFrame(roll);
   return row;
 }
 
 /**
- * props: recipientName, streak, points, hideBadges, isNight, throwLabel, unreadCount, alertSchedule + onAlertScheduleChange
+ * props: recipientName, streak, hideBadges, isNight, throwLabel, unreadCount, alertSchedule + onAlertScheduleChange
  * (self-reminder only), and callbacks onThrow(content) → { error }, onLaunched, onContactDragStart/Offset/End, onFoldProgress,
  * onReminderPeekChange, onOpenInbox, onError(text). Returns { el, update(props), openReminder(), clearReminderDraft(), destroy() }.
  */
@@ -91,7 +87,7 @@ export function createFoldingLetter(sheetHost, props) {
     if (!text && !interim) promptHost.append(inkPrompt(P.hideBadges ? 'Me' : P.recipientName, P.isNight ? throwNightColor.placeholder : INK_BLUE)); }
   function renderStampBadges() {
     stampHost.replaceChildren(media.length === 0 ? h('div.t-stamp' + (P.isNight ? '.night' : ''), P.hideBadges ? 'NOTE TO SELF' : `TO: ${P.recipientName.trim().split(/\s+/)[0].toUpperCase()}`) : '');
-    badgeHost.replaceChildren(P.hideBadges ? '' : stickerBadges(P.streak, P.points, P.recipientName, P.recipientName));
+    badgeHost.replaceChildren(P.hideBadges ? '' : stickerBadges(P.streak, P.recipientName, P.recipientName));
     badgeHost.classList.toggle('t-nopoint', phase !== 'writing');
   }
   function renderStrip() {
@@ -356,7 +352,7 @@ export function createFoldingLetter(sheetHost, props) {
       if (night) { textarea.style.color = P.isNight ? throwNightColor.ink : INK_BLUE; if (baked) rebake(); }
       // (only what changed is redrawn: redrawing restarts the ink prompt and the counters)
       if (who || night) renderPrompt();
-      if (who || night || prev.streak !== P.streak || prev.points !== P.points) renderStampBadges();
+      if (who || night || prev.streak !== P.streak) renderStampBadges();
       if (night || prev.unreadCount !== P.unreadCount || !!prev.alertSchedule !== !!P.alertSchedule || prev.alertSchedule !== P.alertSchedule) renderRow();
       renderHints(); reminderEffect();
     },

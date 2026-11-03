@@ -51,7 +51,7 @@ export async function createThrowStore() {
   const db = sb(), subs = new Set();
   const S = {
     myId, loading: true, myLocation: null, locationVisibility: 'all', myName: 'Myself', myAvatarUrl: null,
-    connections: [], profiles: {}, friendLocations: {}, rows: [], streaks: {}, points: {}, latestIncoming: null,
+    connections: [], profiles: {}, friendLocations: {}, rows: [], streaks: {}, latestIncoming: null,
     // derived (rebuilt by derive())
     friends: [], letters: [], inbox: [], unreadCount: 0,
   };
@@ -93,12 +93,9 @@ export async function createThrowStore() {
     if (fids.length) { const { data: locs, error } = await db.from('throw_profiles').select('user_id,city,country,latitude,longitude,updated_at').in('user_id', fids); warn('load friend locations', error);
       if (!error) { const m = {}; (locs || []).forEach(r => { m[r.user_id] = { city: r.city, country: r.country, latitude: r.latitude, longitude: r.longitude, updatedAt: r.updated_at ?? undefined }; }); S.friendLocations = m; } }
     else S.friendLocations = {};
-    // game points (MySpace's GameStatsContext reads the same table): shown on the letter's stamp badge
-    if (fids.length) { const { data: gs, error } = await db.from('player_game_stats').select('user_id,total_points').in('user_id', fids); warn('load points', error);
-      if (!error) { const m = {}; (gs || []).forEach(r => { m[r.user_id] = r.total_points ?? 0; }); S.points = m; } }
     S.loading = false;
-    try { const { myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks, points } = S;
-      localStorage.setItem(CACHE(myId), JSON.stringify({ myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks, points })); } catch { /* storage full or blocked */ }
+    try { const { myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks } = S;
+      localStorage.setItem(CACHE(myId), JSON.stringify({ myLocation, locationVisibility, myName, myAvatarUrl, connections, profiles, friendLocations, rows, streaks })); } catch { /* storage full or blocked */ }
     emit();
   }
 
@@ -121,7 +118,6 @@ export async function createThrowStore() {
     dispose() { clearInterval(poll); db.removeChannel(channel); subs.clear(); },
     unreadCountFor: id => S.inbox.filter(l => l.counterpartId === id && l.status === 'thrown').length,
     streakFor: id => S.streaks[id] ?? 0,
-    pointsFor: id => S.points?.[id] ?? 0,
     clearLatestIncoming() { S.latestIncoming = null; emit(); },
     async setMyLocation(loc) {
       const attempt = () => db.from('throw_profiles').upsert({ user_id: myId, city: loc.city, country: loc.country, latitude: loc.latitude, longitude: loc.longitude, updated_at: new Date().toISOString() });
