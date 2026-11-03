@@ -49,6 +49,8 @@ import './theme.css'; // the diorama look (loaded last)
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
 const stage = document.querySelector('three-d-stage');
+// Throw covers the whole screen: the sea stops drawing frames underneath it (three WebGL scenes at once is what made it slow)
+addEventListener('sailo:cover', e => stage.setPaused?.(e.detail.covered));
 const { THREE } = await stage.ready;
 const ramp = new THREE.DataTexture(new Uint8Array([118, 134, 205, 255, 198, 210, 242, 255, 255, 255, 255, 255]), 3, 1);
 ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;

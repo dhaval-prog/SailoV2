@@ -113,7 +113,7 @@ export async function createThrowStore() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_connections', filter: `requester_id=eq.${myId}` }, reload)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_connections', filter: `addressee_id=eq.${myId}` }, reload)
     .subscribe();
-  const poll = setInterval(reload, 15000);
+  const poll = setInterval(reload, 60000); // (a safety net: live updates bring changes as they happen)
 
   const api = {
     state: S, myId, refresh: reload,

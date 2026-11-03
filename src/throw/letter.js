@@ -141,13 +141,15 @@ export function createFoldingLetter(sheetHost, props) {
   const paintProgress = v => { const c = interp(v, [0, 0.2], [1, 0]);
     for (const n of [canvasLayer, stampHost, badgeHost, stripHost, border]) n.style.opacity = c;
     bottomRow.style.opacity = c; bottomRow.style.transform = `translateY(${interp(c, [0, 1], [16, 0])}px)`;
-    stageLayer.style.opacity = interp(v, [0, 0.2], [0, 1]); stage.seek(v); P.onFoldProgress?.(v); };
+    stageLayer.style.opacity = interp(v, [0, 0.2], [0, 1]); stage.seek(v); syncStage(v); P.onFoldProgress?.(v); };
+  // the 3D plane only draws while it can be seen: folding, ready, flying (writing, it sits hidden under the paper)
+  let stageOn = null; const syncStage = (v = progress.get()) => { const on = v > 0 || phase !== 'writing'; if (on !== stageOn) { stageOn = on; stage.setActive(on); } };
   progress.on(paintProgress);
   const paintLift = () => { liftBox.style.transform = `translateY(${liftY.get()}px)`; liftBox.style.opacity = liftOpacity.get();
     trail.style.opacity = liftOpacity.get(); trail.style.transform = `translateY(${liftY.get() * 0.5}px) scaleY(${interp(liftY.get(), [-1000, 0], [6, 0])})`; };
   liftY.on(paintLift); liftOpacity.on(paintLift);
 
-  const setPhase = p => { if (phase === p) return; phase = p; renderHints(); renderStampBadges(); reminderEffect(); };
+  const setPhase = p => { if (phase === p) return; phase = p; syncStage(); renderHints(); renderStampBadges(); reminderEffect(); };
   function rebake() { const firstPhoto = media.find(m => !m.isVideo)?.uri ?? null;
     stage.setContent({ messageText: text.trim() || null, strokes: null, photoUri: firstPhoto, penColor: P.isNight ? throwNightColor.ink : INK_BLUE, isNight: !!P.isNight }, paperSize); }
   function applyFold(next) { progress.set(next); if (phase !== 'folding' && next > 0) setPhase('folding');
