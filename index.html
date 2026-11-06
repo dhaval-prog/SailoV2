@@ -11,7 +11,7 @@
   <title>Sailo · Lighthouse Tug</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&family=Alfa+Slab+One&family=Baloo+2:wght@500;600;700;800&family=Share+Tech+Mono&family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&family=Alfa+Slab+One&family=Baloo+2:wght@500;600;700;800&family=Share+Tech+Mono&family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon-512.png">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -170,26 +170,30 @@
 </div>
 </div>
 <div id="geo-attr" class="geo-attr"><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">© Mapbox</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></div>
-<div id="map" class="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-title" hidden>
-  <div class="map-card">
-    <header class="map-head">
-      <div><h2 id="map-title">Pune Paradise</h2><p id="map-sub">Pune as open ocean</p></div>
-      <button id="map-close" class="icon-btn" type="button" aria-label="Close map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    </header>
-    <div class="map-wrap">
-      <svg id="map-svg" class="map-svg" role="img" aria-label="Map showing your boat's position. Click a spot to pin a course there."></svg>
+<div id="map" class="map-modal sc" role="dialog" aria-modal="true" aria-labelledby="map-title" hidden>
+  <div class="map-card sc-card">
+    <div class="map-wrap sc-chart">
+      <svg id="map-svg" class="map-svg" role="img" aria-label="Map showing your boat's position. Tap the water to pin a course there."></svg>
       <div id="map-tip" class="map-tip" hidden></div>
-      <button id="map-change" class="map-world-btn" type="button" aria-label="World map" title="World map"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.6 5.3 3.6 8.5s-1 6.1-3.6 8.5c-2.6-2.4-3.6-5.3-3.6-8.5s1-6.1 3.6-8.5Z"/></svg></button>
-      <div class="map-zoom" role="group" aria-label="Map zoom"><span id="map-zoom-l" class="map-zoom-l">Pune</span>
-        <button id="map-zboat" type="button" aria-label="Zoom to your boat"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7"/></svg></button>
-        <button id="map-zin" type="button" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>
-        <button id="map-zout" type="button" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button></div>
     </div>
-    <footer class="map-foot">
-      <div class="map-row"><span class="map-dot" aria-hidden="true"></span><span>You are at <b id="map-pos">0.0 mi N · 0.0 mi E</b></span></div>
-      <div class="map-row" id="map-others-row" hidden><span class="map-dot others" aria-hidden="true"></span><span id="map-others"></span></div>
-      <div class="map-row" id="map-pin-row" hidden><span class="map-dot pin" aria-hidden="true"></span><span>Pinned <b id="map-pin">—</b> · <span id="map-pin-d"></span></span><button id="map-unpin" class="map-unpin" type="button">Clear</button></div>
-      <p class="map-help" id="map-help">Click anywhere on the water to pin a course</p>
+    <header class="map-head sc-hd">
+      <div><h2 id="map-title">Pune <em>Paradise</em></h2><p id="map-sub">Pune as open ocean</p></div>
+      <div class="sc-hdR"><div class="sc-coins" aria-label="Coins"><span class="sc-coin" aria-hidden="true"></span><span id="map-coins">0c</span></div>
+        <button id="map-close" class="sc-x" type="button" aria-label="Close map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
+    </header>
+    <div class="sc-tabs" role="tablist" aria-label="Map"><i class="sc-tabind" aria-hidden="true"></i><button type="button" role="tab" aria-selected="true" class="on">My waters</button><button id="map-change" type="button" role="tab" aria-selected="false">World</button></div>
+    <div class="sc-scale" aria-hidden="true"><span id="map-scale-t">5 mi</span><div id="map-scale-b"></div></div>
+    <div class="sc-compass" aria-hidden="true"><svg viewBox="0 0 10 12"><path d="M5 0L10 12L5 9L0 12Z"/></svg>N</div>
+    <div class="sc-ctrls" role="group" aria-label="Map zoom"><span id="map-zoom-l" hidden>Pune</span>
+      <button id="map-zin" type="button" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button><i></i>
+      <button id="map-zout" type="button" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button><i></i>
+      <button id="map-zboat" class="sc-loc" type="button" aria-label="Zoom to your boat"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.6" class="fill"/><path d="M9 0v3M9 15v3M0 9h3M15 9h3"/></svg></button></div>
+    <footer class="map-foot sc-panel">
+      <div class="map-row"><span class="sc-dot you" aria-hidden="true"></span><span id="map-pos">You're at the Harbour</span></div>
+      <div class="map-row" id="map-isles-row"><span class="sc-dot isle" aria-hidden="true"></span><span id="map-isles"></span></div>
+      <div class="map-row" id="map-others-row" hidden><span class="sc-dot sailor" aria-hidden="true"></span><span id="map-others"></span></div>
+      <div class="map-row" id="map-pin-row" hidden><span class="sc-dot pin" aria-hidden="true"></span><span>Pinned <b id="map-pin">—</b> · <span id="map-pin-d"></span></span><button id="map-unpin" class="map-unpin" type="button">Clear</button></div>
+      <p class="map-help" id="map-help">Click the water to pin a course</p>
       <p class="map-attr"><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">© Mapbox</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noopener">Improve this map</a></p>
     </footer>
   </div>

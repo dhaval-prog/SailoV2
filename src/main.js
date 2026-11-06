@@ -45,7 +45,8 @@ import './cpu.css';
 import './voyage.css';
 import './tablet.css'; // tablets: both thumbs drive
 import './phone.css'; // phones: the lever's idle stop, top view, the first-voyage card
-import './theme.css'; // the diorama look (loaded last)
+import './theme.css'; // the diorama look
+import './sea-charts.css'; // the map and world map (Sea Charts design; loaded last)
 // a captain who has never sailed (no saved position or catches yet) gets the first-voyage guide
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
