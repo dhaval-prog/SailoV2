@@ -6,7 +6,7 @@ const ICONS = {
   chat: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/>',
 };
 
-export function createHelmButtons({ orbit, note }) {
+export function createHelmButtons({ orbit, note, onThrow }) {
   const make = (id, label, icon, at, onTap = () => note(`${label}: coming soon.`)) => {
     const btn = document.createElement('button'); btn.type = 'button'; btn.id = id; btn.className = 'helm-extra'; btn.setAttribute('aria-label', label);
     btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`;
@@ -18,6 +18,6 @@ export function createHelmButtons({ orbit, note }) {
       btn.style.left = `${x}px`; btn.style.top = `${y}px`; btn.style.visibility = ''; };
     setInterval(paint, 250); paint();
   };
-  make('throw-btn', 'Throw', ICONS.throw, () => orbit.throwAt?.(56), () => import('./throw/index.js').then(m => m.openThrow({ note })).catch(() => note('Throw couldn’t load. Check your connection?')));
+  make('throw-btn', 'Throw', ICONS.throw, () => orbit.throwAt?.(56), onThrow || (() => import('./throw/index.js').then(m => m.openThrow({ note })).catch(() => note('Throw couldn’t load. Check your connection?'))));
   make('chat-btn', 'Chat', ICONS.chat, () => orbit.chatAt?.(56));
 }

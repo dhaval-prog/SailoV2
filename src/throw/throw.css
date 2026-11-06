@@ -11,6 +11,7 @@
   opacity: 0; transform: scale(.985); transition: opacity .25s ease, transform .25s ease; overflow: hidden; -webkit-tap-highlight-color: transparent;
 }
 .t-root.in { opacity: 1; transform: none; }
+.t-root.t-slow { transition: opacity .7s ease, transform .7s ease; } /* (the paper plane's fade, in and out) */
 .t-root *, .t-root *::before, .t-root *::after { box-sizing: border-box; }
 .t-root button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
 .t-loading { position: absolute; inset: 0; display: grid; place-items: center; }
