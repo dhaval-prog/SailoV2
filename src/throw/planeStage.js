@@ -24,8 +24,8 @@ export function createPlaneStage(container, { onPhase, onError } = {}) {
   const queue = []; // (calls made before the first layout, replayed once the engine exists)
   const call = m => (...a) => { if (engine) engine[m](...a); else queue.push([m, a]); };
   const api = {
-    setActive: call('setActive'), fold: call('fold'), fly: call('fly'), reset: call('reset'), holdReady: call('holdReady'), setReadyBank: call('setReadyBank'), seek: call('seek'), setOptions: call('setOptions'),
-    setContent(content, size) { bakeLetterTexture(content, size).then(tex => { if (engine) engine.setTexture(tex); else queue.push(['setTexture', [tex]]); }).catch(e => console.warn('[Throw] letter texture failed:', e)); },
+    setActive: call('setActive'), fold: call('fold'), fly: call('fly'), reset: call('reset'), holdReady: call('holdReady'), unready: call('unready'), setReadyBank: call('setReadyBank'), seek: call('seek'), setOptions: call('setOptions'),
+    setContent(content, size) { bakeLetterTexture(content, size).then(tex => { if (engine) { try { renderer.initTexture(tex); } catch { /* uploaded on first use instead */ } engine.setTexture(tex); } else queue.push(['setTexture', [tex]]); }).catch(e => console.warn('[Throw] letter texture failed:', e)); },
     setTexture: t => engine?.setTexture(t),
     dispose() { ro.disconnect(); engine?.dispose(); renderer?.domElement.remove(); engine = null; },
   };

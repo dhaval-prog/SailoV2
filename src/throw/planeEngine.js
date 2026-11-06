@@ -389,6 +389,8 @@ function createPaperPlane(options) {
   const READY_FRAME_LIFT = 6;
   const READY_PITCH_FORWARD = -0.45;
   const READY_SCALE_BOOST = 1.2;
+  const READY_BLEND_S = 0.35;
+  let rbLin = 0;
   function setPose(o, extra = {}) {
     flight.position.set(pivot.x + o.x + (extra.x || 0), pivot.y + o.y + (extra.y || 0), pivot.z + o.z + (extra.z || 0));
     flight.rotation.set((o.bank || 0) + (extra.bank || 0), (o.yaw || 0) + (extra.yaw || 0), (o.pitch || 0) + (extra.pitch || 0));
@@ -454,30 +456,24 @@ function createPaperPlane(options) {
       }
       dirty = false;
     }
-    if (phase === "idle" || phase === "folding") {
-      flight.scale.setScalar(BASE_FLIGHT_SCALE);
-      if (resetT < 1) {
+    // the "ready" pose (bigger, turned, nose down, bobbing) eases in and out over READY_BLEND_S instead of snapping
+    // in when the fold ends and out when it unfolds or launches
+    const rbGoal = phase === "ready" ? 1 : 0;
+    rbLin += Math.sign(rbGoal - rbLin) * Math.min(Math.abs(rbGoal - rbLin), dt / READY_BLEND_S);
+    const rb = rbLin * rbLin * (3 - 2 * rbLin);
+    const bob = Math.sin(clock * 1.6) * 0.06 * clamp01(clock * 1);
+    const idleBank = Math.sin(clock * 1.1) * 0.02;
+    // READY_PITCH_FORWARD noses the resting plane down slightly rather than dead level — reads as "about to land"
+    const R = { y: bob * rb, yaw: (PI / 2 - formation.yaw) * rb, bank: -formation.pitch * rb, pitch: (idleBank - formation.bank + READY_PITCH_FORWARD) * rb, rx: readyBankExtra * MAX_READY_BANK * rb };
+    flight.scale.setScalar(BASE_FLIGHT_SCALE * (1 + (READY_SCALE_BOOST - 1) * rb));
+    if (phase === "idle" || phase === "folding" || phase === "ready") {
+      if (phase !== "ready" && resetT < 1) {
         resetT = Math.min(1, resetT + dt * 1.6);
         mat.opacity = E.out(resetT);
       }
-      const drop = resetT < 1 ? 1.6 * (1 - E.out(resetT)) : 0;
-      setPose(formation, { y: drop });
-    } else if (phase === "ready") {
-      flight.scale.setScalar(BASE_FLIGHT_SCALE * READY_SCALE_BOOST);
-      const bob = Math.sin(clock * 1.6) * 0.06 * clamp01(clock * 1);
-      const idleBank = Math.sin(clock * 1.1) * 0.02;
-      setPose(formation, {
-        y: bob,
-        yaw: PI / 2 - formation.yaw,
-        bank: -formation.pitch,
-        // READY_PITCH_FORWARD noses the resting plane down slightly rather than dead level — per
-        // user request, reads as "about to land" rather than "parked", the same negative-pitch
-        // direction as the flying phase's own nose-up climb-out uses positive pitch for.
-        pitch: idleBank - formation.bank + READY_PITCH_FORWARD,
-        rx: readyBankExtra * MAX_READY_BANK
-      });
+      const drop = phase !== "ready" && resetT < 1 ? 1.6 * (1 - E.out(resetT)) : 0;
+      setPose(formation, { y: drop + R.y, yaw: R.yaw, bank: R.bank, pitch: R.pitch, rx: R.rx });
     } else if (phase === "flying" || phase === "done") {
-      flight.scale.setScalar(BASE_FLIGHT_SCALE);
       flyT += dt * speed;
       const u = flyT;
       const back = Math.sin(PI * clamp01(u / 0.45)) * (u < 0.45 ? 1 : 0);
@@ -488,11 +484,12 @@ function createPaperPlane(options) {
       const hd = formation.yaw + (PI / 2 - 1.38) * yawT;
       setPose(formation, {
         x: fwd * Math.cos(hd),
-        y,
+        y: y + R.y,
         z: -fwd * Math.sin(hd),
-        yaw: (PI / 2 - 1.38) * yawT,
-        pitch: 0.2 * E.fold(seg(u, 0.2, 0.9)) - 0.06 * back,
-        bank: Math.sin(go * 3) * 0.06 * clamp01(go)
+        yaw: (PI / 2 - 1.38) * yawT + R.yaw,
+        pitch: 0.2 * E.fold(seg(u, 0.2, 0.9)) - 0.06 * back + R.pitch,
+        bank: Math.sin(go * 3) * 0.06 * clamp01(go) + R.bank,
+        rx: R.rx
       });
       if (trail && go > 0.05 && u < 3.2) {
         mesh.updateWorldMatrix(true, false);
@@ -508,7 +505,7 @@ function createPaperPlane(options) {
     if (follow && phase !== "flying" && phase !== "done") {
       flight.updateWorldMatrix(true, true);
       const c = new THREE.Vector3().addVectors(bbMin, bbMax).multiplyScalar(0.5).applyMatrix4(mesh.matrixWorld);
-      const readyLift = phase === "ready" ? READY_FRAME_LIFT : 0;
+      const readyLift = READY_FRAME_LIFT * rb;
       camGoal.set(c.x * 0.5, Math.min(c.y, 3) * 0.55 + readyLift, c.z * 0.75 + 2.1);
     } else if (!follow) camGoal.set(0, 0, 1.4);
     camTarget.lerp(camGoal, 1 - Math.exp(-dt * 2.2));
@@ -536,9 +533,16 @@ function createPaperPlane(options) {
       t = 0;
       flyT = 0;
       resetT = 0;
+      rbLin = 0;
       mat.opacity = 0;
       dirty = true;
       parts.forEach((p) => p.life = 0);
+      onPhase?.("idle");
+    },
+    /** Back from 'ready' to the folding pose (eased): for a caller about to unfold the plane by seek(). */
+    unready() {
+      if (phase !== "ready") return;
+      phase = "idle";
       onPhase?.("idle");
     },
     /** Sets phase to 'ready' directly — for a gesture-driven caller already at t = FOLD_END via seek(). */

@@ -464,8 +464,9 @@ body.throw-open #hud-scrim, body.throw-open .helm-extra, body.throw-open #map-or
 .t-undo button { all: unset; cursor: pointer; color: #FFD23F; text-decoration: underline; font: inherit; }
 
 /* a long press on the paper: it lifts a little and a corner curls up, hinting "pull down to fold" */
-.t-paper { transition: transform .28s cubic-bezier(.2,.8,.3,1.2), filter .28s ease; }
-.t-paper.prefold { transform: translateY(-6px) scale(1.015); filter: drop-shadow(0 10px 14px rgba(80,64,42,.18)); }
+/* (only the flat paper lifts: the 3D plane's canvas beside it is never transformed or filtered, which made it flicker) */
+.t-paper-clip { transition: transform .28s cubic-bezier(.2,.8,.3,1.2), box-shadow .28s ease; }
+.t-paper.prefold .t-paper-clip { transform: translateY(-6px) scale(1.015); box-shadow: 0 16px 26px rgba(80,64,42,.2); }
 .t-curl { position: absolute; right: 0; bottom: 0; width: 0; height: 0; z-index: 4; pointer-events: none; border-top-left-radius: 8px;
   background: linear-gradient(315deg, rgba(60,45,25,.22) 0 47%, #fffdf6 50%, #f4ecda 72%, #e6dbc2 100%); box-shadow: -3px -3px 8px rgba(80,64,42,.16);
   transition: width .3s cubic-bezier(.2,.8,.3,1.3), height .3s cubic-bezier(.2,.8,.3,1.3); }
