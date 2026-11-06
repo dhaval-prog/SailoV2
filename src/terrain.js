@@ -11,7 +11,7 @@ import { WORLD } from './world.js';
 import { TERRAIN as T } from './world-config.js';
 import { rockBuilder } from './rock-shapes.js';
 import { createPineIslands } from './pine-islands.js';
-const isMedium = r => !r.huge; // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
+const isMedium = () => true; // every map rock is drawn as a pine island (pine-islands.js), the huge ones bigger // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const h01 = (a, b, s = 0) => { let h = Math.imul((a * 73856093) ^ (b * 19349663) ^ (s * 83492791), 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
@@ -66,12 +66,12 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   async function load(kind, z, x, y) {
     const key = `${kind}:${z}/${x}/${y}`, store = kind === 'rocks' ? rocks : corals; if (store.has(key) || loading.has(key)) return; loading.add(key);
     try {
-      let list = await geoCacheGet('terrain-v8:' + key);
+      let list = await geoCacheGet('terrain-v9:' + key);
       if (!list) {
         const shapes = await mapShapes(kind === 'rocks' ? 'building' : 'landuse', x, y, z, kind === 'rocks' ? () => true : cls => GREEN.test(cls));
         if (!shapes) return; // (offline: try again later)
         list = kind === 'rocks' ? rocksOf(shapes, tileRect(x, y, z), clear) : coralsOf(shapes, clear);
-        geoCachePut('terrain-v8:' + key, list);
+        geoCachePut('terrain-v9:' + key, list);
       }
       store.set(key, list);
       if (kind === 'rocks') list.forEach(r => { const e = r.r + T.boatPad; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const k = gkey(r.x + i * e, r.z + j * e); if (!grid.has(k)) grid.set(k, new Set()); grid.get(k).add(r); } });
