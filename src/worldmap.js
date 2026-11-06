@@ -62,22 +62,29 @@ async function mbLabels(z, x, y) {
   tileCache.set(id, p); return p;
 }
 
-/** Open the world map. opts: { current (chart), coins(): number, travel(chart, fare): bool, settled(): promise (the fare paid) } */
-export function openWorldMap({ current, coins, travel, settled }) {
+/** Open the world map. opts: { current (chart), coins(): number, travel(chart, fare): bool, settled(): promise (the fare paid),
+ *  local(): back to this city's chart (the My waters tab) } */
+export function openWorldMap({ current, coins, travel, settled, local }) {
   const el = document.createElement('div'); el.className = 'wm'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'wm-title');
   el.innerHTML = `<div class="wm-card">
-    <header class="wm-head"><div><h2 id="wm-title">World map</h2><p>Sailed charts are unlocked. Fly to a new city to unlock it.</p></div><button class="icon-btn" id="wm-x" type="button" aria-label="Close world map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></header>
-    <div class="wm-search"><input id="wm-q" type="search" placeholder="Search any city on Earth" autocomplete="off" spellcheck="false"><div class="wm-res" id="wm-res"></div></div>
-    <div class="wm-wrap" id="wm-wrap"><svg class="wm-svg" id="wm-svg" role="img" aria-label="World map with city charts"></svg>
-      <div class="map-zoom wm-zoom"><span class="map-zoom-l" id="wm-l">World</span><button type="button" id="wm-home" aria-label="Back to your city"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7"/></svg></button><button type="button" id="wm-in" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button><button type="button" id="wm-out" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button></div>
+    <div class="wm-wrap" id="wm-wrap"><svg class="wm-svg" id="wm-svg" role="img" aria-label="World map with city charts"><defs><radialGradient id="wm-g" cx="50%" cy="48%" r="70%"><stop offset="0" class="sc-sea1"/><stop offset="1" class="sc-sea2"/></radialGradient></defs></svg>
+      <div class="sc-ctrls wm-zoom" role="group" aria-label="Map zoom"><span id="wm-l" hidden>World</span>
+        <button type="button" id="wm-in" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button><i></i>
+        <button type="button" id="wm-out" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button><i></i>
+        <button type="button" id="wm-home" class="sc-loc" aria-label="Back to your city"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.6" class="fill"/><path d="M9 0v3M9 15v3M0 9h3M15 9h3"/></svg></button></div>
       <div class="wm-loading" id="wm-loading">Loading the world…</div></div>
-    <div class="wm-pick" id="wm-pick" hidden></div>
+    <header class="wm-head sc-hd"><div><h2 id="wm-title">World <em>map</em></h2><p>Sailed charts are unlocked. Fly to a new city to unlock it.</p></div>
+      <div class="sc-hdR"><div class="sc-coins" aria-label="Coins"><span class="sc-coin" aria-hidden="true"></span><span id="wm-coins">${coins()}c</span></div>
+        <button class="sc-x" id="wm-x" type="button" aria-label="Close world map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div></header>
+    <div class="sc-tabs w" role="tablist" aria-label="Map"><i class="sc-tabind" aria-hidden="true"></i><button type="button" role="tab" aria-selected="false" id="wm-local">My waters</button><button type="button" role="tab" aria-selected="true" class="on">World</button></div>
+    <div class="wm-search"><svg class="wm-mag" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="wm-q" type="search" placeholder="Search any city on Earth" autocomplete="off" spellcheck="false"><div class="wm-res" id="wm-res"></div></div>
+    <div class="wm-pick sc-panel" id="wm-pick"></div>
     <p class="wm-credit">Land © Natural Earth · places © Mapbox © OpenStreetMap · cities GeoNames</p></div>`;
   document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('open'));
   const $ = id => el.querySelector('#' + id), svg = $('wm-svg'), wrap = $('wm-wrap');
   const node = (tag, attrs, parent = svg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
-  const sea = node('rect', { x: -W, y: -W * 0.2, width: W * 3, height: W * 1.4, class: 'wm-sea' });
-  const grat = node('path', { class: 'wm-grat', d: Array.from({ length: 11 }, (_, i) => `M${i * W / 12 + W / 12} 0V${W}`).join('') + [-60, -30, 0, 30, 60].map(l => `M0 ${my(l)}H${W}`).join('') });
+  const sea = node('rect', { x: -W, y: -W * 0.2, width: W * 3, height: W * 1.4, class: 'wm-sea', fill: 'url(#wm-g)' });
+  const grat = node('path', { class: 'wm-grat', d: Array.from({ length: 72 }, (_, i) => `M${(i - 24) * W / 24} ${my(80)}V${my(-80)}`).join('') + [-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75].map(l => `M${-W} ${my(l)}H${W * 2}`).join('') });
   const landP = node('path', { class: 'wm-land' }), bordP = node('path', { class: 'wm-border' }), routeP = node('path', { class: 'wm-route' });
   const labelsG = node('g', { class: 'wm-labels' }), pinsG = node('g', { class: 'wm-pins' }), planeG = node('g', { class: 'wm-plane', visibility: 'hidden' });
   node('path', { d: 'M12 0 L-6 -7 L-3 0 L-6 7 Z M-2 -1 L-9 -12 L-6 -12 L3 -1 Z M-2 1 L-9 12 L-6 12 L3 1 Z' }, planeG);
@@ -131,13 +138,14 @@ export function openWorldMap({ current, coins, travel, settled }) {
     const order = [...pins.values()].filter(p => inView(p.x, p.y)).sort((a, b) => ({ here: 0, open: 1, locked: 2 })[stateOf(a)] - ({ here: 0, open: 1, locked: 2 })[stateOf(b)]);
     for (const p of order) {
       const st = stateOf(p), [sx, sy] = scr(p.x, p.y), r = [sx - 9, sy - 9, sx + 9, sy + 9]; if (st === 'locked' && !free(r)) continue; taken.push(r);
-      const g = node('g', { class: `wm-pin ${st}`, transform: `translate(${p.x} ${p.y}) scale(${1 / px})`, 'data-id': p.id, tabindex: 0, role: 'button', 'aria-label': `${p.name}: ${st === 'locked' ? 'locked' : st === 'here' ? 'you are here' : 'unlocked'}` }, pinsG);
-      if (st === 'here') node('circle', { r: 13, class: 'wm-pulse' }, g);
-      node('circle', { r: st === 'locked' ? 6 : 7.5 }, g);
-      if (st === 'locked') node('path', { d: 'M-2.4 -0.5v-1.6a2.4 2.4 0 0 1 4.8 0v1.6M-3.2 -0.5h6.4v4h-6.4z', class: 'wm-lock' }, g);
-      else node('path', { d: 'M0 -4v7.5M-3.5 1.2a3.6 3.6 0 0 0 7 0M-2 -2.6h4', class: 'wm-anchor' }, g);
-      const show = st !== 'locked' || L >= 1, text = p.name;
-      if (show) { const w = text.length * 6.6 + 6, lr = [sx + 10, sy - 8, sx + 10 + w, sy + 6]; if (free(lr)) { taken.push(lr); node('text', { x: 11, y: 4, class: 'wm-pin-t' }, g).textContent = text; } }
+      const g = node('g', { class: `wm-pin ${st}${p === picked ? ' sel' : ''}`, transform: `translate(${p.x} ${p.y}) scale(${1 / px})`, 'data-id': p.id, tabindex: 0, role: 'button', 'aria-label': `${p.name}: ${st === 'locked' ? 'locked' : st === 'here' ? 'you are here' : 'unlocked'}` }, pinsG);
+      if (p === picked && st !== 'here') node('circle', { r: 14, class: 'wm-sel' }, g);
+      if (st === 'here') { node('circle', { r: 11, class: 'wm-pulse' }, g); node('circle', { r: 11, class: 'wm-here' }, g); node('path', { d: 'M0-5v9M-4 1a4 4 0 0 0 8 0M-2.5-3h5', class: 'wm-anchor' }, g);
+        const t = `${p.name} · you`, w = t.length * 6.6 + 18; node('rect', { x: -w / 2, y: 17, width: w, height: 22, rx: 11, class: 'sc-pill' }, g); node('text', { y: 32, class: 'sc-pill-t' }, g).textContent = t; taken.push([sx - w / 2, sy + 17, sx + w / 2, sy + 39]); continue; }
+      if (st === 'locked') { node('circle', { r: 7.5, class: 'wm-lockbg' }, g); node('path', { d: 'M-2.2 -.6v-1.4a2.2 2.2 0 0 1 4.4 0v1.4', class: 'wm-lock' }, g); node('rect', { x: -3.2, y: -0.8, width: 6.4, height: 4.6, rx: 1, class: 'wm-lockf' }, g); }
+      else node('circle', { r: 7, class: 'wm-open' }, g);
+      const show = st !== 'locked' ? L >= 1 : L >= 2, text = p.name;
+      if (show || p === picked) { const w = text.length * 6.6 + 6, lr = [sx + 11, sy - 8, sx + 11 + w, sy + 6]; if (free(lr)) { taken.push(lr); node('text', { x: 12, y: 4, class: 'wm-pin-t' }, g).textContent = text; } }
     }
     // country names (bigger countries first), then states and cities from Mapbox when zoomed in
     const names = [];
@@ -160,22 +168,30 @@ export function openWorldMap({ current, coins, travel, settled }) {
   // ---- choosing a city ----
   // your current city's card also shows your home city (the first one you sailed) and a way back
   const home = homeChart();
-  const homeCol = () => { if (!home || home.id === current.id) return `<div class="wm-fly wm-home-col"><small>${home ? 'This is your home city' : ''}</small></div>`;
-    const km = kmBetween(current, home); return `<div class="wm-fly wm-home-col"><small><b>Home · ${esc(home.name)}</b><br>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" id="wm-gohome">Fly home · ${fareFor(km)}c</button></div>`; };
   const pickEl = $('wm-pick');
+  let picked = null;
+  const tooPoor = fare => `You need ${fare} coins (you have ${coins()}). Sell fish at Paradise Station to earn more.`;
   function select(p) {
+    picked = p; dirty = true;
     const st = stateOf(p), c = p.chart, km = kmBetween(current, c), fare = fareFor(km), where = [c.region, c.country].filter(Boolean).join(', '), reg = regionAt(c.lat, c.lng).name;
-    pickEl.hidden = false;
+    if (st === 'here') { // the chart you're on: how many you've unlocked, and a way home
+      const n = [...pins.values()].filter(q => stateOf(q) !== 'locked').length, away = home && home.id !== current.id, hf = away ? fareFor(kmBetween(current, home)) : 0;
+      pickEl.innerHTML = `<div class="wm-pick-main"><b>${n} of ${pins.size} charts unlocked</b><small>You're charting from ${esc(current.city || current.name)}. Tap a city or search to see its waters.</small></div>
+        <div class="wm-fly">${away ? `<button type="button" class="wm-gold" id="wm-gohome">Fly home · ${hf}c</button>` : ''}<button type="button" class="wm-ghost" id="wm-me">Use my location</button></div>
+        <p class="wm-msg" id="wm-msg"></p>`;
+      $('wm-gohome')?.addEventListener('click', () => { if (coins() < hf) { $('wm-msg').textContent = tooPoor(hf); return; } fly(addPin(home), hf); });
+      $('wm-me').addEventListener('click', () => { const msg = $('wm-msg'); if (!navigator.geolocation) { msg.textContent = 'Location isn’t available here.'; return; }
+        msg.textContent = 'Finding you…';
+        navigator.geolocation.getCurrentPosition(pos => { const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const best = [...pins.values()].reduce((a, q) => (!a || kmBetween(me, q) < kmBetween(me, a) ? q : a), null);
+          view.cx = mx(me.lng); view.cy = my(me.lat); view.w = W / 16; apply(); if (best) select(best); },
+        () => { msg.textContent = 'Couldn’t get your location. Search for your city instead.'; }, { timeout: 10000, maximumAge: 600000 }); });
+      return; }
     pickEl.innerHTML = `<div class="wm-pick-main"><b>${esc(c.name || c.city + ' Waters')}</b><small>${esc(where)}${where ? ' · ' : ''}${esc(reg)}</small>
-      <span class="wm-tag ${st}">${st === 'here' ? 'You are here' : st === 'open' ? 'Unlocked' : 'Locked · fly there to unlock'}</span></div>
-      ${st === 'here' ? homeCol() : `<div class="wm-fly"><small>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" id="wm-go">Fly · ${fare}c</button></div>`}
+      <span class="wm-tag ${st}">${st === 'open' ? 'Unlocked' : 'Locked · fly there to unlock'}</span></div>
+      <div class="wm-fly"><small>${Math.round(km).toLocaleString('en')} km · sea-plane</small><button type="button" class="wm-gold" id="wm-go">Fly · ${fare}c</button></div>
       <p class="wm-msg" id="wm-msg"></p>`;
-    $('wm-gohome')?.addEventListener('click', () => { const h = home && addPin(home), hf = fareFor(kmBetween(current, home)), have = coins();
-      if (have < hf) { $('wm-msg').textContent = `You need ${hf} coins to fly home (you have ${have}). Sell fish at Paradise Station to earn more.`; return; }
-      fly(h, hf); });
-    $('wm-go')?.addEventListener('click', () => { const have = coins();
-      if (have < fare) { $('wm-msg').textContent = `You need ${fare} coins (you have ${have}). Sell fish at Paradise Station to earn more.`; return; }
-      fly(p, fare); });
+    $('wm-go').addEventListener('click', () => { if (coins() < fare) { $('wm-msg').textContent = tooPoor(fare); return; } fly(p, fare); });
   }
   svg.addEventListener('click', e => { if (moved) return; const g = e.target.closest('.wm-pin'); if (g) select(pins.get(g.dataset.id)); });
   svg.addEventListener('keydown', e => { const g = e.target.closest?.('.wm-pin'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(pins.get(g.dataset.id)); } });
@@ -211,6 +227,7 @@ export function openWorldMap({ current, coins, travel, settled }) {
   const close = () => { el.classList.remove('open'); removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp); removeEventListener('pointercancel', onUp); removeEventListener('keydown', onKey); setTimeout(() => el.remove(), 250); };
   const onKey = e => { if (e.key === 'Escape') close(); };
   addEventListener('keydown', onKey); $('wm-x').addEventListener('click', close);
+  $('wm-local').addEventListener('click', () => { close(); local?.(); });
   el.addEventListener('click', e => { if (e.target === el) close(); });
   new ResizeObserver(() => apply()).observe(wrap);
   loadAtlas(110).then(d => { if (res === 110) data = d; landP.setAttribute('d', (data || d).land); bordP.setAttribute('d', (data || d).borders); $('wm-loading').remove(); dirty = true; });

@@ -65,7 +65,7 @@ export function initHud(api) {
   const tod = $('tod');
   const paint = () => {
     const st = api.getState();
-    const mode = st.night ? 'night' : prefs.sunset && !prefs.live ? 'sunset' : 'day'; tod.classList.toggle('night', mode === 'night'); tod.classList.toggle('sunset', mode === 'sunset');
+    const mode = st.night ? 'night' : prefs.sunset && !prefs.live ? 'sunset' : 'day'; tod.classList.toggle('night', mode === 'night'); tod.classList.toggle('sunset', mode === 'sunset'); document.body.classList.toggle('is-night', mode === 'night');
     tod.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.t === mode)));
     document.querySelectorAll('.wx').forEach(b => b.setAttribute('aria-checked', String(b.dataset.w === st.w)));
     document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view)); // (on phones they orbit the wheel, outside the dock)
@@ -166,7 +166,7 @@ export function initHud(api) {
   // ---- map (compass button): the whole ocean, the boat, and click-to-pin a course ----
   const mapEl = $('map'), mapSvg = $('map-svg');
   // the active city's names everywhere the page mentions it
-  $('map-title').textContent = WORLD.name; $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · ${WORLD.city}'s real localities`;
+  $('map-title').innerHTML = String(WORLD.name).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]).replace(/(\S+)$/, '<em>$1</em>'); $('map-sub').textContent = `${WORLD.areaSqMi} sq mi of open ocean · ${WORLD.city}'s real localities`;
   document.querySelector('#loc .loc-text b').textContent = WORLD.name; document.querySelector('#welcome b').textContent = WORLD.name;
   if ($('welcome-sub')) $('welcome-sub').textContent = `${WORLD.areaSqMi} square miles of ${WORLD.city}, turned into open ocean`;
   { const r = document.querySelector('.rank'); if (r?.lastChild?.nodeType === 3) r.lastChild.textContent = ` Lighthouse Tug · ${WORLD.name}`; }
@@ -176,138 +176,151 @@ export function initHud(api) {
   // the world map: every city chart; fly to one (coins) to sail it. Your spot in each city is remembered.
   let worldOpen = false;
   const openWorld = async () => { if (worldOpen) return; worldOpen = true; setMap(false); const { openWorldMap } = await import('./worldmap.js');
-    const wm = openWorldMap({ current: CHART, coins: () => api.coins(), settled: () => api.settled?.(), travel: (c, fare) => { if (!api.spend(fare, 'sea-plane')) return false; setChart(c); return true; } });
+    const wm = openWorldMap({ local: () => setMap(true), current: CHART, coins: () => api.coins(), settled: () => api.settled?.(), travel: (c, fare) => { if (!api.spend(fare, 'sea-plane')) return false; setChart(c); return true; } });
     const t = setInterval(() => { if (!document.querySelector('.wm')) { clearInterval(t); worldOpen = false; } }, 500); void wm; };
   $('map-change').addEventListener('click', openWorld);
   $('tb-world')?.addEventListener('click', openWorld);
-  const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map, for sizing marks
+  const H = WORLD.half, u = WORLD.side / 100; // u = 1% of the map
+  const escM = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = mapSvg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
-  mapSvg.setAttribute('viewBox', `${-H - u * 4} ${-H - u * 4} ${WORLD.side + u * 8} ${WORLD.side + u * 8}`);
-  { const d = el('defs', {}); const g = el('radialGradient', { id: 'map-sea', cx: '50%', cy: '45%', r: '75%' }, d);
-    el('stop', { offset: '0', 'stop-color': '#4cc6f2' }, g); el('stop', { offset: '1', 'stop-color': '#1a78c9' }, g); }
-  el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, fill: 'url(#map-sea)' });
-  { let d = ''; for (let m = WORLD.mile; m < H; m += WORLD.mile) d += `M${m} ${-H}V${H}M${-m} ${-H}V${H}M${-H} ${m}H${H}M${-H} ${-m}H${H}`;
-    el('path', { d, class: 'map-grid', 'stroke-width': u * 0.18, 'data-sw': u * 0.18 });
-    el('path', { d: `M0 ${-H}V${H}M${-H} 0H${H}`, class: 'map-axis', 'stroke-width': u * 0.3, 'data-sw': u * 0.3 }); }
-  el('rect', { x: -H, y: -H, width: WORLD.side, height: WORLD.side, rx: u * 3, class: 'map-edge', 'stroke-width': u * 0.6, 'data-sw': u * 0.6 });
-  // Pune place names (redrawn for the zoom level, see paintGeo)
-  const geoG = el('g', { class: 'map-geo' });
-  // rocks met so far (terrain.js), faint, so a route through the channels can be planned
-  const rocksG = el('g', { class: 'map-rocks' }); let rocksDrawn = 0;
-  const paintRocks = () => { const all = api.rocks?.() || []; if (all.length === rocksDrawn) return; rocksDrawn = all.length; rocksG.innerHTML = '';
-    all.forEach(r => el('circle', { cx: r.x.toFixed(0), cy: r.z.toFixed(0), r: Math.max(r.r, 9).toFixed(0), class: 'map-rock' }, rocksG)); };
-  // harbour at the centre
+  // the Sea Charts look: a teal lagoon with a white grid inside a dashed gold boundary, sand islands ringed by contour
+  // lines, and markers drawn in screen pixels (they keep their size at any zoom: see placeMarks)
+  { const d = el('defs', {}); const g = el('radialGradient', { id: 'map-sea', cx: '50%', cy: '48%', r: '70%' }, d);
+    el('stop', { offset: '0', class: 'sc-sea1' }, g); el('stop', { offset: '1', class: 'sc-sea2' }, g); }
+  const OUT = H * 2.2; // (the sea and its grid run past the chart's edge, so a screen of any shape is all sea)
+  el('rect', { x: -OUT, y: -OUT, width: OUT * 2, height: OUT * 2, fill: 'url(#map-sea)' });
+  { let d = ''; for (let m = WORLD.mile; m < OUT; m += WORLD.mile) d += `M${m} ${-OUT}V${OUT}M${-m} ${-OUT}V${OUT}M${-OUT} ${m}H${OUT}M${-OUT} ${-m}H${OUT}`;
+    el('path', { d: d + `M0 ${-OUT}V${OUT}M${-OUT} 0H${OUT}`, class: 'map-grid', 'vector-effect': 'non-scaling-stroke' }); }
+  el('rect', { x: -H + u * 1.6, y: -H + u * 1.6, width: WORLD.side - u * 3.2, height: WORLD.side - u * 3.2, rx: u * 1.4, class: 'map-edge', 'vector-effect': 'non-scaling-stroke' });
+  // islands: a seeded sand blob for each rock met so far (terrain.js), with a beach and three contour rings
+  const isleG = el('g', { class: 'map-isles' }), contourG = el('g', { class: 'map-contours' }, isleG), sandG = el('g', { class: 'map-sand' }, isleG);
+  const rnd = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = seed; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const blobPts = seed => { const r = rnd(seed); return Array.from({ length: 16 }, (_, i) => { const a = i / 16 * Math.PI * 2, k = 0.72 + 0.4 * r(); return [Math.cos(a) * k, Math.sin(a) * k * 0.82]; }); };
+  const blobPath = (pts, k) => { const p = pts.map(([x, y]) => [x * k, y * k]), n = p.length, f = v => v.toFixed(3); let d = `M${f(p[0][0])} ${f(p[0][1])}`; // (closed Catmull-Rom, as Béziers)
+    for (let i = 0; i < n; i++) { const a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n], e = p[(i + 2) % n];
+      d += `C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (e[0] - b[0]) / 6)} ${f(c[1] - (e[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`; }
+    return d + 'Z'; };
+  const ISLE_NAMES = ['Gull Rock', 'Mango Cay', 'Driftwood Isle', 'Coral Knoll', 'Lantern Key', 'Pelican Islet', 'Saltbush Isle', 'Shell Cay', 'Heron Isle', 'Kite Rock', 'Turtle Cay', 'Conch Key', 'Seagrass Isle', 'Puffin Rock', 'Cormorant Cay', 'Tern Islet'];
+  const isles = []; let islesDrawn = 0;
+  const addIsle = (x, z, r, seed, big) => { const pts = blobPts(seed), sz = el('g', {}, sandG), cg = el('g', {}, contourG);
+    [2.1, 1.7, 1.35].forEach((k, j) => el('path', { d: blobPath(pts, k), class: 'map-contour', style: `stroke-opacity:calc(var(--sc-cop) * ${0.5 + j * 0.25})`, 'vector-effect': 'non-scaling-stroke' }, cg));
+    el('path', { d: blobPath(pts, 1.14), class: 'map-beach' }, sz); el('path', { d: blobPath(pts, 1), class: 'map-isle', 'vector-effect': 'non-scaling-stroke' }, sz);
+    const it = { x, z, r, g: [sz, cg], big, minPx: big ? 30 : 3.5, name: ISLE_NAMES[(seed >>> 0) % ISLE_NAMES.length] }; isles.push(it); return it; };
+  const paintRocks = () => { const all = api.rocks?.() || []; if (all.length === islesDrawn) return;
+    for (let i = islesDrawn; i < all.length; i++) { const r = all[i]; addIsle(r.x, r.z, r.r, (Math.round(r.x) * 73856093) ^ (Math.round(r.z) * 19349663), false); }
+    islesDrawn = all.length; placeIsles(); };
+  // harbour at the centre: a dark diamond with a name pill
+  const pill = (g, text, y) => { const w = text.length * 6.6 + 18; el('rect', { x: -w / 2, y, width: w, height: 22, rx: 11, class: 'sc-pill' }, g); el('text', { y: y + 15, class: 'sc-pill-t' }, g).textContent = text; };
   { const g = el('g', { class: 'map-mark', 'data-x': 0, 'data-y': 0 });
-    el('circle', { cx: 0, cy: 0, r: u * 1.6, class: 'map-harbour', 'stroke-width': u * 0.45 }, g);
-    el('text', { x: 0, y: u * 5.2, class: 'map-label', 'font-size': u * 3.2 }, g).textContent = 'Harbour'; }
-  // Paradise Stations: the home port, and one in every major neighbourhood (more arrive as other cities' maps load)
-  const drawn = new Set(), drawStation = st => { if (drawn.has(st.id)) return; drawn.add(st.id); const home = st.id === 'home';
-    const g = el('g', { transform: `translate(${st.x} ${st.z})`, class: 'map-station map-mark' + (home ? '' : ' map-station-n'), 'data-x': st.x, 'data-y': st.z });
-    el('ellipse', { rx: u * 2.4, ry: u * 1.8, class: 'map-island', 'stroke-width': u * 0.4 }, g);
-    el('path', { d: `M${-u * 0.3} ${u * 0.6}Q${-u * 0.2} ${-u * 0.6} ${u * 0.4} ${-u * 1.4}M${u * 0.4} ${-u * 1.4}q${-u * 1.4} ${-u * 0.1} ${-u * 1.8} ${u * 0.6}M${u * 0.4} ${-u * 1.4}q${u * 1.4} ${-u * 0.1} ${u * 1.8} ${u * 0.6}`, class: 'map-palm', 'stroke-width': u * 0.45 }, g);
-    if (home) el('text', { x: 0, y: u * 5.4, class: 'map-label', 'font-size': u * 3 }, g).textContent = 'Paradise Station';
-    if (home && st.at) el('text', { x: 0, y: u * 8.4, class: 'map-label map-label-sub', 'font-size': u * 2.3 }, g).textContent = `at ${st.at}`; }; // (a neighbourhood's station sits on its name)
-  STATIONS.forEach(drawStation); addEventListener('sailo:stations', () => STATIONS.forEach(drawStation));
-  // compass rose and scale bar
-  const northG = el('g', {});
-  el('path', { d: `M0 ${-u * 5}L${u * 1.8} 0L0 ${-u}L${-u * 1.8} 0Z`, class: 'map-north' }, northG);
-  el('text', { x: 0, y: u * 3.6, class: 'map-label', 'font-size': u * 3.2 }, northG).textContent = 'N';
-  const scaleG = el('g', {}), scaleP = el('path', { class: 'map-scale', 'stroke-width': u * 0.4 }, scaleG), scaleT = el('text', { y: -u * 2, class: 'map-label', 'font-size': u * 2.8 }, scaleG);
-  // hover preview, pinned course (marching, blinking dots) and pin marker
-  const ghost = el('circle', { r: u * 1.4, class: 'map-ghost', 'stroke-width': u * 0.35, visibility: 'hidden' });
-  const destLine = el('line', { class: 'map-route', 'stroke-width': u * 0.55, 'data-sw': u * 0.55, 'stroke-dasharray': `${u * 0.2} ${u * 1.1}`, 'stroke-linecap': 'round', visibility: 'hidden' });
-  const destAnim = el('animate', { attributeName: 'stroke-dashoffset', from: 0, to: -u * 1.3 * 2, dur: '0.9s', repeatCount: 'indefinite' }, destLine);
-  el('animate', { attributeName: 'opacity', values: '1;0.3;1', dur: '1.1s', repeatCount: 'indefinite' }, destLine);
+    el('rect', { x: -7, y: -7, width: 14, height: 14, rx: 3, transform: 'rotate(45)', class: 'map-harbour' }, g); pill(g, 'Harbour', 13); }
+  // Paradise Stations: the home port on its own island (gold flag, name pill); a small flag in every major neighbourhood
+  const stMarks = el('g', {}), drawn = new Set(), drawStation = st => { if (drawn.has(st.id)) return; drawn.add(st.id); const home = st.id === 'home';
+    if (home) addIsle(st.x, st.z, 70, 1234567, true);
+    const g = el('g', { class: 'map-station map-mark' + (home ? '' : ' map-station-n'), 'data-x': st.x, 'data-y': st.z }, stMarks);
+    if (home) { el('circle', { r: 15, class: 'map-flag' }, g); el('path', { d: 'M-3 7V-7l8 3.5-8 3.5', class: 'map-flag-p' }, g); pill(g, 'Paradise Station', 22);
+      if (st.at) el('text', { y: 58, class: 'map-label-sub' }, g).textContent = `at ${st.at}`; }
+    else el('circle', { r: 5, class: 'map-flag' }, g); };
+  STATIONS.forEach(drawStation); addEventListener('sailo:stations', () => { STATIONS.forEach(drawStation); placeIsles(); placeMarks(); });
+  const scaleT = $('map-scale-t'), scaleB = $('map-scale-b');
+  // hover preview, pinned course (marching dashes) and pin marker
+  const ghost = el('circle', { r: 9, class: 'map-ghost', visibility: 'hidden' });
+  const destLine = el('line', { class: 'map-route', 'vector-effect': 'non-scaling-stroke', visibility: 'hidden' });
   const destM = el('g', { class: 'map-dest', visibility: 'hidden' });
-  el('circle', { r: u * 2.6, class: 'map-dest-ring', 'stroke-width': u * 0.3 }, destM);
-  el('path', { d: `M0 0C${-u * 0.6} ${-u * 1.6} ${-u * 2} ${-u * 2.6} ${-u * 2} ${-u * 4.2}A${u * 2} ${u * 2} 0 1 1 ${u * 2} ${-u * 4.2}C${u * 2} ${-u * 2.6} ${u * 0.6} ${-u * 1.6} 0 0Z`, class: 'map-pin', 'stroke-width': u * 0.35 }, destM);
-  el('circle', { cy: -u * 4.2, r: u * 0.75, class: 'map-pin-dot' }, destM);
+  el('circle', { r: 14, class: 'map-dest-ring' }, destM);
+  el('path', { d: 'M0 0C0 0-10-12-10-18A10 10 0 0 1 10-18C10-12 0 0 0 0Z', class: 'map-pin' }, destM);
+  el('circle', { cy: -18, r: 3.5, class: 'map-pin-dot' }, destM);
   // everyone else out on the water: local sailors and real captains online (setOthers)
   const othersG = el('g', { class: 'map-others' }), others = new Map(); let othersFn = null, othersPick = null, othersT = 0;
   // SOS calls (radio-help.js): pulsing red markers with expanding rings
   const sosG = el('g', { class: 'map-sos-g' }), sosM = new Map(); let sosFn = null, sosPick = null;
-  const paintSOS = () => { const list = sosFn ? sosFn() : [], ids = new Set(), k = view.w / V0;
+  const paintSOS = () => { const list = sosFn ? sosFn() : [], ids = new Set();
     list.forEach(s => { ids.add(s.id); let g = sosM.get(s.id);
       if (!g) { g = el('g', { class: `map-sos${s.mine ? ' mine' : ''}`, 'data-id': s.id }, sosG);
-        [0, 1].forEach(i => { const c = el('circle', { r: u * 1.6, class: 'map-sos-wave', 'stroke-width': u * 0.4 }, g);
-          el('animate', { attributeName: 'r', from: u * 1.6, to: u * 7, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); el('animate', { attributeName: 'opacity', from: 0.9, to: 0, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); });
-        el('circle', { r: u * 1.7, class: 'map-sos-dot', 'stroke-width': u * 0.4 }, g);
-        el('text', { y: u * 0.95, class: 'map-sos-x', 'font-size': u * 2 }, g).textContent = '!';
-        el('text', { y: -u * 3.4, class: 'map-sos-t', 'font-size': u * 2.6 }, g).textContent = s.mine ? 'Your SOS' : `SOS · ${s.name.split(' ')[0]}`;
+        [0, 1].forEach(i => { const c = el('circle', { r: 9, class: 'map-sos-wave', 'stroke-width': 2.2 }, g);
+          el('animate', { attributeName: 'r', from: 9, to: 38, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); el('animate', { attributeName: 'opacity', from: 0.9, to: 0, dur: '2s', begin: `${i}s`, repeatCount: 'indefinite' }, c); });
+        el('circle', { r: 9.5, class: 'map-sos-dot', 'stroke-width': 2.2 }, g);
+        el('text', { y: 5, class: 'map-sos-x', 'font-size': 11 }, g).textContent = '!';
+        el('text', { y: -18, class: 'map-sos-t', 'font-size': 13 }, g).textContent = s.mine ? 'Your SOS' : `SOS · ${s.name.split(' ')[0]}`;
         sosM.set(s.id, g); }
-      g.setAttribute('transform', `translate(${s.x} ${s.z}) scale(${k})`); });
+      g.setAttribute('transform', `translate(${s.x} ${s.z}) scale(${pxW})`); });
     sosM.forEach((g, id) => { if (!ids.has(id)) { g.remove(); sosM.delete(id); } }); };
+  // you: a red disc with a white arrow (turned to the heading) and a pulse
   const boatM = el('g', { class: 'map-boat' });
-  el('circle', { r: u * 4, class: 'map-pulse' }, boatM);
-  const boatArrow = el('path', { d: `M${u * 3} 0L${-u * 2} ${u * 2.2}L${-u * 1} 0L${-u * 2} ${-u * 2.2}Z`, 'stroke-width': u * 0.4 }, boatM);
-  const mapPos = $('map-pos');
+  el('circle', { r: 15, class: 'map-pulse' }, boatM);
+  const boatArrow = el('g', {}, boatM);
+  el('circle', { r: 15, class: 'map-you' }, boatArrow); el('path', { d: 'M7 0L-6 6L-3 0L-6 -6Z', class: 'map-you-a' }, boatArrow);
+  const mapPos = $('map-pos'), islesRow = $('map-isles'), coinsEl = $('map-coins');
   // ---- zoom and pan (wheel, pinch, drag, +/-). Zoom levels: 1 Pune region, 2 major neighbourhoods,
-  //      3 smaller localities, 4 streets and landmarks ----
+  //      3 smaller localities, 4 streets and landmarks. The view keeps the screen's shape: view.w across, view.w * ar down ----
   const V0 = WORLD.side + u * 8, VMIN = 1400, view = { cx: 0, cz: 0, w: V0 };
   const mapLevel = () => view.w > 20000 ? 1 : view.w > 9000 ? 2 : view.w > 3600 ? 3 : 4;
-  let geoDirty = true, boatXY = [0, 0], destXY = null;
+  let geoDirty = true, boatXY = [0, 0], destXY = null, ar = 1, pxW = view.w / 600; // pxW: map units per screen pixel
+  const svgSize = () => { const r = mapSvg.getBoundingClientRect(); return [r.width || 600, r.height || 600]; };
+  // islands keep their real size, but never shrink below a few pixels across
+  const placeIsles = () => { isles.forEach(it => { const k = Math.max(it.r, it.minPx * pxW); it.g.forEach(g => g.setAttribute('transform', `translate(${it.x} ${it.z}) scale(${k})`)); }); };
   const applyView = () => {
-    view.w = Math.min(V0, Math.max(VMIN, view.w)); const lim = Math.max(0, H + u * 4 - view.w / 2);
-    view.cx = Math.max(-lim, Math.min(lim, view.cx)); view.cz = Math.max(-lim, Math.min(lim, view.cz));
-    const k = view.w / V0, x0 = view.cx - view.w / 2, y0 = view.cz - view.w / 2;
-    mapSvg.setAttribute('viewBox', `${x0} ${y0} ${view.w} ${view.w}`);
-    mapSvg.querySelectorAll('[data-sw]').forEach(n => n.setAttribute('stroke-width', n.dataset.sw * k));
-    destLine.setAttribute('stroke-dasharray', `${u * 0.2 * k} ${u * 1.1 * k}`); destAnim.setAttribute('to', -u * 1.3 * 2 * k);
-    mapSvg.querySelectorAll('.map-mark').forEach(n => n.setAttribute('transform', `translate(${n.dataset.x} ${n.dataset.y}) scale(${k})`));
-    ghost.setAttribute('r', u * 1.4 * k); ghost.setAttribute('stroke-width', u * 0.35 * k);
-    northG.setAttribute('transform', `translate(${x0 + view.w - u * 8 * k} ${y0 + u * 9 * k}) scale(${k})`);
-    // scale bar: a round distance about a fifth of the view
-    const steps = [100, 200, 500, WORLD.mile / 2, WORLD.mile, WORLD.mile * 2, WORLD.mile * 5], len = steps.reduce((a, b) => Math.abs(b - view.w * 0.2) < Math.abs(a - view.w * 0.2) ? b : a);
-    scaleG.setAttribute('transform', `translate(${x0 + u * 5 * k} ${y0 + view.w - u * 5 * k})`);
-    scaleP.setAttribute('d', `M0 ${-u * k}V0H${len}V${-u * k}`); scaleP.setAttribute('stroke-width', u * 0.4 * k);
-    scaleT.setAttribute('x', len / 2); scaleT.setAttribute('y', -u * 2 * k); scaleT.setAttribute('font-size', u * 2.8 * k);
+    const [sw, sh] = svgSize(); ar = sh / sw;
+    view.w = Math.min(V0, Math.max(VMIN, view.w)); const vh = view.w * ar, limX = Math.max(0, H + u * 4 - view.w / 2), limZ = Math.max(0, H + u * 4 - vh / 2);
+    view.cx = Math.max(-limX, Math.min(limX, view.cx)); view.cz = Math.max(-limZ, Math.min(limZ, view.cz));
+    pxW = view.w / sw; const x0 = view.cx - view.w / 2, y0 = view.cz - vh / 2;
+    mapSvg.setAttribute('viewBox', `${x0} ${y0} ${view.w} ${vh}`);
+    mapSvg.querySelectorAll('.map-mark').forEach(n => n.setAttribute('transform', `translate(${n.dataset.x} ${n.dataset.y}) scale(${pxW})`));
+    ghost.setAttribute('r', 9 * pxW);
+    // scale bar: a round distance about a quarter of the width
+    const steps = [100, 200, 500, WORLD.mile / 2, WORLD.mile, WORLD.mile * 2, WORLD.mile * 5], len = steps.reduce((a, b) => Math.abs(b - view.w * 0.25) < Math.abs(a - view.w * 0.25) ? b : a);
+    scaleB.style.width = `${Math.round(len / pxW)}px`;
     scaleT.textContent = len < 500 ? `${len} m` : len === WORLD.mile / 2 ? '½ mi' : len === 500 ? '500 m' : `${+(len / WORLD.mile).toFixed(1)} mi`;
     $('map-zoom-l').textContent = ['', WORLD.city, 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
-    placeMarks(); geoDirty = true;
-    ensure(x0, y0, x0 + view.w, y0 + view.w, mapLevel() === 4);
+    placeIsles(); placeMarks(); geoDirty = true;
+    ensure(x0, y0, x0 + view.w, y0 + vh, mapLevel() === 4);
   };
   const zoomAt = (f, wx = view.cx, wz = view.cz) => { const w0 = view.w; view.w = Math.min(V0, Math.max(VMIN, view.w * f)); const r = view.w / w0; view.cx = wx + (view.cx - wx) * r; view.cz = wz + (view.cz - wz) * r; applyView(); };
-  // the boat and the pin keep their on-screen size at any zoom
-  const placeOthers = () => { const k = view.w / V0, named = mapLevel() >= 2; others.forEach(o => { o.g.setAttribute('transform', `translate(${o.x} ${o.z}) scale(${k})`); o.a.setAttribute('transform', `rotate(${-o.yaw * 180 / Math.PI})`); o.t.setAttribute('visibility', named || o.live ? 'visible' : 'hidden'); }); };
+  // the boat, the pin and everyone else keep their on-screen size at any zoom
+  const placeOthers = () => { const named = mapLevel() >= 2; others.forEach(o => { o.g.setAttribute('transform', `translate(${o.x} ${o.z}) scale(${pxW})`); o.t.setAttribute('visibility', named || o.live ? 'visible' : 'hidden'); }); };
   const paintOthers = () => {
     const list = othersFn ? othersFn() : [], ids = new Set();
     list.forEach(p => { ids.add(p.c.id); let o = others.get(p.c.id);
       if (!o) { const g = el('g', { class: `map-other${p.c.live ? ' live' : ''}`, 'data-id': p.c.id }, othersG);
-        if (p.c.live) el('circle', { r: u * 2.9, class: 'map-other-ring', 'stroke-width': u * 0.4 }, g);
-        const a = el('path', { d: `M${u * 2.2} 0L${-u * 1.5} ${u * 1.6}L${-u * 0.7} 0L${-u * 1.5} ${-u * 1.6}Z`, 'stroke-width': u * 0.35, fill: p.c.colours.sail || p.c.colours.hull || p.c.colours.flag || '#ffffff' }, g);
-        const t = el('text', { y: -u * 3.4, class: 'map-other-t', 'font-size': u * 2.6 }, g); t.textContent = p.c.name.split(' ')[0];
-        o = { g, a, t, live: !!p.c.live }; others.set(p.c.id, o); }
+        if (p.c.live) el('circle', { r: 12, class: 'map-other-ring' }, g);
+        el('circle', { r: 7, class: 'map-sailor' }, g);
+        const t = el('text', { y: -14, class: 'map-other-t', 'font-size': 12 }, g); t.textContent = p.c.name.split(' ')[0];
+        o = { g, t, live: !!p.c.live }; others.set(p.c.id, o); }
       Object.assign(o, { c: p.c, x: p.x, z: p.z, yaw: p.yaw || 0, status: p.status }); });
     others.forEach((o, id) => { if (!ids.has(id)) { o.g.remove(); others.delete(id); } });
     placeOthers();
     const live = list.filter(p => p.c.live).length, cpu = list.length - live, row = $('map-others-row');
     if (row) { row.hidden = !list.length; $('map-others').textContent = [cpu ? `${cpu} local sailor${cpu === 1 ? '' : 's'} out` : '', live ? `${live} captain${live === 1 ? '' : 's'} online` : ''].filter(Boolean).join(' · '); }
   };
-  const placeMarks = () => { placeOthers(); const k = view.w / V0; boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${k})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${k})`); };
-  // place names, sized in screen pixels, drawn most important first and never overlapping
-  const PRI = { region: 0, major: 1, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = [15, 12.5, 10.5, 10, 9.5];
+  const placeMarks = () => { placeOthers(); boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${pxW})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${pxW})`); };
+  // place names, sized in screen pixels, drawn most important first and never overlapping (nor under the chart's
+  // floating cards and buttons)
+  const PRI = { region: 0, major: 1, isle: 2, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = { region: 10.5, major: 10, isle: 15, minor: 9.5, road: 11, poi: 11, society: 10.5 };
+  const SPACING = { region: 3, major: 2.4, minor: 1.6 };
   const CATC = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
+  const overlays = ['.sc-hd', '.sc-tabs', '.sc-scale', '.sc-compass', '.sc-ctrls', '.sc-panel'];
   const paintGeo = () => {
     geoDirty = false; geoG.replaceChildren(); if (!mapOpen) return;
-    const L = mapLevel(), px = mapSvg.getBoundingClientRect().width / view.w || 0.02, x0 = view.cx - view.w / 2, y0 = view.cz - view.w / 2;
-    const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])];
-    const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + view.w).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
-    const S = view.w * px; // map size in pixels; keep names clear of the boat, the zoom buttons, the scale bar and the north arrow
-    const taken = [[(boatXY[0] - x0) * px - 16, (boatXY[1] - y0) * px - 16, (boatXY[0] - x0) * px + 16, (boatXY[1] - y0) * px + 16], [S - 210, S - 50, S, S], [0, S - 42, 110, S], [S - 50, 0, S, 70], [0, 0, 56, 56]];
+    const L = mapLevel(), sr = mapSvg.getBoundingClientRect(), px = 1 / pxW, vh = view.w * ar, x0 = view.cx - view.w / 2, y0 = view.cz - vh / 2;
+    const isleNames = L >= 3 ? isles.filter(it => !it.big).map(it => ({ kind: 'isle', name: it.name, x: it.x, z: it.z + Math.max(it.r, 3.5 * pxW) * 1.14 + 16 * pxW })) : [];
+    const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...isleNames, ...(L === 4 ? poiList() : [])];
+    const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + vh).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
+    const bx = (boatXY[0] - x0) * px, by = (boatXY[1] - y0) * px;
+    const taken = [[bx - 20, by - 20, bx + 20, by + 20], ...overlays.map(s => mapEl.querySelector(s)).filter(n => n && n.offsetParent).map(n => { const r = n.getBoundingClientRect(); return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6]; })];
     let n = 0;
     for (const p of items) {
       if (n > 140) break;
-      const r = PRI[p.kind], fs = SIZE[r], up = r <= 2, text = up ? p.name.toUpperCase() : p.name;
-      const w = text.length * fs * (up ? 0.72 + (r === 0 ? 0.18 : 0.08) : 0.56) + (r >= 3 ? 10 : 0), sx = (p.x - x0) * px, sy = (p.z - y0) * px;
+      const r = PRI[p.kind], fs = SIZE[p.kind], up = p.kind in SPACING, text = up ? p.name.toUpperCase() : p.name;
+      const w = up ? text.length * (fs * 0.62 + SPACING[p.kind]) : text.length * fs * (p.kind === 'isle' ? 0.42 : 0.56) + (r >= 3 ? 10 : 0), sx = (p.x - x0) * px, sy = (p.z - y0) * px;
       const rc = [sx - w / 2, sy - fs * 1.2, sx + w / 2, sy + fs * 0.5];
       if (taken.some(b => rc[0] < b[2] && rc[2] > b[0] && rc[1] < b[3] && rc[3] > b[1])) continue;
       taken.push(rc); n++;
-      const g = el('g', { class: `map-geo-${p.kind}`, transform: `translate(${p.x} ${p.z}) scale(${1 / px})` }, geoG);
-      if (r >= 1) el('circle', { cy: fs * 0.25, r: r >= 3 ? 2.4 : 1.8, fill: r >= 3 ? CATC[p.cat] || '#fff' : 'rgba(255,255,255,0.7)' }, g);
-      el('text', { y: r >= 1 ? -3 : 0, 'font-size': fs, class: 'map-geo-t' }, g).textContent = text;
+      const g = el('g', { class: `map-geo-${p.kind}`, transform: `translate(${p.x} ${p.z}) scale(${pxW})` }, geoG);
+      if (r >= 3) el('circle', { cy: fs * 0.25, r: 2.4, fill: CATC[p.cat] || '#fff' }, g);
+      el('text', { y: r >= 3 ? -3 : 0, 'font-size': fs, class: 'map-geo-t', ...(up ? { 'letter-spacing': SPACING[p.kind] } : {}) }, g).textContent = text;
     }
   };
+  const geoG = el('g', { class: 'map-geo' }); mapSvg.insertBefore(geoG, isleG.nextSibling); // (names above the islands, under the markers)
   onChange(() => { geoDirty = true; });
   setInterval(() => { if (geoDirty && mapOpen) paintGeo(); }, 250);
   let pinch = null, drag = null, dragged = false; const ptrs = new Map();
@@ -319,22 +332,23 @@ export function initHud(api) {
   addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]);
     if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()], m = worldAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), d = Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])); zoomAt(pinch.w * pinch.d / d / view.w, m.x, m.y); dragged = true; return; }
     if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!dragged && Math.hypot(dx, dy) < 6) return; dragged = true;
-      const k = view.w / mapSvg.getBoundingClientRect().width; view.cx = drag.cx - dx * k; view.cz = drag.cz - dy * k; applyView(); mapSvg.classList.add('panning'); } });
+      view.cx = drag.cx - dx * pxW; view.cz = drag.cz - dy * pxW; applyView(); mapSvg.classList.add('panning'); } });
   const ptrUp = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) { drag = null; mapSvg.classList.remove('panning'); } };
   addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
   $('map-zin').addEventListener('click', () => zoomAt(0.5)); $('map-zout').addEventListener('click', () => { if (view.w >= V0 - 1) openWorld(); else zoomAt(2); });
   $('map-zboat').addEventListener('click', () => { view.cx = boatXY[0]; view.cz = boatXY[1]; zoomAt(Math.min(1, 6000 / view.w)); });
+  new ResizeObserver(() => { if (mapOpen) applyView(); }).observe(mapSvg);
   let mapOpen = false, lastFocus = null;
   const setMap = open => {
     if (open === mapOpen) return; mapOpen = open;
-    if (open) { paintRocks(); lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
+    if (open) { paintRocks(); coinsEl.textContent = `${api.coins()}c`; lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
     else { mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
     document.body.classList.toggle('map-open', open);
   };
   $('map-close').addEventListener('click', () => setMap(false));
   // hover shows the spot's position; click pins a course there
   const tip = $('map-tip'), wrap = mapSvg.parentElement, help = $('map-help');
-  if (matchMedia('(pointer: coarse)').matches) help.textContent = 'Tap anywhere on the water to pin a course';
+  if (matchMedia('(pointer: coarse)').matches) help.textContent = 'Tap the water to pin a course';
   const toWorld = e => { const pt = mapSvg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const w = pt.matrixTransform(mapSvg.getScreenCTM().inverse()); return Math.abs(w.x) <= H && Math.abs(w.y) <= H ? w : null; };
   const showTip = (e, w, text) => {
     const r = wrap.getBoundingClientRect(); tip.hidden = false; tip.textContent = text;
@@ -369,7 +383,12 @@ export function initHud(api) {
     if (dest) { destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
       pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${(Math.hypot(dest.x - x, dest.z - z) / WORLD.mile).toFixed(1)} mi to go`; }
     pinRow.hidden = !dest; help.hidden = !!dest;
-    const zn = zoneAt(x, z), here = zn ? `${zn.name} · ${pos}` : pos; if (mapPos.textContent !== here) mapPos.textContent = here;
+    const zn = zoneAt(x, z), here = `You're at <b>${escM(zn ? zn.name : WORLD.city)}</b> <span class="sc-mono">${escM(pos)}</span>`; if (mapPos.innerHTML !== here) mapPos.innerHTML = here;
+    // the islands met so far, and the way home to Paradise Station
+    const home = STATIONS.find(st => st.id === 'home') || STATION, hx = home.x - x, hz = home.z - z, hd = Math.hypot(hx, hz), n = isles.filter(it => !it.big).length;
+    const dir = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(((Math.atan2(hx, -hz) * 180 / Math.PI + 360) % 360) / 45) % 8];
+    const isl = `${n ? `${n} island${n === 1 ? '' : 's'} · ` : ''}<b>Paradise Station</b> ${hd < WORLD.mile * 0.1 ? 'here' : `${(hd / WORLD.mile).toFixed(1)} mi ${dir}`}`; if (islesRow.innerHTML !== isl) islesRow.innerHTML = isl;
+    const c = `${api.coins()}c`; if (coinsEl.textContent !== c) coinsEl.textContent = c;
   };
 
   // ---- quick actions (fleet, search, inbox) and the shared sheet ----
