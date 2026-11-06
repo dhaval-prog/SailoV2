@@ -1,5 +1,5 @@
 import * as THREE from "three";
-const A = 5.5, B = 4.25, K = 1.1, EPS = 6e-3, MAXLEN = 0.26;
+const A = 5.5, B = 4.25, K = 1.1, EPS = 0.02, MAXLEN = 0.26; // (EPS: the gap between stacked layers)
 const PI = Math.PI;
 const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 const E = {
@@ -193,7 +193,9 @@ function createPaperPlane(options) {
   const NC = Math.min(creases.length, 48);
   const segU = Array.from({ length: 48 }, (_, i) => i < NC ? new THREE.Vector4(creases[i].a[0], creases[i].a[1], creases[i].b[0], creases[i].b[1]) : new THREE.Vector4());
   const strU = new Float32Array(48);
-  const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.88, metalness: 0, side: THREE.DoubleSide, transparent: true });
+  // solid, not see-through: a two-sided see-through material is drawn in two passes (backs, then fronts), and with layers this
+  // close together which one won changed from frame to frame. Only the fade-in after reset() turns transparency on.
+  const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.88, metalness: 0, side: THREE.DoubleSide, transparent: false });
   mat.polygonOffset = true;
   mat.polygonOffsetFactor = -2;
   mat.polygonOffsetUnits = -4;
@@ -217,7 +219,7 @@ function createPaperPlane(options) {
   };
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false; // (its own shadow on layers 2 cm apart flickered as they moved: it shadows the ground only)
   const pivot = new THREE.Vector3(0.6, 0.03, defs[FI("wing2", defs)].pivotZ);
   const flight = new THREE.Group(), shape = new THREE.Group();
   flight.rotation.order = "YZX";
@@ -371,6 +373,18 @@ function createPaperPlane(options) {
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
     camDist = 23 * Math.max(1, 1.45 / aspect) * zoomOut;
+    depthKey = "";
+  }
+  // the depth range hugs the plane (near 1 to far 300 left phones too little depth precision to tell 2 cm layers apart);
+  // only the throw, which flies up toward the camera, gets the near plane back
+  let depthKey = "";
+  function fitDepth(flying) {
+    const k = (flying ? "f" : "n") + camDist;
+    if (k === depthKey) return;
+    depthKey = k;
+    camera.near = flying ? 1 : Math.max(1, camDist * 0.35);
+    camera.far = camDist + 90;
+    camera.updateProjectionMatrix();
   }
   resize(options.width, options.height);
   function placeCamera(time) {
@@ -379,9 +393,8 @@ function createPaperPlane(options) {
     camera.position.copy(camTarget).addScaledVector(dir, camDist);
     camera.position.x += drift;
     camera.lookAt(camTarget);
-    key.target.position.copy(camTarget);
-    key.position.set(camTarget.x - 6, 16, camTarget.z + 9);
   }
+  key.target.position.set(0, 0, 1.4); key.position.set(-6, 16, 10.4); // (held still: see placeCamera)
   let phase = "idle", t = 0, speed = 1, trail = true, follow = true, flyT = 0, resetT = 1, last = 0, raf = 0, clock = 0;
   let formation = stateAt(0);
   let readyBankExtra = 0;
@@ -426,6 +439,31 @@ function createPaperPlane(options) {
     }
     pMesh.instanceMatrix.needsUpdate = true;
   }
+  // the camera's framing along the fold, worked out once and smoothed: chasing the shape's outline live made the whole view
+  // jitter as the flaps swung (and the shadow with it)
+  const CAM_N = 48, camPath = [];
+  {
+    const c = new THREE.Vector3(), raw = [];
+    for (let i = 0; i <= CAM_N; i++) {
+      const f = stateAt(FOLD_END * i / CAM_N);
+      applyFolds();
+      flight.scale.setScalar(BASE_FLIGHT_SCALE);
+      setPose(f, {});
+      flight.updateWorldMatrix(true, true);
+      c.addVectors(bbMin, bbMax).multiplyScalar(0.5).applyMatrix4(mesh.matrixWorld);
+      raw.push(new THREE.Vector3(c.x * 0.5, Math.min(c.y, 3) * 0.55, c.z * 0.75 + 2.1));
+    }
+    for (let i = 0; i <= CAM_N; i++) {
+      const v = new THREE.Vector3();
+      for (let k = -4; k <= 4; k++) v.add(raw[Math.min(CAM_N, Math.max(0, i + k))]);
+      camPath.push(v.multiplyScalar(1 / 9));
+    }
+  }
+  const camAt = (t2, out) => {
+    const x = clamp01(t2 / FOLD_END) * CAM_N, i = Math.min(CAM_N - 1, Math.floor(x));
+    return out.copy(camPath[i]).lerp(camPath[i + 1], x - i);
+  };
+  let snapCam = true;
   let dirty = true;
   let renderErrored = false;
   function frame(now) {
@@ -470,6 +508,7 @@ function createPaperPlane(options) {
       if (phase !== "ready" && resetT < 1) {
         resetT = Math.min(1, resetT + dt * 1.6);
         mat.opacity = E.out(resetT);
+        if (resetT >= 1) { mat.opacity = 1; mat.transparent = false; mat.needsUpdate = true; }
       }
       const drop = phase !== "ready" && resetT < 1 ? 1.6 * (1 - E.out(resetT)) : 0;
       setPose(formation, { y: drop + R.y, yaw: R.yaw, bank: R.bank, pitch: R.pitch, rx: R.rx });
@@ -503,12 +542,12 @@ function createPaperPlane(options) {
     }
     tickParticles(dt);
     if (follow && phase !== "flying" && phase !== "done") {
-      flight.updateWorldMatrix(true, true);
-      const c = new THREE.Vector3().addVectors(bbMin, bbMax).multiplyScalar(0.5).applyMatrix4(mesh.matrixWorld);
-      const readyLift = READY_FRAME_LIFT * rb;
-      camGoal.set(c.x * 0.5, Math.min(c.y, 3) * 0.55 + readyLift, c.z * 0.75 + 2.1);
+      camAt(t, camGoal);
+      camGoal.y += READY_FRAME_LIFT * rb;
     } else if (!follow) camGoal.set(0, 0, 1.4);
+    if (snapCam) { camTarget.copy(camGoal); snapCam = false; }
     camTarget.lerp(camGoal, 1 - Math.exp(-dt * 2.2));
+    fitDepth(phase === "flying" || phase === "done");
     placeCamera(clock);
     renderer.render(scene, camera);
     afterRender?.();
@@ -516,7 +555,7 @@ function createPaperPlane(options) {
   raf = requestAnimationFrame(frame);
   return {
     /** Stop / restart the frame loop (the letter pauses it while the plane is hidden, i.e. while you write). */
-    setActive(on) { if (on && !raf) { last = 0; raf = requestAnimationFrame(frame); } else if (!on && raf) { cancelAnimationFrame(raf); raf = 0; } },
+    setActive(on) { if (on && !raf) { last = 0; snapCam = true; dirty = true; frame(performance.now()); } else if (!on && raf) { cancelAnimationFrame(raf); raf = 0; } }, // (on: drawn now, not one stale frame later)
     fold() {
       if (phase !== "idle") return;
       phase = "folding";
@@ -535,6 +574,8 @@ function createPaperPlane(options) {
       resetT = 0;
       rbLin = 0;
       mat.opacity = 0;
+      mat.transparent = true;
+      mat.needsUpdate = true;
       dirty = true;
       parts.forEach((p) => p.life = 0);
       onPhase?.("idle");
@@ -563,6 +604,7 @@ function createPaperPlane(options) {
       if (o.zoomOut != null && o.zoomOut > 0 && o.zoomOut !== zoomOut) {
         camDist = camDist / zoomOut * o.zoomOut;
         zoomOut = o.zoomOut;
+        depthKey = "";
       }
     },
     /**
@@ -586,6 +628,8 @@ function createPaperPlane(options) {
       if (mat.opacity !== 1) {
         resetT = 1;
         mat.opacity = 1;
+        mat.transparent = false;
+        mat.needsUpdate = true;
       }
     },
     resize,
