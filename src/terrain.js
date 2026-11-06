@@ -10,6 +10,8 @@ import { tilesIn, tileRect, mapShapes, geoCacheGet, geoCachePut, provider } from
 import { WORLD } from './world.js';
 import { TERRAIN as T } from './world-config.js';
 import { rockBuilder } from './rock-shapes.js';
+import { createPineIslands } from './pine-islands.js';
+const isMedium = r => r.r < (T.medR + T.bigR) / 2; // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const h01 = (a, b, s = 0) => { let h = Math.imul((a * 73856093) ^ (b * 19349663) ^ (s * 83492791), 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
@@ -93,7 +95,8 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   const inkMat = rockShader(new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#4a1d24', side: THREE.BackSide }), true);
   fade(rockMat); fade(inkMat); // (far off they dissolve into the haze)
   const tileMeshes = new Map(), toBuild = []; // tile key → { rock, ink }
-  function buildTile(key) { const list = rocks.get(key); if (!list?.length || tileMeshes.has(key)) return;
+  const islands = createPineIslands(THREE, { scene, WL });
+  function buildTile(key) { const list = rocks.get(key)?.filter(r => !isMedium(r)); if (!list?.length || tileMeshes.has(key)) return;
     const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;
     g.computeBoundingSphere(); const rock = new THREE.Mesh(g, rockMat), ink = new THREE.Mesh(g, inkMat); rock.castShadow = true; scene.add(rock, ink); tileMeshes.set(key, { rock, ink }); }
   const foamMat = new THREE.MeshBasicMaterial({ color: '#eefaf2', transparent: true, opacity: 0.55, depthWrite: false });
@@ -134,13 +137,13 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       #include <opaque_fragment>`); }; return mat; };
   const coralIM = coralTex.map(map => { const m = new THREE.InstancedMesh(coralGeo, caustic(new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.72, depthWrite: false, color: '#ffffff' })), MAXC);
     m.count = 0; m.frustumCulled = false; m.renderOrder = -1; scene.add(m); return m; });
-  const GREENS = ['#2e7a5e', '#3f8660', '#2a6c58', '#5a8a52', '#357c68', '#6a8448'] // muted, sunken greens seen through the jade water.map(c => new THREE.Color(c));
+  const GREENS = ['#2e7a5e', '#3f8660', '#2a6c58', '#5a8a52', '#357c68', '#6a8448'].map(c => new THREE.Color(c)); // muted, sunken greens seen through the jade water
 
   let dirty = false, gat = null, lastLoad = 0;
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   let nearR = [], nearC = [];
   function gather(b) { const near = (o, d) => Math.abs(o.x - b.x) < d && Math.abs(o.z - b.z) < d; nearR = []; nearC = [];
-    rocks.forEach(list => list.forEach(r => { if (near(r, T.drawRocks)) nearR.push(r); })); corals.forEach(list => list.forEach(c => { if (near(c, T.drawCorals)) nearC.push(c); }));
+    rocks.forEach(list => list.forEach(r => { if (near(r, T.drawRocks)) nearR.push(r); })); islands.place(nearR.filter(isMedium)); corals.forEach(list => list.forEach(c => { if (near(c, T.drawCorals)) nearC.push(c); }));
     const nc = [0, 0, 0, 0, 0];
     nearC.forEach(c => { const k = c.k, i = nc[k]; if (i >= MAXC) return; nc[k]++;
       Q.setFromAxisAngle(UP, c.a); V.set(c.x, WL + 0.03, c.z); Sc.set(c.s, 1, c.s); M4.compose(V, Q, Sc); coralIM[k].setMatrixAt(i, M4);
@@ -150,7 +153,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     let nf = 0;
     nearR.forEach(r => { if (nf >= MAXR) return; const fr = r.r * 0.95;
       Q.setFromAxisAngle(UP, r.a); V.set(r.x, WL + 0.02, r.z); Sc.set(r.r * 2.4, 1, r.r * 2.4); M4.compose(V, Q, Sc); glowIM.setMatrixAt(nf, M4);
-      V.set(r.x, WL + 0.06, r.z); Sc.set(fr, 1, fr); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4); });
+      V.set(r.x, WL + 0.06, r.z); Sc.set(isMedium(r) ? 0.0001 : fr, 1, isMedium(r) ? 0.0001 : fr); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4); });
     foamIM.count = nf; foamIM.instanceMatrix.needsUpdate = true; glowIM.count = nf; glowIM.instanceMatrix.needsUpdate = true;
   }
 
