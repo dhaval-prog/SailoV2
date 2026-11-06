@@ -833,11 +833,11 @@ let fishAfterAnchor = false;
 function startFishing() { if (Math.abs(vel) > 1.5) { floatText(boat.position.clone().setY(9), 'Slow down to fish', '#ffd36b'); return; }
   if (ACT.anchor === 'raising') { floatText(boat.position.clone().setY(9), 'Wait for the anchor', '#ffd36b'); return; }
   if (ACT.anchor !== 'down') { fishAfterAnchor = true; if (ACT.anchor === 'up') { floatText(boat.position.clone().setY(9), 'Dropping anchor first', '#fff7ea'); dropAnchor(); } return; }
-  fishAfterAnchor = false; clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Hold on the sea, release to cast', '#bfefff'); fishStatus = 'Hold on the sea to cast'; paintStatus(); fishCam(); }
+  fishAfterAnchor = false; clearCourse(false); ACT.fish = 'aim'; F.k = 0; rodPivot.visible = true; rodPivot.scale.setScalar(0.01); castRing.scale.setScalar(0.01); floatText(boat.position.clone().setY(9), 'Tap anywhere on the sea to cast', '#bfefff'); fishStatus = 'Tap the sea to cast'; paintStatus(); fishCam(); }
 /** Cast to a spot (clamped into the ring). Returns false when not ready to cast. */
 function castAt(p) {
   if (ACT.fish !== 'aim') return false;
-  const off = p.clone().sub(boat.position).setY(0), L = off.length() || 1; off.setLength(Math.min(CAST.max, Math.max(CAST.min, L)));
+  const off = p.clone().sub(boat.position).setY(0), L = off.length() || 1; off.setLength(Math.min(160, Math.max(4, L))); // (wherever you tap: no range ring)
   F.target.copy(boat.position).add(off).setY(WL);
   ACT.fish = 'casting'; F.k = 0; fishStatus = 'Casting…'; paintStatus(); return true;
 }
@@ -897,7 +897,7 @@ function stepActions(t, dt) {
   if (ACT.fish !== 'off') { // swing the rod round to face where the line is going
     const loc = boat.worldToLocal(tmpV.copy(ACT.fish === 'fight' || ACT.fish === 'landing' ? bobber.position : F.target)), dx = loc.x - rodPivot.position.x, dz = loc.z - rodPivot.position.z;
     if (ACT.fish !== 'aim' && ACT.fish !== 'card' && Math.hypot(dx, dz) > 1) { const th = Math.atan2(dz, -dx), d = Math.atan2(Math.sin(th - rodPivot.rotation.y), Math.cos(th - rodPivot.rotation.y)); rodPivot.rotation.y += d * Math.min(1, dt * 8); } }
-  const ringOn = ACT.fish === 'aim' || ACT.fish === 'waiting' || ACT.fish === 'casting' || ACT.fish === 'bite';
+  const ringOn = false; // (no casting range ring: cast wherever you like)
   castRing.visible = castRing.scale.x > 0.02 || ringOn;
   if (castRing.visible) { castRing.scale.setScalar(THREE.MathUtils.clamp(castRing.scale.x + (ringOn ? dt * 3 : -dt * 4), 0.01, 1));
     castRing.position.set(boat.position.x, WL + 0.08 + waveJS(boat.position.x, boat.position.z, t) * 0.3, boat.position.z);
@@ -1215,7 +1215,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, maxKn: MAXV * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
-  { const still = Math.max(0, 1 - Math.abs(vel) / 1.2); // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
+  { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
   theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
