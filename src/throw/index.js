@@ -16,19 +16,21 @@ import { loadPrefs, throwSettings } from './settings.js';
 
 let open = null;
 
-/** Opens Throw. ctx: { note(text) } for messages over the game. Resolves once it's showing. */
+/** Opens Throw. ctx: { note(text) } for messages over the game; fade: the slow fade used when the paper plane flies in;
+ *  onClosed(): called once it closes, however that happens. Resolves once it's showing. */
 export async function openThrow(ctx = {}) {
   if (open) return;
-  const root = h('div.t-root', h('div.t-loading', h('span.t-spin')));
+  const root = h('div.t-root', h('div.t-loading', h('span.t-spin'))), fadeMs = ctx.fade ? 700 : 250;
+  if (ctx.fade) root.classList.add('t-slow');
   // keys typed in Throw (a letter, a city search) mustn't reach the game behind it (WASD steers the boat)
   ['keydown', 'keyup', 'keypress'].forEach(t => root.addEventListener(t, e => { if (e.key !== 'Escape') e.stopPropagation(); }));
   document.body.append(root); document.body.classList.add('throw-open');
   const cover = covered => dispatchEvent(new CustomEvent('sailo:cover', { detail: { covered } }));
-  setTimeout(() => { if (open) cover(true); }, 300); // (after the slide-in, so the sea is still there behind it)
+  setTimeout(() => { if (open) cover(true); }, fadeMs + 50); // (after the slide-in, so the sea is still there behind it)
   requestAnimationFrame(() => root.classList.add('in'));
   let keyHandler = null;
   const close = () => { if (!open) return; const o = open; open = null; if (keyHandler) removeEventListener('keydown', keyHandler); root.classList.remove('in'); document.body.classList.remove('throw-open'); cover(false);
-    setTimeout(() => { o.screen?.destroy?.(); o.stories?.dispose(); o.notifications?.dispose(); o.store?.dispose(); root.remove(); }, 260); };
+    setTimeout(() => { o.screen?.destroy?.(); o.stories?.dispose(); o.notifications?.dispose(); o.store?.dispose(); root.remove(); }, fadeMs + 10); ctx.onClosed?.(); };
   open = { root, close };
   let store;
   try { [store] = await Promise.all([createThrowStore(), loadThrowFonts()]); }

@@ -232,3 +232,4 @@ body.steering .helm-extra { pointer-events: auto; } /* (a second thumb can reach
 #map-orbit:active svg { transform: scale(0.92); }
 @media (max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px) { #map-orbit { display: grid; } } /* (phones: wider screens have the compass in the side column) */
 body:is(.anchored, .fishing, .stn-docked, .stn-bar-on, .boat-sel, .view-top, .radio-open, .map-open) #map-orbit { display: none; }
+.helm-extra:disabled { opacity: 0.4; pointer-events: none; } /* (Throw, while the paper plane is in the air) */
