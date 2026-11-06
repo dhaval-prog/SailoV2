@@ -71,7 +71,7 @@ export const TERRAIN = {
   dense: 0.32,           // …and a square this built-up becomes a medium rock
   hugeArea: 3500,        // a footprint this big (m²: a mall, a campus) becomes a huge rock
   // sizes against the boat (the tug: ~10.7 m long, ~10 m tall): a medium rock twice as wide and tall, a huge one three times
-  medR: 10.7, medH: 20,  // radius, height (metres)
+  medR: 26, medH: 20,    // radius, height (metres): a medium rock is drawn as a pine island ~5 boat lengths across
   bigR: 16, bigH: 30,
   gap: 22,               // metres of open water kept between two rocks, at least
   edge: 14,              // and a lane along every map tile's edge

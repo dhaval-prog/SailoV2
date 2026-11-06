@@ -11,7 +11,7 @@ import { WORLD } from './world.js';
 import { TERRAIN as T } from './world-config.js';
 import { rockBuilder } from './rock-shapes.js';
 import { createPineIslands } from './pine-islands.js';
-const isMedium = r => r.r < (T.medR + T.bigR) / 2; // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
+const isMedium = r => !r.huge; // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const h01 = (a, b, s = 0) => { let h = Math.imul((a * 73856093) ^ (b * 19349663) ^ (s * 83492791), 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
@@ -27,14 +27,14 @@ function rocksOf(shapes, rect, clear) {
     if (a >= T.hugeArea) cand.push({ x: cx, z: cz, r: T.bigR, huge: true });
     const k = `${Math.floor(cx / C)},${Math.floor(cz / C)}`, c = cells.get(k) || { a: 0, x: 0, z: 0 }; c.a += a; c.x += cx * a; c.z += cz * a; cells.set(k, c); });
   cells.forEach(c => { const cov = c.a / (C * C); if (cov < T.dense) return; cand.push({ x: c.x / c.a, z: c.z / c.a, r: T.medR }); });
-  cand.sort((a, b) => b.r - a.r || a.x - b.x || a.z - b.z);
+  cand.sort((a, b) => (!!b.huge - !!a.huge) || b.r - a.r || a.x - b.x || a.z - b.z); // (the huge rocks claim their spots first)
   const out = [], m = T.edge;
   cand.forEach(c => {
     if (c.x < rect.x0 + m || c.x > rect.x1 - m || c.z < rect.z0 + m || c.z > rect.z1 - m) return; // (a lane along every tile edge)
     if (Math.abs(c.x) > WORLD.half - 60 || Math.abs(c.z) > WORLD.half - 60 || clear(c.x, c.z, c.r)) return;
     if (out.some(o => Math.hypot(o.x - c.x, o.z - c.z) < o.r + c.r + T.gap)) return;
     const s = h01(Math.round(c.x), Math.round(c.z), 1), v = 0.92 + s * 0.16; // (each a little different, ±8%)
-    out.push({ x: c.x, z: c.z, r: c.r * v, h: (c.huge ? T.bigH : T.medH) * (0.92 + h01(Math.round(c.x), Math.round(c.z), 3) * 0.16), k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
+    out.push({ x: c.x, z: c.z, huge: !!c.huge, r: c.r * v, h: (c.huge ? T.bigH : T.medH) * (0.92 + h01(Math.round(c.x), Math.round(c.z), 3) * 0.16), k: Math.floor(h01(Math.round(c.x), Math.round(c.z), 2) * 3), a: s * Math.PI * 2 });
   });
   return out;
 }
@@ -66,12 +66,12 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   async function load(kind, z, x, y) {
     const key = `${kind}:${z}/${x}/${y}`, store = kind === 'rocks' ? rocks : corals; if (store.has(key) || loading.has(key)) return; loading.add(key);
     try {
-      let list = await geoCacheGet('terrain-v7:' + key);
+      let list = await geoCacheGet('terrain-v8:' + key);
       if (!list) {
         const shapes = await mapShapes(kind === 'rocks' ? 'building' : 'landuse', x, y, z, kind === 'rocks' ? () => true : cls => GREEN.test(cls));
         if (!shapes) return; // (offline: try again later)
         list = kind === 'rocks' ? rocksOf(shapes, tileRect(x, y, z), clear) : coralsOf(shapes, clear);
-        geoCachePut('terrain-v7:' + key, list);
+        geoCachePut('terrain-v8:' + key, list);
       }
       store.set(key, list);
       if (kind === 'rocks') list.forEach(r => { const e = r.r + T.boatPad; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const k = gkey(r.x + i * e, r.z + j * e); if (!grid.has(k)) grid.set(k, new Set()); grid.get(k).add(r); } });
