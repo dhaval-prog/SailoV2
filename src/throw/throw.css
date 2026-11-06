@@ -11,6 +11,7 @@
   opacity: 0; transform: scale(.985); transition: opacity .25s ease, transform .25s ease; overflow: hidden; -webkit-tap-highlight-color: transparent;
 }
 .t-root.in { opacity: 1; transform: none; }
+.t-root.t-hidden { visibility: hidden; pointer-events: none; } /* (built out of sight while the paper plane takes off) */
 .t-root.t-slow { transition: opacity .7s ease, transform .7s ease; } /* (the paper plane's fade, in and out) */
 .t-root *, .t-root *::before, .t-root *::after { box-sizing: border-box; }
 .t-root button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
@@ -461,3 +462,16 @@ body.throw-open #hud-scrim, body.throw-open .helm-extra, body.throw-open #map-or
   color: #fff; font: 700 13px Figtree_700Bold, Figtree, sans-serif; animation: t-charge-in .35s cubic-bezier(.2,.8,.3,1.4) both; }
 .t-undo-dot { width: 8px; height: 8px; border-radius: 4px; background: #C3EA4F; }
 .t-undo button { all: unset; cursor: pointer; color: #FFD23F; text-decoration: underline; font: inherit; }
+
+/* a long press on the paper: it lifts a little and a corner curls up, hinting "pull down to fold" */
+.t-paper { transition: transform .28s cubic-bezier(.2,.8,.3,1.2), filter .28s ease; }
+.t-paper.prefold { transform: translateY(-6px) scale(1.015); filter: drop-shadow(0 10px 14px rgba(80,64,42,.18)); }
+.t-curl { position: absolute; right: 0; bottom: 0; width: 0; height: 0; z-index: 4; pointer-events: none; border-top-left-radius: 8px;
+  background: linear-gradient(315deg, rgba(60,45,25,.22) 0 47%, #fffdf6 50%, #f4ecda 72%, #e6dbc2 100%); box-shadow: -3px -3px 8px rgba(80,64,42,.16);
+  transition: width .3s cubic-bezier(.2,.8,.3,1.3), height .3s cubic-bezier(.2,.8,.3,1.3); }
+.t-paper.prefold .t-curl { width: 52px; height: 52px; }
+.t-fold-hint { position: absolute; left: 50%; top: -46px; transform: translateX(-50%) translateY(6px); z-index: 20; pointer-events: none; opacity: 0;
+  background: #16210C; color: #fff; border-radius: 14px; padding: 8px 14px; box-shadow: 3px 3px 0 #FFD23F; font: 700 12.5px Figtree_700Bold, Figtree, sans-serif; white-space: nowrap;
+  transition: opacity .2s ease, transform .2s ease; }
+.t-fold-hint.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.t-fold-hint::before { content: '↓ '; }

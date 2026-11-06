@@ -1081,11 +1081,20 @@ const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPu
 // into a paper plane that flies off into Throw (paper-flight.js); closing Throw flies it back and the boat grows back.
 const throwNote = t => hud.note(t, 2500), loadThrow = () => import('./throw/index.js');
 const flight = createPaperFlight({ THREE, stage, boat, hug, rings, WL, wave: (x, z, t) => waveJS(x, z, t), yaw: () => yaw,
-  onTakeoff: () => { camAnim = zoomAnim = null; clearCourse(false); loadThrow().catch(() => {}); },
-  onSky: () => loadThrow().then(m => m.openThrow({ note: throwNote, fade: true, onClosed: () => flight.land() })).catch(() => { throwNote('Throw couldn’t load. Check your connection?'); flight.land(); }),
+  // Throw is built out of sight from the tap (its data and fonts at once, the map once the boat has turned to paper),
+  // and only shown as the plane climbs away, so it's usually ready by then
+  onTakeoff: () => { camAnim = zoomAnim = null; clearCourse(false);
+    loadThrow().then(m => m.openThrow({ note: throwNote, fade: true, hidden: true, holdHome: new Promise(r => setTimeout(r, 1000)), onClosed: () => flight.land() }))
+      .catch(() => { throwNote('Throw couldn’t load. Check your connection?'); flight.land(); }); },
+  onSky: () => loadThrow().then(m => m.revealThrow()).catch(() => {}),
   onLanded: () => recenter() });
-const tapThrow = () => { if (flight.busy()) return;
-  if (stationBusy() || ACT.fish !== 'off' || ACT.anchor !== 'up' || !flight.start()) loadThrow().then(m => m.openThrow({ note: throwNote })).catch(() => throwNote('Throw couldn’t load. Check your connection?')); };
+const openThrowNow = () => loadThrow().then(m => m.openThrow({ note: throwNote })).catch(() => throwNote('Throw couldn’t load. Check your connection?'));
+let throwTapping = false;
+const tapThrow = async () => { if (flight.busy() || throwTapping) return;
+  if (stationBusy() || ACT.fish !== 'off' || ACT.anchor !== 'up') return openThrowNow();
+  throwTapping = true; // signed out: no flight, Throw just says to sign in
+  const signedIn = await import('./auth.js').then(a => a.currentSession()).then(Boolean, () => false); throwTapping = false;
+  if (!signedIn || !flight.start()) openThrowNow(); };
 createHelmButtons({ orbit: helmOrbit, note: throwNote, onThrow: tapThrow });
 // F: the same as the Throw button (keys typed inside Throw don't reach the game)
 addEventListener('keydown', e => { if ((e.key === 'f' || e.key === 'F') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input, textarea, [contenteditable]') && !document.body.classList.contains('throw-open')) tapThrow(); });

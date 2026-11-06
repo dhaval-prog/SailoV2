@@ -17,21 +17,26 @@ import { loadPrefs, throwSettings } from './settings.js';
 let open = null;
 
 /** Opens Throw. ctx: { note(text) } for messages over the game; fade: the slow fade used when the paper plane flies in;
- *  onClosed(): called once it closes, however that happens. Resolves once it's showing. */
+ *  hidden: build it (data, fonts, map) out of sight and show it later with revealThrow() (the paper plane's takeoff);
+ *  holdHome: a promise to wait on before the home screen (and its map) is built; onClosed(): called once it closes,
+ *  however that happens. Resolves once it's built. */
 export async function openThrow(ctx = {}) {
   if (open) return;
   const root = h('div.t-root', h('div.t-loading', h('span.t-spin'))), fadeMs = ctx.fade ? 700 : 250;
   if (ctx.fade) root.classList.add('t-slow');
+  if (ctx.hidden) root.classList.add('t-hidden');
   // keys typed in Throw (a letter, a city search) mustn't reach the game behind it (WASD steers the boat)
   ['keydown', 'keyup', 'keypress'].forEach(t => root.addEventListener(t, e => { if (e.key !== 'Escape') e.stopPropagation(); }));
-  document.body.append(root); document.body.classList.add('throw-open');
+  document.body.append(root);
   const cover = covered => dispatchEvent(new CustomEvent('sailo:cover', { detail: { covered } }));
-  setTimeout(() => { if (open) cover(true); }, fadeMs + 50); // (after the slide-in, so the sea is still there behind it)
-  requestAnimationFrame(() => root.classList.add('in'));
+  const reveal = () => { if (!open || !open.hidden) return; open.hidden = false; root.classList.remove('t-hidden'); document.body.classList.add('throw-open');
+    setTimeout(() => { if (open) cover(true); }, fadeMs + 50); // (after the slide-in, so the sea is still there behind it)
+    requestAnimationFrame(() => root.classList.add('in')); };
   let keyHandler = null;
   const close = () => { if (!open) return; const o = open; open = null; if (keyHandler) removeEventListener('keydown', keyHandler); root.classList.remove('in'); document.body.classList.remove('throw-open'); cover(false);
     setTimeout(() => { o.screen?.destroy?.(); o.stories?.dispose(); o.notifications?.dispose(); o.store?.dispose(); root.remove(); }, fadeMs + 10); ctx.onClosed?.(); };
-  open = { root, close };
+  open = { root, close, reveal, hidden: true };
+  if (!ctx.hidden) reveal();
   let store;
   try { [store] = await Promise.all([createThrowStore(), loadThrowFonts()]); }
   catch (e) { close(); ctx.note?.(e?.message === 'signed_out' ? 'Sign in to throw letters.' : 'Throw couldn’t open. Check your connection?'); return; }
@@ -40,7 +45,7 @@ export async function openThrow(ctx = {}) {
   const alerts = startThrowAlerts(store.myId), stories = createStoriesStore(store), notifications = createNotifications(store);
   open.stories = stories; open.notifications = notifications;
   const prefs = await loadPrefs(store.myId);
-  keyHandler = e => { if (e.key === 'Escape' && !document.querySelector('.t-sheet-wrap')) nav.back(); };
+  keyHandler = e => { if (e.key === 'Escape' && !open?.hidden && !document.querySelector('.t-sheet-wrap')) nav.back(); };
   addEventListener('keydown', keyHandler);
 
   const show = el => { open.screen?.destroy?.(); open.screen = el.destroy ? el : { el, destroy: () => el.remove() }; root.replaceChildren(open.screen.el); };
@@ -58,9 +63,12 @@ export async function openThrow(ctx = {}) {
   };
   // wait for the first load when there's no cached copy (so a first-timer gets location setup, not an empty map)
   if (store.state.loading) await new Promise(r => { const off = store.on(() => { if (!store.state.loading) { off(); r(); } }); });
+  if (ctx.holdHome) await ctx.holdHome; // (the takeoff: the map waits until the boat has turned to paper, so the two don't fight for the GPU)
   if (!open) return;
   nav.home();
 }
 
 export const closeThrow = () => open?.close();
+/** Shows a Throw opened with hidden: true (a no-op otherwise). */
+export const revealThrow = () => open?.reveal();
 export const throwIsOpen = () => !!open;
