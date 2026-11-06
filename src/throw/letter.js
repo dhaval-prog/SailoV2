@@ -5,7 +5,6 @@
 import { h, icon, Value, interp, E, tick, replay } from './ui.js';
 import { createPlaneStage } from './planeStage.js';
 import { scheduleHeader, bottomSheet, DEFAULT_ALERT_SCHEDULE } from './schedule.js';
-import { throwNightColor } from './tokens.js';
 import paperTexture from './paper-texture.jpg';
 
 export const INK_BLUE = '#4A55B0';
@@ -81,14 +80,14 @@ export function createFoldingLetter(sheetHost, props) {
   const arrow = h('div.t-ready-arrow', icon(I.up, { size: 22, stroke: 2.6 })), hint = h('div.t-ready-hint'), errEl = h('div.t-letter-error');
   const fileIn = h('input', { type: 'file', accept: 'image/*,video/*', multiple: true, style: { display: 'none' } });
   const el = h('div.t-letter', sheetBox, arrow, hint, errEl, foldHint, fileIn);
-  textarea.style.color = P.isNight ? throwNightColor.ink : INK_BLUE;
+  textarea.style.color = INK_BLUE;
   const stage = createPlaneStage(stageBox, { onError: e => { console.warn('[Throw] 3D plane unavailable, using a flat glyph:', e); stageFailed = true; stageBox.replaceChildren(h('div.t-plane-fallback', icon('M21 11 2 2l9 19 2-8z', { size: 64, stroke: 1.6, color: '#A85A3C' }))); } });
 
   // ---------- render ----------
   function renderPrompt() { promptHost.firstChild?._stop?.(); promptHost.replaceChildren();
-    if (!text && !interim) promptHost.append(inkPrompt(P.hideBadges ? 'Me' : P.recipientName, P.isNight ? throwNightColor.placeholder : INK_BLUE)); }
+    if (!text && !interim) promptHost.append(inkPrompt(P.hideBadges ? 'Me' : P.recipientName, INK_BLUE)); }
   function renderStampBadges() {
-    stampHost.replaceChildren(media.length === 0 ? h('div.t-stamp' + (P.isNight ? '.night' : ''), P.hideBadges ? 'NOTE TO SELF' : `TO: ${P.recipientName.trim().split(/\s+/)[0].toUpperCase()}`) : '');
+    stampHost.replaceChildren(media.length === 0 ? h('div.t-stamp', P.hideBadges ? 'NOTE TO SELF' : `TO: ${P.recipientName.trim().split(/\s+/)[0].toUpperCase()}`) : '');
     badgeHost.replaceChildren(P.hideBadges ? '' : stickerBadges(P.streak, P.recipientName, P.recipientName));
     badgeHost.classList.toggle('t-nopoint', phase !== 'writing');
   }
@@ -152,7 +151,7 @@ export function createFoldingLetter(sheetHost, props) {
   // typing, so a fold never waits on a bake or swaps the paper's texture mid-fold
   let bakedKey = '', bakeTimer = 0;
   function rebake() { clearTimeout(bakeTimer); if (!paperSize.width) return; const firstPhoto = media.find(m => !m.isVideo)?.uri ?? null;
-    const content = { messageText: text.trim() || null, strokes: null, photoUri: firstPhoto, penColor: P.isNight ? throwNightColor.ink : INK_BLUE, isNight: !!P.isNight };
+    const content = { messageText: text.trim() || null, strokes: null, photoUri: firstPhoto, penColor: INK_BLUE, isNight: false /* (cream paper, day and night) */ };
     const key = JSON.stringify([content, paperSize.width, paperSize.height]); if (key === bakedKey) return; bakedKey = key; stage.setContent(content, paperSize); }
   const bakeSoon = () => { clearTimeout(bakeTimer); if (phase === 'writing') bakeTimer = setTimeout(rebake, 450); };
   function applyFold(next) { if (phase === 'writing' && next > 0) rebake();
@@ -169,7 +168,7 @@ export function createFoldingLetter(sheetHost, props) {
   async function launch() {
     error = null; setPhase('throwing');
     const liftOff = new Promise(r => { liftY.timing(-window.innerHeight, { duration: LIFTOFF_MS, easing: E.out }); liftOpacity.timing(0, { duration: LIFTOFF_MS, easing: E.in }, r); });
-    const [{ error: err }] = await Promise.all([P.onThrow({ messageText: text.trim() || null, strokes: null, penColor: P.isNight ? throwNightColor.ink : INK_BLUE,
+    const [{ error: err }] = await Promise.all([P.onThrow({ messageText: text.trim() || null, strokes: null, penColor: INK_BLUE,
       media: media.map(m => ({ blob: m.blob, name: m.name, isVideo: m.isVideo, uri: m.uri })), photoTrims: media.map(m => m.trim ?? null), alertSchedule: selfMode() ? null : friendAlert }), liftOff]);
     if (err) { error = err; setPhase('ready'); stage.seek(1); stage.holdReady(); springLiftBack(); renderHints(); }
     else P.onLaunched?.();
@@ -271,7 +270,7 @@ export function createFoldingLetter(sheetHost, props) {
     const snapshot = { text, media: media.slice(), label };
     tick(true); shredding = true; paper.classList.add('shredding'); floatBox.classList.remove('floating');
     const pr = paper.getBoundingClientRect(), er = el.getBoundingClientRect(), ph = Math.round(pr.height / 10) * 10;
-    const sh = shredder(pr.width, pr.height + 140, P.isNight ? throwNightColor.ink : INK_BLUE);
+    const sh = shredder(pr.width, pr.height + 140, INK_BLUE);
     sh.style.left = (pr.left - er.left) + 'px'; sh.style.top = (pr.top - er.top) + 'px'; el.append(sh);
     const frames = [{ offset: 0, transform: 'translate(0,0)' }, { offset: 0.08, transform: 'translate(0,8px)' }];
     for (let k = 1; k <= 12; k++) frames.push({ offset: (8 + k * 7.5) / 100, transform: `translate(${k % 2 ? 1.4 : -1.4}px,${-(k / 12) * (ph + 10)}px)` });
@@ -377,7 +376,7 @@ export function createFoldingLetter(sheetHost, props) {
       const who = prev.recipientName !== P.recipientName || prev.hideBadges !== P.hideBadges, night = prev.isNight !== P.isNight;
       textarea.setAttribute('aria-label', `Write a letter to ${P.recipientName}`);
       if (prev.recipientName !== P.recipientName) { sheetBox.className = 't-paper-sheet'; replay(sheetBox, 'swap'); }
-      if (night) { textarea.style.color = P.isNight ? throwNightColor.ink : INK_BLUE; bakeSoon(); }
+      if (night) { textarea.style.color = INK_BLUE; bakeSoon(); }
       // (only what changed is redrawn: redrawing restarts the ink prompt and the counters)
       if (who || night) renderPrompt();
       if (who || night || prev.streak !== P.streak) renderStampBadges();

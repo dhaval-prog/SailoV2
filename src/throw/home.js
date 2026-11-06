@@ -4,6 +4,7 @@
 import { h, Value } from './ui.js';
 import { createWeatherOverlay } from './weather/overlay.js';
 import { createThrowMap, spreadPins, hasMapToken } from './map.js';
+import { flightCard, prefetchFlightMap } from './flightCard.js';
 import { createCarousel, CAROUSEL_HEIGHT } from './carousel.js';
 import { createFoldingLetter } from './letter.js';
 import { DEFAULT_ALERT_SCHEDULE } from './schedule.js';
@@ -174,19 +175,25 @@ export function createThrowHome(opts) {
       pending = { counterpartId: myId, isAlert: true, summary: formatAlertSchedule(alertSchedule) };
       alertSchedule = DEFAULT_ALERT_SCHEDULE(); selfComposeLocked = false; return { error: null };
     }
+    prefetchFlightMap(); const streakBefore = store.streakFor(f.userId);
     const photoUrls = [], photoTrims = [];
     for (let i = 0; i < content.media.length; i++) { const m = content.media[i]; const up = await store.uploadMedia(m.blob, 'throw-media', m.name);
       if (up.error) return { error: up.error }; photoUrls.push(up.url); photoTrims.push(content.photoTrims[i] ?? null); }
     const { error, letter: sent } = await store.sendThrow({ recipientId: f.userId, messageText: content.messageText, strokes: null, penColor: content.penColor, photoUrls, photoTrims, repliedToThrowId: opts.lockedRecipient?.repliedToThrowId, alertSchedule: content.alertSchedule });
     if (error || !sent) return { error: error ?? 'Could not send — try again.' };
-    pending = { counterpartId: sent.counterpartId, isAlert: false }; return { error: null };
+    const hav = (a, b) => { const r = Math.PI / 180, x = Math.sin((b.latitude - a.latitude) * r / 2) ** 2 + Math.cos(a.latitude * r) * Math.cos(b.latitude * r) * Math.sin((b.longitude - a.longitude) * r / 2) ** 2; return 3958.8 * 2 * Math.asin(Math.sqrt(x)); };
+    const from = S.myLocation, to = f.location, miles = sent.distanceMiles ?? (from && to ? hav(from, to) : 0);
+    pending = { counterpartId: sent.counterpartId, isAlert: false, from, to, name: f.name, miles, streakBefore }; return { error: null };
   }
   async function handleLaunched() {
     const p = pending; pending = null; if (!p) return; const run = ++flightRun;
     landed = { id: p.counterpartId, n: (landed?.n ?? 0) + 1 }; flight = p; letter?.destroy(); letter = null; cardContent?.destroy(); cardContent = null; letterCard.replaceChildren(); reminderPeeking = false; renderPeek(); renderPins();
-    flightWrap.replaceChildren(p.isAlert ? h('div.t-flight', h('div.t-flight-title', 'Alert set'), h('div.t-flight-body', p.summary)) : '');
     recipientOverlay.style.display = 'none';
-    await new Promise(r => setTimeout(r, DELIVERED_HOLD_MS)); if (run !== flightRun) return;
+    if (p.isAlert) { flightWrap.replaceChildren(h('div.t-flight', h('div.t-flight-title', 'Alert set'), h('div.t-flight-body', p.summary))); await new Promise(r => setTimeout(r, DELIVERED_HOLD_MS)); }
+    else { // the plane flies the route on a little chart, then the postmark: see flightCard.js
+      const fc = flightCard({ from: p.from, to: p.to, name: p.name, miles: p.miles, streakBefore: p.streakBefore, streakNow: () => store.streakFor(p.counterpartId), night: !prefs.isDay });
+      flightWrap.replaceChildren(fc.el); await fc.done; }
+    if (run !== flightRun) return;
     flight = null; flightWrap.replaceChildren(); recipientOverlay.style.display = ''; chrome.set(1);
     if (opts.lockedRecipient) { opts.onThrownBack?.(); return; } // (a throw back goes back to where it came from)
     mountLetter(); sync();
