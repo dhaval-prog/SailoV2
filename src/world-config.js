@@ -72,7 +72,7 @@ export const TERRAIN = {
   hugeArea: 3500,        // a footprint this big (m²: a mall, a campus) becomes a huge rock
   // sizes against the boat (the tug: ~10.7 m long, ~10 m tall): a medium rock twice as wide and tall, a huge one three times
   medR: 26, medH: 20,    // radius, height (metres): a medium rock is drawn as a pine island ~5 boat lengths across
-  bigR: 16, bigH: 30,
+  bigR: 40, bigH: 30,    // a huge one (a mall, a campus): a big pine island ~86 m across
   gap: 22,               // metres of open water kept between two rocks, at least
   edge: 14,              // and a lane along every map tile's edge
   startClear: 260,       // no rocks round the harbour where voyages start…
