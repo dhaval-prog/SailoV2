@@ -12,6 +12,8 @@ export const INK_BLUE = '#4A55B0';
 const FOLD_DRAG_DISTANCE = 150, LAUNCH_THRESHOLD = 64, LAUNCH_VELOCITY = 0.5, FOLD_CAPTURE_DY = 14, FOLD_CAPTURE_RATIO = 1.7;
 const CONTACT_FLICK_CAPTURE_DX = 20, CONTACT_FLICK_CAPTURE_RATIO = 1.7, THROW_CENTER_ZONE = 0.5, MAX_BANK_DX = 90;
 export const CONTACT_DRAG_SPACING = 70;
+// the pull only starts the fold: past FOLD_COMMIT (or on a downward flick) the rest plays on its own clock, every step visible
+const FOLD_COMMIT = 0.25, FOLD_FLICK_VY = 0.45, FOLD_PLAY_MS = 1900, FOLD_FADE = 0.04;
 const LIFTOFF_MS = 1500, THROW_LOCK_MIN_DY = 20, THROW_LOCK_RATIO = 1.5, WHEEL_FOLD_DISTANCE = 500, WHEEL_SETTLE_MS = 180;
 const ROW_ICON = 60, ROW_GAP = 14, ROW_HPAD = 12, ROW_SAFETY = 8, ROW_CONTENT_W = ROW_ICON * 4 + ROW_GAP * 3;
 const LETTER_MAX_VIDEO_MS = 15000;
@@ -70,15 +72,15 @@ export function createFoldingLetter(sheetHost, props) {
   const texture = h('img.t-letter-tex', { src: paperTexture, alt: '', draggable: 'false' });
   const promptHost = h('div'), canvasLayer = h('div.t-letter-canvas', texture, textarea, promptHost);
   const stampHost = h('div.t-fill.t-nopoint'), badgeHost = h('div.t-fill.t-nopoint'), stripHost = h('div.t-strip'), border = h('div.t-paper-border');
-  const flash = h('div.t-flash');
-  const bottomRow = h('div.t-brow'), clip = h('div.t-paper-clip', border, canvasLayer, flash, stampHost, badgeHost, stripHost, bottomRow);
+  const flash = h('div.t-flash'), curl = h('div.t-curl'), foldHint = h('div.t-fold-hint', 'Pull down to fold');
+  const bottomRow = h('div.t-brow'), clip = h('div.t-paper-clip', border, canvasLayer, curl, flash, stampHost, badgeHost, stripHost, bottomRow);
   const stageBox = h('div.t-stage'), liftBox = h('div.t-lift', stageBox), wiggleBox = h('div.t-fill', liftBox), trail = h('div.t-trail');
   const stageLayer = h('div.t-stage-layer', wiggleBox, trail);
   const paper = h('div.t-paper', clip, stageLayer);
   const shakeBox = h('div.t-paper-anim', paper), floatBox = h('div.t-paper-float', shakeBox), sheetBox = h('div.t-paper-sheet.slapA', floatBox);
   const arrow = h('div.t-ready-arrow', icon(I.up, { size: 22, stroke: 2.6 })), hint = h('div.t-ready-hint'), errEl = h('div.t-letter-error');
   const fileIn = h('input', { type: 'file', accept: 'image/*,video/*', multiple: true, style: { display: 'none' } });
-  const el = h('div.t-letter', sheetBox, arrow, hint, errEl, fileIn);
+  const el = h('div.t-letter', sheetBox, arrow, hint, errEl, foldHint, fileIn);
   textarea.style.color = P.isNight ? throwNightColor.ink : INK_BLUE;
   const stage = createPlaneStage(stageBox, { onError: e => { console.warn('[Throw] 3D plane unavailable, using a flat glyph:', e); stageFailed = true; stageBox.replaceChildren(h('div.t-plane-fallback', icon('M21 11 2 2l9 19 2-8z', { size: 64, stroke: 1.6, color: '#A85A3C' }))); } });
 
@@ -134,10 +136,10 @@ export function createFoldingLetter(sheetHost, props) {
   function renderAll() { renderPrompt(); renderStampBadges(); renderStrip(); renderRow(); renderHints(); reminderEffect(); }
 
   // ---------- fold progress drives the paper/plane crossfade and the stage ----------
-  const paintProgress = v => { const c = interp(v, [0, 0.2], [1, 0]);
-    for (const n of [canvasLayer, stampHost, badgeHost, stripHost, border]) n.style.opacity = c;
+  const paintProgress = v => { const c = interp(v, [0, FOLD_FADE], [1, 0]); /* (swap to the 3D sheet before its first fold, so every fold is seen) */
+    for (const n of [canvasLayer, stampHost, badgeHost, stripHost, border, curl]) n.style.opacity = c;
     bottomRow.style.opacity = c; bottomRow.style.transform = `translateY(${interp(c, [0, 1], [16, 0])}px)`;
-    stageLayer.style.opacity = interp(v, [0, 0.2], [0, 1]); stage.seek(v); syncStage(v); P.onFoldProgress?.(v); };
+    stageLayer.style.opacity = interp(v, [0, FOLD_FADE], [0, 1]); stage.seek(v); syncStage(v); P.onFoldProgress?.(v); };
   // the 3D plane only draws while it can be seen: folding, ready, flying (writing, it sits hidden under the paper)
   let stageOn = null; const syncStage = (v = progress.get()) => { const on = v > 0 || phase !== 'writing'; if (on !== stageOn) { stageOn = on; stage.setActive(on); } };
   progress.on(paintProgress);
@@ -151,6 +153,11 @@ export function createFoldingLetter(sheetHost, props) {
   function applyFold(next) { progress.set(next); if (phase !== 'folding' && next > 0) setPhase('folding');
     if (!baked && next > 0) { baked = true; rebake(); } }
   function settleFold(target) { progress.spring(target, { friction: 9, tension: 55 }, () => { setPhase(target === 1 ? 'ready' : 'writing'); if (target === 1) stage.holdReady(); if (target === 0) baked = false; anchor = null; }); }
+  let committing = false;
+  function commitFold() { if (committing) return; committing = true; anchor = null; cancelHold(); if (phase !== 'folding') setPhase('folding');
+    if (!baked) { baked = true; rebake(); }
+    const from = progress.get(); tick();
+    progress.timing(1, { duration: Math.max(700, (1 - from) * FOLD_PLAY_MS), easing: E.linear }, () => { committing = false; setPhase('ready'); stage.holdReady(); }); }
   function unfoldSmoothly() { progress.timing(0, { duration: 900, easing: E.inOut }, () => { setPhase('writing'); baked = false; anchor = null; }); }
   function springLiftBack() { stage.setReadyBank(0); liftY.spring(0, { friction: 7, tension: 50 }); liftOpacity.spring(1, { friction: 7, tension: 50 }); }
   async function launch() {
@@ -211,13 +218,21 @@ export function createFoldingLetter(sheetHost, props) {
   };
 
   // ---------- hold to shred / shake to clear (MySpace's letterFxReal Shredder + useShake): Undo brings it back ----------
-  const HOLD_TO_SHRED_MS = 900, HOLD_HINT_DELAY_MS = 220, SHRED_MS = 1050;
+  // a long press first lifts the paper and curls its corner ("pull down to fold"); only a press held quite still for longer
+  // goes on to shred
+  const PREFOLD_MS = 220, SHRED_ARM_MS = 1100, HOLD_TO_SHRED_MS = 900, HOLD_HINT_DELAY_MS = 0, SHRED_MS = 1050;
   const rnd = i => { const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
   let holdTimer = 0, holdPill = null, holdStart = null, shredding = false, undoEl = null, undoTimer = 0, shredTimers = [];
-  function cancelHold() { clearTimeout(holdTimer); holdTimer = 0; holdStart = null; holdPill?.remove(); holdPill = null; shakeBox.classList.remove('trembling'); }
+  let preTimer = 0, armTimer = 0;
+  function cancelHold() { clearTimeout(holdTimer); clearTimeout(preTimer); clearTimeout(armTimer); holdTimer = preTimer = armTimer = 0; holdStart = null; holdPill?.remove(); holdPill = null;
+    shakeBox.classList.remove('trembling'); paper.classList.remove('prefold'); foldHint.classList.remove('show'); }
   function startHold(e) {
-    cancelHold(); if (!hasContent() || shredding) return;
+    cancelHold(); if (shredding) return;
     holdStart = { x: e.clientX, y: e.clientY };
+    preTimer = setTimeout(() => { paper.classList.add('prefold'); foldHint.classList.add('show'); }, PREFOLD_MS);
+    if (hasContent()) armTimer = setTimeout(armShred, SHRED_ARM_MS);
+  }
+  function armShred() { paper.classList.remove('prefold'); foldHint.classList.remove('show');
     holdPill = h('div.t-shred-pill', h('span', 'Hold to shred'), h('div.t-shred-track', h('div.t-shred-fill', { style: { animationDuration: (HOLD_TO_SHRED_MS - HOLD_HINT_DELAY_MS) + 'ms', animationDelay: HOLD_HINT_DELAY_MS + 'ms' } })));
     holdPill.style.animationDelay = HOLD_HINT_DELAY_MS + 'ms'; el.append(holdPill); shakeBox.classList.add('trembling');
     holdTimer = setTimeout(() => clearLetter('Letter shredded'), HOLD_TO_SHRED_MS);
@@ -283,11 +298,14 @@ export function createFoldingLetter(sheetHost, props) {
   textarea.addEventListener('focus', () => { try { window.DeviceMotionEvent?.requestPermission?.().catch(() => {}); } catch { /* not iOS */ } }, { once: true });
 
   // ---------- gestures (pointer events; MySpace's web build tracks these with raw DOM listeners too) ----------
-  let rawStart = null, anchor = null, contactCaptured = false, readyActive = false, readyZone = 'center', throwLocked = false, rStart = null, lastMove = null, vy = 0;
+  let foldLast = null, foldVy = 0, rawStart = null, anchor = null, contactCaptured = false, readyActive = false, readyZone = 'center', throwLocked = false, rStart = null, lastMove = null, vy = 0;
   paper.addEventListener('pointerdown', e => {
     if (P.disabled || e.button > 0) return;
     if (shredding) return;
-    if (phase === 'writing') { rawStart = { x: e.clientX, y: e.clientY }; if (!e.target.closest('button, .t-brow, .t-strip')) startHold(e); return; }
+    if (committing) return;
+    if (phase === 'writing') { rawStart = { x: e.clientX, y: e.clientY }; if (!e.target.closest('button, .t-brow, .t-strip')) startHold(e);
+      if (!baked) { baked = true; rebake(); } if (!stageOn) { stageOn = true; stage.setActive(true); } // (warm the 3D paper up now, so the first fold frame is already there)
+      return; }
     if (phase === 'ready') {
       liftY.set(0); readyActive = true; throwLocked = false; rStart = { x: e.clientX, y: e.clientY }; lastMove = { y: e.clientY, t: performance.now() }; vy = 0;
       const r = paper.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, m = (1 - THROW_CENTER_ZONE) / 2;
@@ -296,7 +314,8 @@ export function createFoldingLetter(sheetHost, props) {
     }
   });
   const onMove = e => {
-    if (anchor) { applyFold(Math.max(0, Math.min(1, anchor.progress + (e.clientY - anchor.y) / FOLD_DRAG_DISTANCE))); return; }
+    if (anchor) { const now = performance.now(); if (foldLast && now > foldLast.t) foldVy = (e.clientY - foldLast.y) / (now - foldLast.t); foldLast = { y: e.clientY, t: now };
+      const next = Math.max(0, Math.min(1, anchor.progress + (e.clientY - anchor.y) / FOLD_DRAG_DISTANCE)); applyFold(next); if (next >= FOLD_COMMIT) commitFold(); return; }
     if (readyActive) {
       const dx = e.clientX - rStart.x, dy = e.clientY - rStart.y, t = performance.now(); if (t > lastMove.t) vy = (e.clientY - lastMove.y) / (t - lastMove.t); lastMove = { y: e.clientY, t };
       if (readyZone === 'side') { applyFold(Math.max(0, Math.min(1, 1 + dy / FOLD_DRAG_DISTANCE))); return; }
@@ -309,13 +328,14 @@ export function createFoldingLetter(sheetHost, props) {
     if (!rawStart || phase !== 'writing') return;
     const dx = e.clientX - rawStart.x, dy = e.clientY - rawStart.y;
     if (contactCaptured) { P.onContactDragOffset?.(-dx / CONTACT_DRAG_SPACING); return; }
-    if (dy > FOLD_CAPTURE_DY && dy > Math.abs(dx) * FOLD_CAPTURE_RATIO) { const next = Math.max(0, Math.min(1, dy / FOLD_DRAG_DISTANCE)); anchor = { y: e.clientY, progress: next }; textarea.blur(); window.getSelection?.()?.removeAllRanges(); applyFold(next); return; }
+    if (dy > FOLD_CAPTURE_DY && dy > Math.abs(dx) * FOLD_CAPTURE_RATIO) { const next = Math.max(0, Math.min(1, dy / FOLD_DRAG_DISTANCE)); anchor = { y: e.clientY, progress: next }; foldLast = { y: e.clientY, t: performance.now() }; foldVy = 0; cancelHold(); textarea.blur(); window.getSelection?.()?.removeAllRanges(); applyFold(next); if (next >= FOLD_COMMIT) commitFold(); return; }
     if (Math.abs(dx) > CONTACT_FLICK_CAPTURE_DX && Math.abs(dx) > Math.abs(dy) * CONTACT_FLICK_CAPTURE_RATIO && P.onContactDragOffset) { contactCaptured = true; textarea.blur(); P.onContactDragStart?.(); P.onContactDragOffset(-dx / CONTACT_DRAG_SPACING); }
   };
   const onUp = e => {
     rawStart = null; cancelHold();
     if (contactCaptured) { contactCaptured = false; P.onContactDragEnd?.(); }
-    if (anchor) { anchor = null; if (phase === 'folding') settleFold(progress.get() >= 0.5 ? 1 : 0); return; }
+    if (anchor) { anchor = null; if (phase === 'folding') { if (foldVy >= FOLD_FLICK_VY && foldLast && performance.now() - foldLast.t < 140) commitFold(); else settleFold(0); } return; } // (a flick down folds it; a slow short pull springs back)
+    if (phase === 'writing' && !committing) { baked = false; syncStage(); } // (pressed without folding: the warm-up texture goes stale as you type)
     if (readyActive) {
       readyActive = false; stage.setReadyBank(0);
       if (readyZone === 'center') P.onContactDragEnd?.();
@@ -330,7 +350,7 @@ export function createFoldingLetter(sheetHost, props) {
   // the mouse wheel / trackpad folds and unfolds too (not over the text itself, so a long letter still scrolls)
   let wheelTimer = 0;
   const onWheel = e => {
-    if (P.disabled || phase === 'throwing' || e.target.closest('textarea')) return;
+    if (P.disabled || phase === 'throwing' || committing || e.target.closest('textarea')) return;
     if (phase === 'writing' && e.deltaY <= 0) return;
     e.preventDefault(); applyFold(Math.max(0, Math.min(1, progress.get() + e.deltaY / WHEEL_FOLD_DISTANCE)));
     clearTimeout(wheelTimer); wheelTimer = setTimeout(() => { if (phase === 'folding') settleFold(progress.get() >= 0.5 ? 1 : 0); }, WHEEL_SETTLE_MS);
