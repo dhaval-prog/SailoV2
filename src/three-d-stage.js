@@ -243,7 +243,7 @@ class ThreeDStage extends HTMLElement {
     this._readyResolve({ THREE });
   }
 
-  /** Stop drawing frames while something covers the whole stage (Throw, full screen); false resumes. The scene and
+  /** Stop drawing frames while something covers the whole stage (a full-screen panel); false resumes. The scene and
    *  everything moving in it are kept, only the drawing stops. */
   setPaused(on) {
     this._paused = !!on;

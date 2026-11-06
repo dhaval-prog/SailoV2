@@ -7,7 +7,6 @@ import { initStation, SPEED_UP, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus,
 import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createHelmButtons } from './helm-buttons.js';
-import { createPaperFlight } from './paper-flight.js';
 import { createTerrain } from './terrain.js';
 import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
@@ -51,8 +50,6 @@ import './sea-charts.css'; // the map and world map (Sea Charts design; loaded l
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
 const stage = document.querySelector('three-d-stage');
-// Throw covers the whole screen: the sea stops drawing frames underneath it (three WebGL scenes at once is what made it slow)
-addEventListener('sailo:cover', e => stage.setPaused?.(e.detail.covered));
 const { THREE } = await stage.ready;
 const ramp = new THREE.DataTexture(new Uint8Array([118, 134, 205, 255, 198, 210, 242, 255, 255, 255, 255, 255]), 3, 1);
 ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;
@@ -1078,31 +1075,8 @@ const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, 
 const helmOrbit = initHelmOrbit();
 const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName,
   global: heard => createOnline({ chartId: 'global', positions: false, me: () => ({ x: 0, z: 0, yaw: 0, kn: 0, kind: 'sail', boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal() }), on: { radio: heard } }) });
-// Throw and Chat: two buttons in the ring round the wheel (helm-buttons.js; placeholders for now). Throw turns the boat
-// into a paper plane that flies off into Throw (paper-flight.js); closing Throw flies it back and the boat grows back.
-const throwNote = t => hud.note(t, 2500), loadThrow = () => import('./throw/index.js');
-const flight = createPaperFlight({ THREE, stage, boat, hug, rings, WL, wave: (x, z, t) => waveJS(x, z, t), yaw: () => yaw,
-  // Throw is built out of sight from the tap (its data and fonts at once, the map once the boat has turned to paper),
-  // and only shown as the plane climbs away, so it's usually ready by then
-  onTakeoff: () => { camAnim = zoomAnim = null; clearCourse(false);
-    loadThrow().then(m => m.openThrow({ note: throwNote, fade: true, hidden: true, holdHome: new Promise(r => setTimeout(r, 1000)), onClosed: () => flight.land() }))
-      .catch(() => { throwNote('Throw couldn’t load. Check your connection?'); flight.land(); }); },
-  onSky: () => loadThrow().then(m => m.revealThrow()).catch(() => {}),
-  onLanded: () => recenter() });
-const openThrowNow = () => loadThrow().then(m => m.openThrow({ note: throwNote })).catch(() => throwNote('Throw couldn’t load. Check your connection?'));
-let throwTapping = false;
-const tapThrow = async () => { if (flight.busy() || throwTapping) return;
-  if (stationBusy() || ACT.fish !== 'off' || ACT.anchor !== 'up') return openThrowNow();
-  throwTapping = true; // signed out: no flight, Throw just says to sign in
-  const signedIn = await import('./auth.js').then(a => a.currentSession()).then(Boolean, () => false); throwTapping = false;
-  if (!signedIn || !flight.start()) openThrowNow(); };
-createHelmButtons({ orbit: helmOrbit, note: throwNote, onThrow: tapThrow });
-// F: the same as the Throw button (keys typed inside Throw don't reach the game)
-addEventListener('keydown', e => { if ((e.key === 'f' || e.key === 'F') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest?.('input, textarea, [contenteditable]') && !document.body.classList.contains('throw-open')) tapThrow(); });
-// your Throw reminders fire anywhere in the game, not only while Throw is open (MySpace keeps them app-wide too): started
-// a few seconds in, signed in only, so its code stays out of the first load
-setTimeout(() => import('./auth.js').then(a => a.currentSession()).then(s => s && import('./throw/alerts.js').then(m => {
-  const id = s.user?.id || JSON.parse(atob(s.access_token.split('.')[1])).sub; m.startThrowAlerts(id); })).catch(() => {}), 6000);
+// Chat: a button in the ring round the wheel (helm-buttons.js; a placeholder for now)
+createHelmButtons({ orbit: helmOrbit, note: t => hud.note(t, 2500) });
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
 terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night, fade: fadeFar,
@@ -1152,7 +1126,6 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
 (function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(0.05, t - lastT); lastT = t;
-  flight.pre();
   const k = drive.keys;
   const kThr = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0), kStr = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
   let thr = Math.max(-1, Math.min(1, HELM.lever + kThr));
@@ -1173,7 +1146,6 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   }
   if (ACT.anchor !== 'up') thr = 0;
   const busy = stationBusy(); if (busy) { thr = 0; str = 0; HELM.reset(); } // the station steers while mooring / moored
-  if (flight.busy()) { thr = 0; str = 0; vel = 0; HELM.reset(); camAnim = zoomAnim = null; if (course.on) clearCourse(false); } // (paper plane: the boat waits, the flight has the camera)
   steerS += (str - steerS) * Math.min(1, dt * 4);
   wheelUI.style.transform = `rotate(${HELM.mode === 'wheel' ? HELM.deg : steerS * HELM.TURNS}deg)`; // on-screen wheel: follows the hand, or the autopilot
   if (!stage._exporting) {
@@ -1240,7 +1212,6 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
-  flight.tick(t, dt);
   theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
@@ -1284,4 +1255,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), flight: () => flight, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
