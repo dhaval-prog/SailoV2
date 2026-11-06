@@ -163,8 +163,8 @@ export function createFishing(ctx) {
   });
   addEventListener('keyup', e => { if (e.code === 'Space') G.reel = false; });
   // the stage. The camera can still be rotated while fishing: a drag rotates it, while
-  //   aim:          press and hold still (a moment) to charge a cast, release to cast
-  //   wait / bite:  a quick tap strikes
+  //   aim:          a quick tap on the sea casts straight there
+  //   bite:         the bobber dips and shakes: a quick tap hooks the fish (too early and it swims off)
   //   fight:        hold to reel, swipe against the fish (the camera holds still)
   const HOLD = 200, SLOP = 8;
   let pend = null; // a press that may become a cast charge or a strike tap, unless it turns into a camera drag
@@ -173,7 +173,7 @@ export function createFishing(ctx) {
   const stageDown = e => {
     if (e.target.closest && e.target.closest('button, .fg-card-wrap, #boatmenu, .sheet, .map-modal')) return false;
     audio();
-    if (ACT.fish === 'aim') { const p = ctx.seaPoint(e); if (!p || ctx.hitsBoat(e)) return false; clearTimeout(pend?.timer); pend = { p, x: e.clientX, y: e.clientY, t: performance.now(), kind: 'cast' }; pend.timer = setTimeout(startCharge, HOLD); return false; }
+    if (ACT.fish === 'aim') { const p = ctx.seaPoint(e); if (!p || ctx.hitsBoat(e)) return false; pend = { p, x: e.clientX, y: e.clientY, t: performance.now(), kind: 'cast' }; return false; }
     if (ACT.fish === 'waiting' || ACT.fish === 'bite') { if (ctx.hitsBoat(e)) return false; pend = { x: e.clientX, y: e.clientY, t: performance.now(), kind: 'strike' }; return false; } // the boat still opens its menu
     if (ACT.fish === 'fight') { G.reel = true; G.swipe = { x: e.clientX, t: performance.now() }; return true; }
     if (G.jump && G.jump.window) { tapJump(); return true; }
@@ -185,7 +185,7 @@ export function createFishing(ctx) {
     if (ACT.fish === 'fight' && G.swipe) { const dx = e.clientX - G.swipe.x; if (Math.abs(dx) > 60) { swipeAgainst(Math.sign(dx)); G.swipe = { x: e.clientX, t: performance.now() }; } }
   };
   const stageUp = () => {
-    if (pend) { clearTimeout(pend.timer); if (pend.kind === 'strike' && performance.now() - pend.t < 350) onStrike(); pend = null; }
+    if (pend) { clearTimeout(pend.timer); const quick = performance.now() - pend.t < 1200; /* (a tap: it didn't move into a camera drag) */ if (quick && pend.kind === 'strike') onStrike(); if (quick && pend.kind === 'cast' && ACT.fish === 'aim') castTo(pend.p); pend = null; }
     if (G.charging) { const c = G.charging; G.charging = null; stage._controls.enabled = true; powerG.visible = false; releaseCast(c); }
     G.reel = false; G.swipe = null;
   };
@@ -194,6 +194,8 @@ export function createFishing(ctx) {
   $('fg-tap').addEventListener('pointerdown', e => { e.stopPropagation(); tapJump(); });
 
   const power = k => 0.5 - 0.5 * Math.cos(k * Math.PI * 2 / 1.5); // swings 0 -> 1 -> 0 every 1.5 s
+  // a tap on the sea casts straight there: wherever you like
+  function castTo(p) { G.perfect = false; G.combo = 0; G.spot = null; sfx.whoosh(); buzz(8); ctx.castAt(p, true); }
   function releaseCast(c) {
     const pw = power(c.k), dist = CAST.min + (CAST.max - CAST.min) * pw;
     const dir = c.p.clone().sub(boat.position).setY(0); if (dir.lengthSq() < 0.01) dir.set(1, 0, 0); dir.normalize();
@@ -243,7 +245,7 @@ export function createFishing(ctx) {
     if (jumpModel) { jumpModel.removeFromParent(); jumpModel = null; }
     if (won) { ACT.fish = 'landing'; F.k = 0; F.from.copy(bobber.position); sfx.splash(true); ctx.paintStatus(); return; }
     ctx.floatText(bobber.position.clone().setY(WL + 2), why, '#ffb39f', true); if (why.startsWith('Snap')) sfx.snap(); else sfx.plop();
-    buzz(60); bobber.visible = false; fishLine.visible = false; ACT.fish = 'aim'; G.combo = 0; status('Hold on the sea to cast'); ctx.paintStatus();
+    buzz(60); bobber.visible = false; fishLine.visible = false; ACT.fish = 'aim'; G.combo = 0; status('Tap the sea to cast'); ctx.paintStatus();
   }
 
   // ---------- catch card ----------
@@ -263,7 +265,7 @@ export function createFishing(ctx) {
     status(f.name + '!'); ctx.paintStatus();
   }
   const caught = () => dispatchEvent(new CustomEvent('sailo:caught', { detail: { fish: G.fishId, kg: G.kg, isNew: G.isNew, record: G.record } })); // (the local sailors cheer)
-  const closeCard = () => { $('fg-card').hidden = true; ACT.fish = 'aim'; status('Hold on the sea to cast'); ctx.paintStatus(); };
+  const closeCard = () => { $('fg-card').hidden = true; ACT.fish = 'aim'; status('Tap the sea to cast'); ctx.paintStatus(); };
   $('fg-keep').addEventListener('click', () => { const f = station.addCatch(G.fishId); if (f) { ACT.catch++; caught(); ctx.floatText(ctx.landPoint().setY(ctx.landPoint().y + 1.5), `+1 ${f.name}`, '#7ff0c8'); } closeCard(); });
   $('fg-rel').addEventListener('click', () => { const b = station.release(G.fishId); ACT.catch++; caught(); ctx.splash(bobber.position.x, bobber.position.z, 12, 0.6);
     ctx.floatText(ctx.landPoint().setY(ctx.landPoint().y + 1.5), `Released · +${b}c`, '#bfefff'); closeCard(); });
@@ -273,7 +275,7 @@ export function createFishing(ctx) {
   function step(t, dt) {
     const fishing = ACT.fish !== 'off';
     // spots live while fishing
-    spots.forEach((s, i) => { if (!fishing) { s.g.visible = false; return; }
+    spots.forEach((s, i) => { s.g.visible = false; if (true) return; // (no fishing spots: no bubble clusters on the sea)
       if (!s.g.visible || (s.ttl -= dt) <= 0 || Math.hypot(s.pos.x - boat.position.x, s.pos.z - boat.position.z) > CAST.max + 6) placeSpot(s);
       s.g.position.set(s.pos.x, WL + waveJS(s.pos.x, s.pos.z, t) * 0.6, s.pos.z);
       s.shimmer.material.opacity = 0.22 + 0.14 * Math.sin(t * 3 + i); s.shimmer.scale.setScalar(1 + 0.06 * Math.sin(t * 2 + i));
@@ -305,7 +307,7 @@ export function createFishing(ctx) {
           if (G.nibbles-- > 0) { bobber.position.y = wy - 0.12; ctx.ripple(bobber.position.x, bobber.position.z, 0.35, 1); sfx.plop(); buzz(6); G.nextNib = 0.9 + Math.random() * 1.4; }
           else { // the bite
             ACT.fish = 'bite'; G.t = 0; ctx.splash(bobber.position.x, bobber.position.z, 16, 0.8); sfx.bite(); buzz(45); ctx.shake();
-            ctx.floatText(bobber.position.clone().setY(wy + 1.6), '!', '#ffd36b', true); $('fg-strike').hidden = false; status('Strike!'); ctx.paintStatus(); }
+            ctx.floatText(bobber.position.clone().setY(wy + 1.6), '!', '#ffd36b', true); buzz([40, 30, 40, 30, 60]); status('Tap to hook it!'); ctx.paintStatus(); } // (no button: the bobber dips and shakes, tap anywhere)
         }
       } else if (G.phase === 'gone') { // spooked: the shadow darts away; another fish comes later
         const away = shadow.position.clone().sub(to).setY(0); if (away.lengthSq() < 0.01) away.set(1, 0, 0); shadow.position.addScaledVector(away.normalize(), dt * 9);
@@ -317,7 +319,7 @@ export function createFishing(ctx) {
     } else if (ACT.fish === 'bite') {
       G.t += dt; bobber.position.y = wy - 0.32 - Math.abs(Math.sin(t * 22)) * 0.12; rodRot.rotation.z = restTilt + Math.sin(t * 30) * 0.06 + 0.15;
       if (Math.random() < 0.4) ctx.emit(bobber.position.x, wy, bobber.position.z, (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), (Math.random() - 0.5) * 1.5);
-      if (G.t > 1.1) { $('fg-strike').hidden = true; ACT.fish = 'waiting'; G.phase = 'gone'; G.t = 0; ctx.floatText(bobber.position.clone().setY(wy + 1.6), 'It got away…', '#ffb39f'); status('Waiting for a bite…'); ctx.paintStatus(); }
+      if (G.t > 1.6) { ACT.fish = 'waiting'; G.phase = 'gone'; G.t = 0; ctx.floatText(bobber.position.clone().setY(wy + 1.6), 'It got away…', '#ffb39f'); status('Waiting for a bite…'); ctx.paintStatus(); }
     } else if (ACT.fish === 'fight') {
       const f = fishOf(), P = FIGHT[f.id] || f.fight || FIGHT.mackerel, storm = ctx.weather() === 'storm' ? 1.5 : ctx.weather() === 'rain' ? 1.2 : 1, tired = G.stam < 0.35;
       G.t += dt;
