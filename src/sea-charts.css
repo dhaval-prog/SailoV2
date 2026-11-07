@@ -180,3 +180,8 @@ body.is-night #map.sc, body.is-night .wm {
   .wm .wm-search { top: calc(140px + var(--safe-t, 0px)); left: 10px; right: 10px; }
   .wm .wm-search input { height: 40px; } .wm-mag { top: 20px; }
 }
+/* a passenger trip's destination (passengers.js): a gold disc with a person, a pulsing ring and a name pill */
+.map-trip { pointer-events: none; }
+.map-trip-dot { fill: var(--sc-gold); stroke: var(--sc-card); stroke-width: 3; }
+.map-trip-ring { fill: none; stroke: var(--sc-gold); stroke-width: 2.5; transform-box: fill-box; transform-origin: center; animation: sc-pulse 2s ease-out infinite; }
+.map-trip-p { fill: none; stroke: var(--sc-gold-ink); stroke-width: 1.6; stroke-linecap: round; }

@@ -50,15 +50,16 @@ body.is-night .px-modal, body.is-night .px-chip {
 .px-hint { margin: 10px 0 0; font-size: 12px; color: var(--px-muted); }
 
 /* the trip under way: a pill at the top of the screen (tap: the course again) */
-.px-chip { position: fixed; z-index: 32; left: 50%; top: calc(var(--safe-t, 0px) + 116px); /* (just under the station's messages) */ transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+.px-chip { position: fixed; z-index: 32; left: 50%; top: calc(var(--safe-t, 0px) + 132px); /* (under the compass strip and the station's messages) */ transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
   max-width: calc(100vw - 24px); padding: 6px 8px 6px 6px; border-radius: 99px; border: 1px solid var(--px-line); background: color-mix(in srgb, var(--px-card) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); color: var(--px-ink); font: 500 13px var(--px-sans); cursor: pointer; white-space: nowrap; }
 .px-chip[hidden] { display: none; }
 .px-chip > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .px-chip-av { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 12px var(--px-sans); }
+.px-chip-dir { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #ffc93c; color: #3a2600; font: 700 14px/1 var(--px-sans); transition: transform 0.3s; }
 .px-chip-m { font: 12px var(--px-mono); color: var(--px-muted); }
 .px-chip-t { padding: 3px 9px; border-radius: 99px; background: var(--px-card2); font: 500 12.5px var(--px-mono); font-variant-numeric: tabular-nums; }
 .px-chip.soon .px-chip-t { background: var(--px-gold); color: var(--px-gold-ink); }
 .px-chip.late .px-chip-t { background: var(--px-accent); color: #fff; }
 body:is(.map-open, .boat-sel) .px-chip { display: none; }
-@media (max-width: 640px) { .px-chip { top: calc(var(--gut, 12px) + 164px + var(--safe-t, 0px)); font-size: 12.5px; } .px-chip-m, .px-chip-k { display: none; } }
+@media (max-width: 640px) { .px-chip { top: calc(var(--gut, 12px) + 164px + var(--safe-t, 0px)); font-size: 12.5px; } .px-chip-k { display: none; } }

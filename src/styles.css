@@ -1060,6 +1060,7 @@ body.view-top #you-tag { opacity: 1; }
 .cs-station i, .cs-course i { top: 9px; left: -4.5px; width: 9px; height: 9px; border-radius: 1.5px; transform: rotate(45deg); }
 .cs-station i { background: #ffd36b; } .cs-course i { background: #ff6b55; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 4px rgba(0, 20, 50, 0.5); }
 .cs-station b { color: #ffe39a; } .cs-course b { color: #ffc2b4; }
+.cs-trip i { top: 7px; left: -6px; width: 12px; height: 12px; border-radius: 50%; background: #ffc93c; box-shadow: 0 0 0 2px #fff, 0 0 6px rgba(255, 201, 60, 0.8); } .cs-trip b { color: #ffe39a; }
 /* the status chips and the Entering/Leaving notice move below the strip */
 #status { top: calc(var(--gut) + 62px + var(--safe-t)); }
 @media (max-width: 640px) {

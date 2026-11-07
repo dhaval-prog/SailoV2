@@ -90,6 +90,8 @@ body #compass-strip .cs-station i { background: #FFC531; animation: nh-glow 2s e
 body #compass-strip .cs-station b { color: #FFD36B; }
 body #compass-strip .cs-course i { background: #FF6B55; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 body #compass-strip .cs-course b { color: #FFC2B4; }
+body #compass-strip .cs-trip i { top: 16px; left: -7px; width: 14px; height: 14px; border-radius: 50%; opacity: 1; background: #FFC93C; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 201, 60, 0.8); }
+body #compass-strip .cs-trip b { color: #FFE39A; }
 body #status { top: calc(92px + var(--safe-t, 0px)); }
 body #edge-warn { top: calc(128px + var(--safe-t, 0px)); }
 

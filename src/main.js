@@ -566,7 +566,7 @@ function stepEnv(t, dt) {
 }
 // HUD: account panel (time of day, weather, export) + camera dock
 const hud = initHud({
-  stage, getState: () => state, rocks: () => terrain?.all() || [], setView, zoomBy, faceNorth, recenter,
+  stage, getState: () => state, rocks: () => terrain?.all() || [], loadIslands: (x0, z0, x1, z1, cx, cz) => terrain?.loadArea(x0, z0, x1, z1, cx, cz), setView, zoomBy, faceNorth, recenter,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
   boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   getBoat: () => sinkOut ? sinkOut.id : boatId,
@@ -1038,8 +1038,10 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, fade: fadeF
 onBoatApplied = id => { station.setActive(id); passengers?.boatChanged(); }; onBoatApplied(boatId);
 // passengers waiting at every Paradise Station: take them to another for coins (the server sets and pays the fares)
 passengers = createPassengers({ THREE, chartId: CHART.id, stations: () => STATIONS, here: () => STATION, home: HOME, boat, boatId: () => boatId, boatPos: () => boat.position,
-  docked: () => station.mode === 'docked', night: () => E.night > 0.5, isles: () => terrain?.all() || [], city: WORLD.city, pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
+  docked: () => station.mode === 'docked', night: () => E.night > 0.5, isles: () => terrain?.all() || [], city: WORLD.city,
+  boatYaw: () => yaw, scene: stage._scene, WL, openMap: () => document.getElementById('dk-compass')?.click(), pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
   celebrate: n => floatText(boat.position.clone().setY(9), `+${n}c`, '#ffd36b', true) });
+hud.setTripTarget?.(() => passengers?.target()); // (the trip's destination on the map)
 const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
   seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
@@ -1115,7 +1117,7 @@ hud.routeInbox(() => radio.openInbox()); radio.ui.hooks.notes = () => isTablet()
 if (firstVisit && !madeYours) setTimeout(() => hud.openWelcome(() => { try { localStorage.setItem('sailo:made-yours', '1'); } catch { /* storage blocked */ } voyage.start(); }), 2600);
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
-const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen,
+const seaLabels = createSeaLabels({ THREE, stage, boat, WL, toScreen, trip: () => passengers?.target(),
   avoid: () => { const out = [menu.style.display !== 'none' ? rectOf(boatActions.row) : null, rectOf(document.getElementById('fg-fight')), rectOf(document.getElementById('fg-strike')), rectOf(document.getElementById('fg-tap'))];
     if (bobber.visible) { const [x, y] = toScreen(bobber.position); out.push([x - 60, y - 70, x + 60, y + 30]); }
     return out.filter(Boolean); },
@@ -1208,7 +1210,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   stepCourse(t, dt);
   station.tick(t, dt);
   stepSinkOut(dt); stepDropIn(dt);
-  passengers?.tick(dt, Math.abs(vel) / MAXV, E.amp);
+  passengers?.tick(dt, Math.abs(vel) / MAXV, E.amp, t);
   // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
   { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
     const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;

@@ -203,7 +203,7 @@ export function initHud(api) {
     return d + 'Z'; };
   const isles = []; let islesDrawn = 0;
   const addIsle = (x, z, r, seed, big) => { const pts = blobPts(seed), sz = el('g', {}, sandG), cg = el('g', {}, contourG);
-    [2.1, 1.7, 1.35].forEach((k, j) => el('path', { d: blobPath(pts, k), class: 'map-contour', style: `stroke-opacity:calc(var(--sc-cop) * ${0.5 + j * 0.25})`, 'vector-effect': 'non-scaling-stroke' }, cg));
+    if (isles.length < 700 || big) [2.1, 1.7, 1.35].forEach((k, j) => el('path', { d: blobPath(pts, k), class: 'map-contour', style: `stroke-opacity:calc(var(--sc-cop) * ${0.5 + j * 0.25})`, 'vector-effect': 'non-scaling-stroke' }, cg));
     el('path', { d: blobPath(pts, 1.14), class: 'map-beach' }, sz); el('path', { d: blobPath(pts, 1), class: 'map-isle', 'vector-effect': 'non-scaling-stroke' }, sz);
     const it = { x, z, r, g: [sz, cg], big, minPx: big ? 30 : 3.5 }; isles.push(it); return it; };
   const paintRocks = () => { const all = api.rocks?.() || []; if (all.length === islesDrawn) return;
@@ -229,6 +229,14 @@ export function initHud(api) {
   el('circle', { r: 14, class: 'map-dest-ring' }, destM);
   el('path', { d: 'M0 0C0 0-10-12-10-18A10 10 0 0 1 10-18C10-12 0 0 0 0Z', class: 'map-pin' }, destM);
   el('circle', { cy: -18, r: 3.5, class: 'map-pin-dot' }, destM);
+  // a passenger trip's destination (passengers.js): a gold marker and a name pill
+  const tripM = el('g', { class: 'map-trip', visibility: 'hidden' }); let tripFn = null, tripLabel = '';
+  el('circle', { r: 13, class: 'map-trip-ring' }, tripM); el('circle', { r: 9, class: 'map-trip-dot' }, tripM);
+  el('path', { d: 'M0-4.5a2 2 0 1 1 0 .01M-3.5 4.5c.4-2.6 1.6-3.6 3.5-3.6s3.1 1 3.5 3.6', class: 'map-trip-p' }, tripM);
+  const tripPill = el('g', {}, tripM);
+  const placeTrip = () => { const t = tripFn?.(); tripM.setAttribute('visibility', t ? 'visible' : 'hidden'); if (!t) return;
+    if (t.name !== tripLabel) { tripLabel = t.name; tripPill.replaceChildren(); const w = t.name.length * 6.6 + 18; el('rect', { x: -w / 2, y: 17, width: w, height: 22, rx: 11, class: 'sc-pill' }, tripPill); el('text', { y: 32, class: 'sc-pill-t' }, tripPill).textContent = t.name; }
+    tripM.setAttribute('transform', `translate(${t.x} ${t.z}) scale(${pxW})`); };
   // everyone else out on the water: local sailors and real captains online (setOthers)
   const othersG = el('g', { class: 'map-others' }), others = new Map(); let othersFn = null, othersPick = null, othersT = 0;
   // SOS calls (radio-help.js): pulsing red markers with expanding rings
@@ -254,7 +262,7 @@ export function initHud(api) {
   //      3 smaller localities, 4 streets and landmarks. The view keeps the screen's shape: view.w across, view.w * ar down ----
   const V0 = WORLD.side + u * 8, VMIN = 1400, view = { cx: 0, cz: 0, w: V0 };
   const mapLevel = () => view.w > 20000 ? 1 : view.w > 9000 ? 2 : view.w > 3600 ? 3 : 4;
-  let geoDirty = true, boatXY = [0, 0], destXY = null, ar = 1, pxW = view.w / 600; // pxW: map units per screen pixel
+  let isleAsk = 0, geoDirty = true, boatXY = [0, 0], destXY = null, ar = 1, pxW = view.w / 600; // pxW: map units per screen pixel
   const svgSize = () => { const r = mapSvg.getBoundingClientRect(); return [r.width || 600, r.height || 600]; };
   // islands keep their real size, but never shrink below a few pixels across
   const placeIsles = () => { isles.forEach(it => { const k = Math.max(it.r, it.minPx * pxW); it.g.forEach(g => g.setAttribute('transform', `translate(${it.x} ${it.z}) scale(${k})`)); }); };
@@ -273,6 +281,7 @@ export function initHud(api) {
     $('map-zoom-l').textContent = ['', WORLD.city, 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
     placeIsles(); placeMarks(); geoDirty = true;
     ensure(x0, y0, x0 + view.w, y0 + vh, mapLevel() === 4);
+    clearTimeout(isleAsk); isleAsk = setTimeout(() => api.loadIslands?.(x0, y0, x0 + view.w, y0 + vh, view.cx, view.cz), 300);
   };
   const zoomAt = (f, wx = view.cx, wz = view.cz) => { const w0 = view.w; view.w = Math.min(V0, Math.max(VMIN, view.w * f)); const r = view.w / w0; view.cx = wx + (view.cx - wx) * r; view.cz = wz + (view.cz - wz) * r; applyView(); };
   // the boat, the pin and everyone else keep their on-screen size at any zoom
@@ -291,7 +300,7 @@ export function initHud(api) {
     const live = list.filter(p => p.c.live).length, cpu = list.length - live, row = $('map-others-row');
     if (row) { row.hidden = !list.length; $('map-others').textContent = [cpu ? `${cpu} local sailor${cpu === 1 ? '' : 's'} out` : '', live ? `${live} captain${live === 1 ? '' : 's'} online` : ''].filter(Boolean).join(' · '); }
   };
-  const placeMarks = () => { placeOthers(); boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${pxW})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${pxW})`); };
+  const placeMarks = () => { placeOthers(); placeTrip(); boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${pxW})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${pxW})`); };
   // place names, sized in screen pixels, drawn most important first and never overlapping (nor under the chart's
   // floating cards and buttons)
   const PRI = { region: 0, major: 1, isle: 2, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = { region: 10.5, major: 10, isle: 15, minor: 9.5, road: 11, poi: 11, society: 10.5 };
@@ -329,6 +338,7 @@ export function initHud(api) {
   const geoG = el('g', { class: 'map-geo' }); mapSvg.insertBefore(geoG, isleG.nextSibling); // (names above the islands, under the markers)
   onChange(() => { geoDirty = true; });
   setInterval(() => { if (geoDirty && mapOpen) paintGeo(); }, 250);
+  setInterval(() => { if (mapOpen) { const n = islesDrawn; paintRocks(); if (islesDrawn !== n) geoDirty = true; } }, 1000); // (islands arriving while the map is open)
   let pinch = null, drag = null, dragged = false; const ptrs = new Map();
   const worldAt = (cx, cy) => { const pt = mapSvg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(mapSvg.getScreenCTM().inverse()); };
   mapSvg.addEventListener('wheel', e => { e.preventDefault(); const w = worldAt(e.clientX, e.clientY); zoomAt(Math.pow(1.0018, e.deltaY), w.x, w.y); }, { passive: false });
@@ -517,6 +527,8 @@ export function initHud(api) {
     closePanel: () => closeSheet(), captainName: () => prefs.name, rank: () => rankEl.textContent,
     /** The other boats on the map: list() => [{ c, x, z, yaw, status }]; pick(c) when one is tapped. */
     setOthers: (list, pick) => { othersFn = list; othersPick = pick; },
+    /** A passenger trip's destination on the map: fn() -> { x, z, name } | null. */
+    setTripTarget: fn => { tripFn = fn; },
     /** SOS calls on the map: list() => [{ id, x, z, name, mine }]; pick(id) when one is tapped. */
     setSOS: (list, pick) => { sosFn = list; sosPick = pick; },
     update({ x, z, heading, dest, edge, az, kn, maxKn = 12, gearName, catchN, distNm, topKn }) {
