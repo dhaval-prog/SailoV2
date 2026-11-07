@@ -19,6 +19,7 @@ import * as geo from './geo.js';
 import { buildSailBoat } from './boats/sailboat.js';
 import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
+import { buildWoodTug } from './boats/woodtug.js';
 import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 import './boat-actions.css';
@@ -232,13 +233,15 @@ const tugModel = new THREE.Group(); tugModel.name = 'tug_model'; [...boat.childr
 const sailBoat = buildSailBoat({ THREE, M, emit: (...a) => emit(...a) }); sailBoat.group.visible = false; boat.add(sailBoat.group); outlines.push(...sailBoat.outlines);
 const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false; boat.add(motorYacht.group); outlines.push(...motorYacht.outlines);
 const dinghy = buildDinghy({ THREE, emit: (...a) => emit(...a) }); dinghy.group.visible = false; boat.add(dinghy.group); outlines.push(...dinghy.outlines);
+const woodTug = buildWoodTug({ THREE }); woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
 const BOATS = {
   tug: { name: 'Lighthouse Tug', outline, fit: { anchor: { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }, hawseY: 2.45, rod: [-3.9, 2.35, -1.35], land: [-3.0, 2.3, -0.4], menuY: 10.6 } },
   sail: { name: 'Sail Boat', outline: sailBoat.outline, fit: sailBoat.fit },
   yacht: { name: 'Motor Yacht', outline: motorYacht.outline, fit: motorYacht.fit },
   dinghy: { name: 'Dinghy Sailing Boat', outline: dinghy.outline, fit: dinghy.fit },
+  woodtug: { name: 'Wooden Tug', outline: woodTug.outline, fit: woodTug.fit },
 };
-let boatId = 'tug'; try { const b = localStorage.getItem('sailo:boat'); if (b === 'sail' || b === 'yacht' || b === 'dinghy') boatId = b; } catch { /* storage blocked */ }
+let boatId = 'tug'; try { const b = localStorage.getItem('sailo:boat'); if (b === 'sail' || b === 'yacht' || b === 'dinghy' || b === 'woodtug') boatId = b; } catch { /* storage blocked */ }
 let FIT = BOATS[boatId].fit;
 
 // lighting: warm key, cool sky/ground wash, cyan back light
@@ -747,7 +750,7 @@ let onBoatApplied = null; // set once the station (which owns fuel and holds) ex
 // switch the active boat: swap the model and move the shared fittings (anchor, hawse pipe, fishing rod, hull foam)
 function applyBoat(id) {
   boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit; MAXV = BOAT_SPECS[boatId].kn * SPEED_UP / 1.944; onBoatApplied?.(boatId);
-  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy';
+  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy'; woodTug.group.visible = boatId === 'woodtug';
   Object.assign(ANC, FIT.anchor); anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s);
   hawsePipe.position.set(ANC.x, FIT.hawseY + 0.03, ANC.z - 0.25 * ANC.s / 1.5);
   rodPivot.position.set(...FIT.rod);
@@ -756,7 +759,7 @@ function applyBoat(id) {
 }
 applyBoat(boatId);
 // a newly chosen boat drops into the water: falls, splashes, bobs a couple of times and settles
-const modelOf = id => ({ tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group })[id];
+const modelOf = id => ({ tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.group })[id];
 let dropIn = null, sinkOut = null;
 // the old boat shrinks and sinks into the water (with bubbles and a ripple), then the new one drops in
 const swapBoat = id => { const m = modelOf(boatId); sinkOut = { m, k: 0, id, bub: 0 }; ripple(boat.position.x, boat.position.z, 1.2, 1.6); splash(boat.position.x, boat.position.z, 14, 0.6); };
@@ -1058,7 +1061,7 @@ const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: (n, step) => stati
 // local sailors: 20 computer captains on their daily routines, the same for every account (Pune Paradise)
 // the local sailors (Pune Paradise) and real captains online (every chart) share one fleet on the water
 const isPuneChart = CHART.id === 'pune';
-const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group }, waveJS, WL, toScreen, cpu: isPuneChart,
+const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.group }, waveJS, WL, toScreen, cpu: isPuneChart,
   playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c) });
 // the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
 const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
