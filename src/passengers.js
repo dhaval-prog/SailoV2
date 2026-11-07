@@ -9,6 +9,7 @@
 // destination (migrations …_sailov2_passenger_trips, …_types_comfort); signed out it all stays on this device.
 import { RIDES } from './world-config.js';
 import { rpc } from './econ.js';
+import { placeList, poiList, zoneAt } from './geo.js';
 import './passengers.css';
 
 const MILE = 1609.344, SAVE = 'sailo:ride';
@@ -29,6 +30,10 @@ const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const rand = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = seed; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const stName = st => !st ? 'their station' : st.id === 'home' ? 'Paradise Station' : st.at;
+// an island's name: a real place on it or right beside it (a landmark, a society, a locality), else the neighbourhood it's off
+const isleName = (x, z, city) => { let best = null, bd = 320;
+  for (const p of [...poiList(), ...placeList()]) { if (p.kind === 'major' || p.kind === 'region' || p.kind === 'road') continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
+  if (best) return best.name; const zn = zoneAt(x, z); return `Island off ${zn ? zn.name : city}`; };
 const starStr = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 const mmss = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 /** The fare (as the server sets it). */
@@ -52,6 +57,15 @@ export function createPassengers(ctx) {
   const now = () => Date.now() + offset;
   const seatsOf = () => RIDES.seats[ctx.boatId()] || 1;
   const stationById = id => ctx.stations().find(s => s.id === id);
+  // where a trip or offer is headed, by name (a station, or an island out on the water)
+  const destName = o => o.dest === 'isle' ? (o.toName || 'the island') : stName(stationById(o.to));
+  // the islands met so far that a ride can go to: clear of the stations (those have piers)
+  const isles = () => (ctx.isles?.() || []).filter(r => r.r >= 20 && ctx.stations().every(s => Math.hypot(s.x - r.x, s.z - r.z) >= 600));
+  // signed in, each island met is told to the server (so it can offer rides there), a batch every 20 s
+  const told = new Set();
+  setInterval(() => { if (!station.isServer()) return; const list = [];
+    for (const r of isles()) { const k = `${Math.round(r.x)}:${Math.round(r.z)}`; if (told.has(k)) continue; told.add(k); list.push({ x: +r.x.toFixed(1), z: +r.z.toFixed(1), r: +r.r.toFixed(1), name: isleName(r.x, r.z, ctx.city) }); if (list.length >= 60) break; }
+    if (list.length) rpc('chart_isles_add', { p_chart: ctx.chartId, p_list: list }).catch(() => { list.forEach(i => told.delete(`${Math.round(i.x)}:${Math.round(i.z)}`)); }); }, 20000);
   const isNight = () => !!ctx.night?.();
 
   // ---------- who's waiting: three groups, the same for ten minutes at each station ----------
@@ -59,13 +73,16 @@ export function createPassengers(ctx) {
   function localOffers(st) {
     const w = Math.floor(Date.now() / 600000), r = rand(hash(`${ctx.chartId}:${st.id}:${w}`)), all = ctx.stations();
     const others = all.filter(s => s.id !== st.id).map(s => ({ s, d: Math.hypot(s.x - st.x, s.z - st.z) })).filter(o => o.d > 0.3 * MILE);
-    const pool = others.sort((a, b) => ((a.d > 6 * MILE) - (b.d > 6 * MILE)) || r() - 0.5).slice(0, 3);
+    const near = isles().map(i => ({ i, d: Math.hypot(i.x - st.x, i.z - st.z) })).filter(o => o.d >= 0.4 * MILE && o.d <= 5 * MILE), isleSlot = near.length && r() < 0.6;
+    const pool = others.sort((a, b) => ((a.d > 6 * MILE) - (b.d > 6 * MILE)) || r() - 0.5).slice(0, isleSlot ? 2 : 3);
+    if (isleSlot) { const o = near[Math.floor(r() * near.length)]; pool.push({ s: { id: `i${Math.round(o.i.x)}_${Math.round(o.i.z)}`, x: o.i.x, z: o.i.z }, d: o.d, isle: o.i }); }
     return { window: w, offers: pool.map((o, i) => { const k = r(); let kind = isNight() && k < 0.35 ? 'night' : k < 0.5 ? 'tourist' : k > 0.86 ? 'vip' : 'commuter', sight = null;
       if (kind === 'tourist') { const det = s => Math.hypot(s.x - st.x, s.z - st.z) + Math.hypot(o.s.x - s.x, o.s.z - s.z) - o.d;
         const best = all.filter(s => s.id !== st.id && s.id !== o.s.id && det(s) < 1.5 * MILE).sort((a, b) => det(a) - det(b))[0]; if (best) sight = best.id; else kind = 'commuter'; }
       const q = r(), seats = kind === 'vip' ? 1 : q < 0.55 ? 1 : q < 0.85 ? 2 : q < 0.95 ? 3 : 4 + Math.floor(r() * 3);
       const name = NAMES[Math.floor(r() * NAMES.length)], who = seats === 1 ? name : `${name} ${GROUP[Math.floor(r() * GROUP.length)]}`;
-      return { i, to: o.s.id, kind, seats, name, who, dist: o.d, fare: fareFor(o.d, seats, kind), sight }; }) };
+      return { i, to: o.s.id, kind, seats, name, who, dist: o.d, fare: fareFor(o.d, seats, kind), sight,
+        ...(o.isle ? { dest: 'isle', toName: isleName(o.isle.x, o.isle.z, ctx.city), tx: o.isle.x, tz: o.isle.z, tr: o.isle.r } : { dest: 'station' }) }; }) };
   }
   async function loadOffers(st) {
     if (station.isServer()) { const r = await rpc('ride_offers', { p_chart: ctx.chartId, p_night: isNight(), p_home_x: ctx.home.x, p_home_z: ctx.home.z }); return { window: r.window, offers: r.offers || [] }; }
@@ -83,12 +100,13 @@ export function createPassengers(ctx) {
   function closeBoard() { board.classList.remove('open'); setTimeout(() => { if (!board.classList.contains('open')) board.hidden = true; }, 220); }
   function paintBoard() {
     const st = ctx.here(), cap = seatsOf(), list = shown?.offers || [];
-    const tripHtml = trip ? `<div class="px-trip"><div><b>${esc(trip.passenger)}</b> ${trip.seats > 1 ? 'are' : 'is'} aboard<small>to ${esc(stName(stationById(trip.to)))} · ${(trip.dist / MILE).toFixed(1)} mi · ${trip.fare}c · ${starStr(trip.stars ?? 5)}</small></div>
+    const tripHtml = trip ? `<div class="px-trip"><div><b>${esc(trip.passenger)}</b> ${trip.seats > 1 ? 'are' : 'is'} aboard<small>to ${esc(destName(trip))} · ${(trip.dist / MILE).toFixed(1)} mi · ${trip.fare}c · ${starStr(trip.stars ?? 5)}</small></div>
       <button type="button" class="px-ghost" data-act="cancel">Cancel trip</button></div>` : '';
     const rows = !shown ? '<p class="px-none">Asking who’s waiting…</p>' : shown.err ? `<p class="px-none">${esc(shown.err)}</p>` : list.map(o => { const tooBig = o.seats > cap, blocked = !!trip || tooBig, K = KIND[o.kind] || KIND.commuter;
       const note = typeof K.note === 'function' ? K.note(stName(stationById(o.sight))) : K.note;
       return `<div class="px-row${blocked ? ' off' : ''}"><span class="px-av" style="background:${shirtOf(o)}">${esc(o.name[0])}</span>
-        <div class="px-main"><b>${esc(o.who)}</b><small>to ${esc(stName(stationById(o.to)))} · ${(o.dist / MILE).toFixed(1)} mi</small>
+        <div class="px-main"><b>${esc(o.who)}</b><small>to ${esc(destName(o))} · ${(o.dist / MILE).toFixed(1)} mi</small>
+          ${o.dest === 'isle' ? '<span class="px-kind k-isle"><em>Island</em>No pier: stop beside it to let them off</span>' : ''}
           <span class="px-kind k-${o.kind}"><em>${K.label}</em>${esc(note)}</span>
           <span class="px-seats" aria-label="${o.seats} seat${o.seats === 1 ? '' : 's'}">${'<i></i>'.repeat(Math.min(o.seats, 6))}${tooBig ? `<em>Needs ${o.seats} seats</em>` : ''}</span></div>
         <div class="px-side"><span class="px-fare">${o.fare}c</span><button type="button" class="px-gold" data-i="${o.i}" ${blocked ? 'disabled' : ''}>Take</button></div></div>`; }).join('') || '<p class="px-none">Nobody’s waiting here right now.</p>';
@@ -109,14 +127,19 @@ export function createPassengers(ctx) {
       if (station.isServer()) {
         const t = await rpc('ride_board', { p_chart: ctx.chartId, p_window: shown.window, p_offer: o.i, p_boat: boat, p_night: isNight() });
         setTrip({ ...t, ...extra, server: true });
-      } else setTrip({ id: 'local', from: ctx.here().id, to: o.to, passenger: o.who, seats: o.seats, boat, dist: o.dist, fare: o.fare, kind: o.kind, sight: o.sight,
+      } else setTrip({ id: 'local', from: ctx.here().id, to: o.to, dest: o.dest, toName: o.toName, tx: o.tx, tz: o.tz, tr: o.tr, passenger: o.who, seats: o.seats, boat, dist: o.dist, fare: o.fare, kind: o.kind, sight: o.sight,
         started: new Date().toISOString(), deadline: new Date(Date.now() + deadlineSecs(o.dist, boat, o.kind) * 1000).toISOString(), now: new Date().toISOString(), ...extra, server: false });
       closeBoard(); deck.board(trip.seats, trip.shirt);
-      const to = stationById(o.to); if (to) ctx.pinCourse(to.x + 70, to.z + 80);
+      pinTo(trip);
       const sight = trip.kind === 'tourist' && stationById(trip.sight);
-      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${stName(to)}${sight ? `, past ${stName(sight)} if you can` : ''}: the course is pinned.`);
+      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${destName(trip)}${sight ? `, past ${stName(sight)} if you can` : ''}${trip.dest === 'isle' ? ' and stop beside it' : ''}: the course is pinned.`);
     } catch (e) { toast(niceErr(e)); if (e?.code === 'offer_gone') openBoard(); else paintBoard(); }
     finally { busy = false; }
+  }
+  // the course: a station's harbour mouth, or the water just off an island (on the side you're coming from)
+  function pinTo(t) {
+    if (t.dest === 'isle') { const p = ctx.boatPos(), dx = p.x - t.tx, dz = p.z - t.tz, d = Math.hypot(dx, dz) || 1, k = ((t.tr || 30) + 45) / d; return ctx.pinCourse(t.tx + dx * k, t.tz + dz * k); }
+    const to = stationById(t.to); return to ? ctx.pinCourse(to.x + 70, to.z + 80) : false;
   }
   const NICE = { not_docked: 'Moor at the pier first.', trip_active: 'You already have passengers aboard.', too_many_seats: 'Your boat hasn’t the seats for them.',
     offer_gone: 'They’ve found another boat. Here’s who’s waiting now.', no_trip: 'Those passengers have already left.' };
@@ -141,34 +164,45 @@ export function createPassengers(ctx) {
     if (trip.kind === 'tourist' && !trip.seen && trip.sight) { const s = stationById(trip.sight), p = ctx.boatPos();
       if (s && Math.hypot(s.x - p.x, s.z - p.z) < 350) { trip.seen = true; save(); paintChip(); toast(`${trip.passenger.split(' ')[0]} loved the view of ${stName(s)}! 📸`); } }
     if ((saveT += dt) > 5) { saveT = 0; save(); }
+    if (trip.dest === 'isle') { const p = ctx.boatPos(), dd = Math.hypot(p.x - trip.tx, p.z - trip.tz), near = dd < (trip.tr || 30) + 110;
+      // close in, the drop-off point moves to the side you're coming from (the far side would mean sailing round it)
+      if (dd < (trip.tr || 30) + 500 && !trip.repinned) { trip.repinned = true; pinTo(trip); }
+      stopT = near && speed < 0.08 ? stopT + dt : 0; if (near && !trip.toldStop && speed >= 0.08) { trip.toldStop = true; toast(`Here's ${destName(trip)}: stop beside it to let ${trip.passenger.split(' ')[0]} off.`); }
+      if (stopT > 1.2 && !busy) { stopT = -999; arrive(); } }
   }
+  let stopT = 0;
 
   // ---------- arriving: moored at their station ----------
   async function moored(st) {
     if (!trip) return;
-    if (st.id !== trip.to) { toast(`${trip.passenger.split(' ')[0]} is headed for ${stName(stationById(trip.to))}.`); return; }
-    if (busy) return; busy = true;
+    if (trip.dest === 'isle') { toast(`${trip.passenger.split(' ')[0]} wants dropping at ${destName(trip)}: stop beside the island.`); return; }
+    if (st.id !== trip.to) { toast(`${trip.passenger.split(' ')[0]} is headed for ${destName(trip)}.`); return; }
+    arrive();
+  }
+  async function arrive() {
+    if (!trip || busy) return; busy = true;
     try {
-      const stars = starsNow(trip), sight = !!trip.seen; let r;
-      if (trip.server) r = await station.econCall('ride_finish', { p_chart: ctx.chartId, p_stars: stars, p_sight: sight });
+      const stars = starsNow(trip), sight = !!trip.seen, p = ctx.boatPos(); let r;
+      if (trip.server) r = trip.dest === 'isle' ? await station.econCall('ride_finish_isle', { p_chart: ctx.chartId, p_x: p.x, p_z: p.z, p_stars: stars, p_sight: sight })
+        : await station.econCall('ride_finish', { p_chart: ctx.chartId, p_stars: stars, p_sight: sight });
       else { r = payFor(trip, now(), stars, sight); station.earnLocal(r.paid); }
       const n = trip.passenger.split(' ')[0], q = QUOTES[stars], quote = q[hash(trip.id + n) % q.length];
       setTrip(null); deck.alight(true); ctx.celebrate?.(r.paid);
       toast(`${n} paid ${r.paid}c${r.onTime && r.tip ? ` (+${r.tip}c tip)` : r.onTime ? '' : ', a little late'}${r.sight ? ` (+${r.sight}c for the view)` : ''}. ${starStr(stars)} “${quote}”`);
       try { navigator.vibrate?.([12, 40, 18]); } catch { /* not allowed */ }
-    } catch (e) { toast(e?.code === 'too_fast' ? 'Hmm, that was quicker than any boat. No fare.' : niceErr(e)); }
+    } catch (e) { toast(e?.code === 'too_fast' ? 'Hmm, that was quicker than any boat. No fare.' : e?.code === 'not_there' ? `A little closer to ${destName(trip)}…` : niceErr(e)); stopT = 0; }
     finally { busy = false; }
   }
 
   // ---------- the trip chip (top of the screen) ----------
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'px-chip'; chip.hidden = true; chip.setAttribute('aria-label', 'Passenger trip');
   document.body.appendChild(chip);
-  chip.onclick = () => { if (!trip) return; const to = stationById(trip.to); if (to && !ctx.docked()) { ctx.pinCourse(to.x + 70, to.z + 80); toast(`Course pinned to ${stName(to)}.`); } };
+  chip.onclick = () => { if (!trip || ctx.docked()) return; if (pinTo(trip)) toast(`Course pinned to ${destName(trip)}.`); };
   function paintChip() {
-    chip.hidden = !trip; if (!trip) return; const to = stationById(trip.to), p = ctx.boatPos(), left = (Date.parse(trip.deadline) - now()) / 1000;
-    const d = to ? Math.hypot(to.x - p.x, to.z - p.z) / MILE : trip.dist / MILE, K = KIND[trip.kind] || KIND.commuter;
+    chip.hidden = !trip; if (!trip) return; const to = trip.dest === 'isle' ? { x: trip.tx, z: trip.tz } : stationById(trip.to), p = ctx.boatPos(), left = (Date.parse(trip.deadline) - now()) / 1000;
+    const d = to && to.x != null ? Math.hypot(to.x - p.x, to.z - p.z) / MILE : trip.dist / MILE, K = KIND[trip.kind] || KIND.commuter;
     chip.classList.toggle('late', left < 0); chip.classList.toggle('soon', left >= 0 && left < 60);
-    chip.innerHTML = `<span class="px-chip-av" style="background:${trip.shirt || '#3d7bd9'}">${esc(trip.passenger[0])}</span><span><b>${esc(trip.passenger.split(' ')[0])}${trip.seats > 1 ? ` +${trip.seats - 1}` : ''}</b> → ${esc(stName(to))}</span>
+    chip.innerHTML = `<span class="px-chip-av" style="background:${trip.shirt || '#3d7bd9'}">${esc(trip.passenger[0])}</span><span><b>${esc(trip.passenger.split(' ')[0])}${trip.seats > 1 ? ` +${trip.seats - 1}` : ''}</b> → ${esc(destName(trip))}</span>
       ${trip.kind !== 'commuter' ? `<span class="px-chip-k k-${trip.kind}">${K.label}${trip.kind === 'tourist' && trip.seen ? ' ✓' : ''}</span>` : ''}
       <span class="px-chip-s" aria-label="${trip.stars ?? 5} stars">${starStr(trip.stars ?? 5)}</span><span class="px-chip-m">${d.toFixed(1)} mi</span><span class="px-chip-t">${left < 0 ? `late ${mmss(-left)}` : mmss(left)}</span>`;
   }

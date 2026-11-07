@@ -32,6 +32,7 @@ body.is-night .px-modal, body.is-night .px-chip {
 .px-main small { font-size: 12.5px; color: var(--px-muted); }
 .px-kind { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--px-ink); opacity: 0.85; }
 .px-kind em, .px-chip-k { flex: none; padding: 2px 7px; border-radius: 99px; font: normal 600 10.5px var(--px-sans); letter-spacing: 0.3px; text-transform: uppercase; background: var(--px-card2); color: var(--px-muted); }
+.k-isle em { background: #f6e6cc; color: #6a4c20; }
 .k-tourist em, .px-chip-k.k-tourist { background: #d9f1ee; color: #0b6f7a; } .k-vip em, .px-chip-k.k-vip { background: #2b2414; color: #ffc93c; } .k-night em, .px-chip-k.k-night { background: #24304d; color: #c9d6ff; }
 .px-chip-s { font-size: 12px; letter-spacing: 1px; color: #e0a91a; }
 .px-chip.hurt { animation: px-hurt 0.5s ease; }

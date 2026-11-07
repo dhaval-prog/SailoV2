@@ -1038,7 +1038,7 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, fade: fadeF
 onBoatApplied = id => { station.setActive(id); passengers?.boatChanged(); }; onBoatApplied(boatId);
 // passengers waiting at every Paradise Station: take them to another for coins (the server sets and pays the fares)
 passengers = createPassengers({ THREE, chartId: CHART.id, stations: () => STATIONS, here: () => STATION, home: HOME, boat, boatId: () => boatId, boatPos: () => boat.position,
-  docked: () => station.mode === 'docked', night: () => E.night > 0.5, pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
+  docked: () => station.mode === 'docked', night: () => E.night > 0.5, isles: () => terrain?.all() || [], city: WORLD.city, pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
   celebrate: n => floatText(boat.position.clone().setY(9), `+${n}c`, '#ffd36b', true) });
 const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
