@@ -50,7 +50,7 @@ export function payFor(trip, nowMs, stars, sight) {
 }
 
 /** ctx: { THREE, chartId, stations(), here() (the station you're nearest), home, boat, boatId(), boatPos(), docked(), night(),
- *  pinCourse(x, z), clearCourse(), celebrate(n), station (station.js: econCall, isServer, serverReady, toast, earnLocal) } */
+ *  boatYaw(), scene, WL, openMap(), celebrate(n), station (station.js: econCall, isServer, serverReady, toast, earnLocal) } */
 export function createPassengers(ctx) {
   const { THREE, station } = ctx, toast = m => station.toast(m);
   let trip = null, offset = 0, busy = false, shown = null; // (offset: server clock minus ours; shown: the board's offers)
@@ -129,24 +129,22 @@ export function createPassengers(ctx) {
         setTrip({ ...t, ...extra, server: true });
       } else setTrip({ id: 'local', from: ctx.here().id, to: o.to, dest: o.dest, toName: o.toName, tx: o.tx, tz: o.tz, tr: o.tr, passenger: o.who, seats: o.seats, boat, dist: o.dist, fare: o.fare, kind: o.kind, sight: o.sight,
         started: new Date().toISOString(), deadline: new Date(Date.now() + deadlineSecs(o.dist, boat, o.kind) * 1000).toISOString(), now: new Date().toISOString(), ...extra, server: false });
-      closeBoard(); deck.board(trip.seats, trip.shirt);
-      pinTo(trip);
+      closeBoard();
       const sight = trip.kind === 'tourist' && stationById(trip.sight);
-      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${destName(trip)}${sight ? `, past ${stName(sight)} if you can` : ''}${trip.dest === 'isle' ? ' and stop beside it' : ''}: the course is pinned.`);
+      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${destName(trip)}${sight ? `, past ${stName(sight)} if you can` : ''}${trip.dest === 'isle' ? ' and stop beside it' : ' and moor there'}. Follow the gold light: it's on your map and compass too.`);
     } catch (e) { toast(niceErr(e)); if (e?.code === 'offer_gone') openBoard(); else paintBoard(); }
     finally { busy = false; }
   }
-  // the course: a station's harbour mouth, or the water just off an island (on the side you're coming from)
-  function pinTo(t) {
-    if (t.dest === 'isle') { const p = ctx.boatPos(), dx = p.x - t.tx, dz = p.z - t.tz, d = Math.hypot(dx, dz) || 1, k = ((t.tr || 30) + 45) / d; return ctx.pinCourse(t.tx + dx * k, t.tz + dz * k); }
-    const to = stationById(t.to); return to ? ctx.pinCourse(to.x + 70, to.z + 80) : false;
-  }
+  // where the trip is going (for the map, the compass and the beam of light): you sail there yourself
+  function target() { if (!trip) return null; const n = `Drop ${trip.passenger.split(' ')[0]} · ${destName(trip)}`;
+    if (trip.dest === 'isle') return trip.tx == null ? null : { x: trip.tx, z: trip.tz, r: trip.tr || 30, name: n };
+    const to = stationById(trip.to); return to ? { x: to.x, z: to.z, r: 34, name: n } : null; }
   const NICE = { not_docked: 'Moor at the pier first.', trip_active: 'You already have passengers aboard.', too_many_seats: 'Your boat hasn’t the seats for them.',
     offer_gone: 'They’ve found another boat. Here’s who’s waiting now.', no_trip: 'Those passengers have already left.' };
   const niceErr = e => NICE[e?.code] || NICE[String(e?.message)] || e?.message || 'The harbour didn’t answer. Try again?';
   async function cancelTrip() {
     if (!trip || busy) return; busy = true;
-    try { if (trip.server) await rpc('ride_cancel', {}); const n = trip.passenger; setTrip(null); deck.alight(false); ctx.clearCourse?.(); toast(`${n.split(' ')[0]} waved goodbye. Trip cancelled.`); }
+    try { if (trip.server) await rpc('ride_cancel', {}); const n = trip.passenger; setTrip(null); toast(`${n.split(' ')[0]} waved goodbye. Trip cancelled.`); }
     catch (e) { toast(niceErr(e)); }
     finally { busy = false; paintBoard(); }
   }
@@ -165,8 +163,6 @@ export function createPassengers(ctx) {
       if (s && Math.hypot(s.x - p.x, s.z - p.z) < 350) { trip.seen = true; save(); paintChip(); toast(`${trip.passenger.split(' ')[0]} loved the view of ${stName(s)}! 📸`); } }
     if ((saveT += dt) > 5) { saveT = 0; save(); }
     if (trip.dest === 'isle') { const p = ctx.boatPos(), dd = Math.hypot(p.x - trip.tx, p.z - trip.tz), near = dd < (trip.tr || 30) + 110;
-      // close in, the drop-off point moves to the side you're coming from (the far side would mean sailing round it)
-      if (dd < (trip.tr || 30) + 500 && !trip.repinned) { trip.repinned = true; pinTo(trip); }
       stopT = near && speed < 0.08 ? stopT + dt : 0; if (near && !trip.toldStop && speed >= 0.08) { trip.toldStop = true; toast(`Here's ${destName(trip)}: stop beside it to let ${trip.passenger.split(' ')[0]} off.`); }
       if (stopT > 1.2 && !busy) { stopT = -999; arrive(); } }
   }
@@ -187,7 +183,7 @@ export function createPassengers(ctx) {
         : await station.econCall('ride_finish', { p_chart: ctx.chartId, p_stars: stars, p_sight: sight });
       else { r = payFor(trip, now(), stars, sight); station.earnLocal(r.paid); }
       const n = trip.passenger.split(' ')[0], q = QUOTES[stars], quote = q[hash(trip.id + n) % q.length];
-      setTrip(null); deck.alight(true); ctx.celebrate?.(r.paid);
+      setTrip(null); ctx.celebrate?.(r.paid);
       toast(`${n} paid ${r.paid}c${r.onTime && r.tip ? ` (+${r.tip}c tip)` : r.onTime ? '' : ', a little late'}${r.sight ? ` (+${r.sight}c for the view)` : ''}. ${starStr(stars)} “${quote}”`);
       try { navigator.vibrate?.([12, 40, 18]); } catch { /* not allowed */ }
     } catch (e) { toast(e?.code === 'too_fast' ? 'Hmm, that was quicker than any boat. No fare.' : e?.code === 'not_there' ? `A little closer to ${destName(trip)}…` : niceErr(e)); stopT = 0; }
@@ -197,16 +193,17 @@ export function createPassengers(ctx) {
   // ---------- the trip chip (top of the screen) ----------
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'px-chip'; chip.hidden = true; chip.setAttribute('aria-label', 'Passenger trip');
   document.body.appendChild(chip);
-  chip.onclick = () => { if (!trip || ctx.docked()) return; if (pinTo(trip)) toast(`Course pinned to ${destName(trip)}.`); };
+  chip.onclick = () => { if (trip) ctx.openMap?.(); }; // (the map shows where they're going)
   function paintChip() {
     chip.hidden = !trip; if (!trip) return; const to = trip.dest === 'isle' ? { x: trip.tx, z: trip.tz } : stationById(trip.to), p = ctx.boatPos(), left = (Date.parse(trip.deadline) - now()) / 1000;
     const d = to && to.x != null ? Math.hypot(to.x - p.x, to.z - p.z) / MILE : trip.dist / MILE, K = KIND[trip.kind] || KIND.commuter;
     chip.classList.toggle('late', left < 0); chip.classList.toggle('soon', left >= 0 && left < 60);
+    const tg = target(), yaw = ctx.boatYaw?.() ?? 0, turn = tg ? Math.atan2(-(tg.z - p.z), tg.x - p.x) - yaw : 0; // (0: dead ahead; positive: to port)
     chip.innerHTML = `<span class="px-chip-av" style="background:${trip.shirt || '#3d7bd9'}">${esc(trip.passenger[0])}</span><span><b>${esc(trip.passenger.split(' ')[0])}${trip.seats > 1 ? ` +${trip.seats - 1}` : ''}</b> → ${esc(destName(trip))}</span>
       ${trip.kind !== 'commuter' ? `<span class="px-chip-k k-${trip.kind}">${K.label}${trip.kind === 'tourist' && trip.seen ? ' ✓' : ''}</span>` : ''}
-      <span class="px-chip-s" aria-label="${trip.stars ?? 5} stars">${starStr(trip.stars ?? 5)}</span><span class="px-chip-m">${d.toFixed(1)} mi</span><span class="px-chip-t">${left < 0 ? `late ${mmss(-left)}` : mmss(left)}</span>`;
+      <span class="px-chip-s" aria-label="${trip.stars ?? 5} stars">${starStr(trip.stars ?? 5)}</span><span class="px-chip-dir" aria-hidden="true" style="transform:rotate(${(-turn * 180 / Math.PI).toFixed(0)}deg)">↑</span><span class="px-chip-m">${d.toFixed(1)} mi</span><span class="px-chip-t">${left < 0 ? `late ${mmss(-left)}` : mmss(left)}</span>`;
   }
-  setInterval(paintChip, 1000);
+  setInterval(paintChip, 300); // (the arrow follows your turns)
 
   // ---------- keeping the trip (the server's copy wins; comfort and the rest are kept here) ----------
   const save = () => { try { if (trip) localStorage.setItem(SAVE, JSON.stringify({ ...trip, chart: ctx.chartId })); else localStorage.removeItem(SAVE); } catch { /* storage blocked */ } };
@@ -215,55 +212,21 @@ export function createPassengers(ctx) {
     let local = null; try { local = JSON.parse(localStorage.getItem(SAVE)); } catch { /* none */ }
     const keep = l => (l && l.chart === ctx.chartId ? { shirt: l.shirt, stars: l.stars ?? 5, bumps: l.bumps ?? 0, rough: l.rough ?? 0, seen: !!l.seen } : { stars: 5, bumps: 0, rough: 0, seen: false });
     if (station.isServer() || await station.serverReady?.()) {
-      try { const t = await rpc('ride_get', {}); if (t && t.chart === ctx.chartId) { setTrip({ ...t, ...keep(local?.id === t.id ? local : null), server: true }); deck.board(t.seats, trip.shirt, true); } else setTrip(null); }
-      catch { if (local?.server && local.chart === ctx.chartId) { trip = local; paintChip(); deck.board(local.seats, local.shirt, true); } }
-    } else if (local && !local.server && local.chart === ctx.chartId) { setTrip({ ...local, ...keep(local) }); deck.board(local.seats, local.shirt, true); }
+      try { const t = await rpc('ride_get', {}); if (t && t.chart === ctx.chartId) { setTrip({ ...t, ...keep(local?.id === t.id ? local : null), server: true }); } else setTrip(null); }
+      catch { if (local?.server && local.chart === ctx.chartId) { trip = local; paintChip(); } }
+    } else if (local && !local.server && local.chart === ctx.chartId) { setTrip({ ...local, ...keep(local) }); }
   })();
 
-  // ---------- the passengers on deck: little figures, standing where the deck is flat and low ----------
-  const deck = (() => {
-    const g = new THREE.Group(); g.name = 'passengers'; ctx.boat.add(g);
-    const body = new THREE.CylinderGeometry(0.2, 0.26, 0.82, 8), head = new THREE.SphereGeometry(0.19, 10, 8), leg = new THREE.CylinderGeometry(0.09, 0.09, 0.62, 6);
-    const legM = new THREE.MeshStandardMaterial({ color: '#2f3a4d', roughness: 0.9 });
-    const spots = new Map(), BIG = 1.3; let people = [], leaving = null, t0 = 0; // (BIG: a little larger than life, so they read at sea)
-    // stand-points for a boat: look down at it from above and keep the lowest flat hits (the deck, not the cabin roof)
-    const findSpots = id => { if (spots.has(id)) return spots.get(id);
-      const b = ctx.boat, pos = b.position.clone(), rot = b.rotation.clone(); b.position.set(0, 0, 0); b.rotation.set(0, 0, 0); b.updateMatrixWorld(true);
-      const meshes = []; b.traverse(o => { if (o.isMesh && o.visible && o.material?.visible !== false && !o.material?.transparent && !people.some(p => p === o.parent)) meshes.push(o); });
-      const box = new THREE.Box3(); meshes.forEach(m => box.expandByObject(m));
-      const ray = new THREE.Raycaster(), dn = new THREE.Vector3(0, -1, 0), hits = [], L = box.max.x - box.min.x, Wd = box.max.z - box.min.z;
-      for (let i = 0; i <= 14; i++) for (const zf of [-0.22, 0, 0.22]) { const x = box.min.x + L * (0.12 + 0.68 * i / 14), z = (box.min.z + box.max.z) / 2 + zf * Wd;
-        ray.set(new THREE.Vector3(x, box.max.y + 2, z), dn); const h = ray.intersectObjects(meshes, false)[0];
-        if (h && h.face && h.face.normal.clone().transformDirection(h.object.matrixWorld).y > 0.85) hits.push(new THREE.Vector3(x, h.point.y, z)); }
-      b.position.copy(pos); b.rotation.copy(rot); b.updateMatrixWorld(true);
-      let out = [];
-      if (hits.length) { const low = Math.min(...hits.map(h => h.y)), deckY = hits.filter(h => h.y < low + 0.5); // (the main deck)
-        const byX = deckY.sort((a, c) => a.x - c.x); for (let i = 0; i < 6; i++) out.push(byX[Math.round(i * (byX.length - 1) / 5)] || byX[0]); }
-      if (!out.length) out = Array.from({ length: 6 }, (_, i) => new THREE.Vector3(-1.5 + i * 0.6, 1.8, (i % 2 ? 0.5 : -0.5)));
-      // spread them out: alternate sides and order from the stern
-      out = [out[0], out[5], out[2], out[3], out[1], out[4]].filter(Boolean).map((v, i) => v.clone().setZ(v.z + (i % 2 ? 0.35 : -0.35)));
-      spots.set(id, out); return out; };
-    const person = (shirt, i) => { const p = new THREE.Group(), r = rand(hash(shirt + i));
-      const bm = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: i === 0 ? shirt : SHIRTS[Math.floor(r() * SHIRTS.length)], roughness: 0.85 })); bm.position.y = 1.0;
-      const hm = new THREE.Mesh(head, new THREE.MeshStandardMaterial({ color: SKIN[Math.floor(r() * SKIN.length)], roughness: 0.8 })); hm.position.y = 1.62;
-      const l1 = new THREE.Mesh(leg, legM), l2 = new THREE.Mesh(leg, legM); l1.position.set(0, 0.31, 0.1); l2.position.set(0, 0.31, -0.1);
-      [bm, hm, l1, l2].forEach(m => { m.castShadow = true; p.add(m); }); p.userData.ph = r() * 6; return p; };
-    const clear = () => { people.forEach(p => g.remove(p)); people = []; };
-    return {
-      board(n, shirt, instant = false) { clear(); leaving = null; const sp = findSpots(ctx.boatId());
-        for (let i = 0; i < Math.min(n, sp.length); i++) { const p = person(shirt || SHIRTS[0], i); p.position.copy(sp[i]); p.userData.base = sp[i].clone(); p.userData.t = instant ? -99 : i * 0.25; p.rotation.y = Math.PI / 2 + (i % 2 ? 0.5 : -0.5); g.add(p); people.push(p); }
-        t0 = performance.now() / 1000; },
-      alight(wave) { if (!people.length) return; leaving = { t: performance.now() / 1000, wave }; },
-      reseat() { if (!people.length) return; spots.delete(ctx.boatId()); const sp = findSpots(ctx.boatId()); people.forEach((p, i) => { p.userData.base = (sp[i] || sp[0]).clone(); }); },
-      tick() { if (!people.length) return; const t = performance.now() / 1000;
-        people.forEach((p, i) => { const u = t - t0 - p.userData.t, b = p.userData.base;
-          if (leaving) { const v = Math.min(1, (t - leaving.t - i * 0.15) / 0.5); if (v <= 0) return; p.position.set(b.x, b.y + Math.sin(v * Math.PI) * 1.2, b.z + v * 2.2 * (i % 2 ? 1 : -1)); p.scale.setScalar(Math.max(0.001, (1 - v) * BIG)); return; }
-          const k = Math.min(1, Math.max(0, u / 0.45)); // (hopping aboard)
-          p.scale.setScalar(Math.max(0.001, k * BIG)); p.position.set(b.x, b.y + Math.sin(k * Math.PI) * 0.8 + Math.sin(t * 2 + p.userData.ph) * 0.02, b.z);
-          p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.04; });
-        if (leaving && t - leaving.t > 0.5 + people.length * 0.15) { clear(); leaving = null; } },
-    };
+  // ---------- the destination, out on the water: a tall gold beam of light (seen from far off) and a ring on the sea ----------
+  const beacon = (() => {
+    const g = new THREE.Group(); g.name = 'trip_beacon'; g.visible = false; ctx.scene.add(g);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.4, 90, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffc93c', transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    beam.position.y = 45; beam.renderOrder = 5; g.add(beam);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.25, 48), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.8, depthWrite: false, fog: false }));
+    ring.rotation.x = -Math.PI / 2; g.add(ring);
+    return { tick(t) { const tg = target(); g.visible = !!tg; if (!tg) return; g.position.set(tg.x, ctx.WL + 0.1, tg.z); g.updateMatrixWorld(true);
+      const r = tg.r || 30, k = (t * 0.5) % 1; ring.scale.setScalar(r * (1 + k * 0.6)); ring.material.opacity = 0.8 * (1 - k); beam.material.opacity = 0.22 + 0.1 * Math.sin(t * 2); } };
   })();
 
-  return { openBoard, moored, bump, tick: (dt = 0, speed = 0, amp = 1) => { ride(dt, speed, amp); deck.tick(); }, boatChanged: () => deck.reseat(), get trip() { return trip; } };
+  return { openBoard, moored, bump, target, tick: (dt = 0, speed = 0, amp = 1, t = 0) => { ride(dt, speed, amp); beacon.tick(t); }, boatChanged: () => {}, get trip() { return trip; } };
 }

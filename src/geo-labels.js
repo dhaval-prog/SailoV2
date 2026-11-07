@@ -29,7 +29,7 @@ const fmtKm = m => (m >= 10000 ? Math.round(m / 1000) : (m / 1000).toFixed(1)) +
  * ctx: THREE, stage, boat, WL, toScreen, avoid() -> screen rects to keep clear, onZone(zone),
  *      sailTo(x, z) -> true when a course was set, station { x, z, name }, course() -> {x, z} | null, busy() -> true while fishing
  */
-export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy, night, hazards }) {
+export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZone, sailTo, station, course, busy, night, hazards, trip }) {
   const layer = document.createElement('div'); layer.id = 'geo-labels'; document.body.appendChild(layer);
   const toast = document.createElement('div'); toast.id = 'geo-toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast);
   const pool = new Map(); // key -> { el, on, dist, w, h }
@@ -64,6 +64,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
   let armed = null; // { key, p, el }
   const disarm = () => { if (!armed) return; armed.el.classList.remove('armed'); armed.el.setAttribute('aria-label', armed.p.name); armed = null; };
   function pick(key, p, el) {
+    if (key.startsWith('trip:')) return; // (a passenger trip: you sail them there yourself)
     if (armed?.key === key) { const target = armed.p; disarm(); sailTo(target.x, target.z, target.name); return; }
     disarm(); armed = { key, p, el }; el.classList.add('armed'); el.setAttribute('aria-label', `Sail to ${p.name}`);
   }
@@ -87,6 +88,7 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
     for (const t of ticks) { const dx = wrap(t.a - camHead); t.el.style.display = Math.abs(dx) > span ? 'none' : ''; if (Math.abs(dx) <= span) t.el.style.transform = `translateX(${(W / 2 + dx * ppd).toFixed(1)}px)`; }
     // markers: your course and the station first, then the nearest places
     const list = [];
+    const tt = trip?.(); if (tt) list.push({ key: 'trip:' + tt.name, p: tt, cls: 'cs-trip', pri: 0 }); // (a passenger trip's destination: passengers.js)
     const c = course(); if (c) list.push({ key: 'course', p: { name: 'Your course', x: c.x, z: c.z }, cls: 'cs-course', pri: 0 });
     if (station) list.push({ key: 'station', p: station, cls: 'cs-station', pri: 1 });
     (hazards?.() || []).forEach((h, i) => list.push({ key: 'rock:' + i, p: h, cls: 'cs-rock', pri: 1 })); // (rocks close by: red, not a place to sail to)

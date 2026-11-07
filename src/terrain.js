@@ -95,6 +95,9 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   const inkMat = rockShader(new THREE.MeshBasicMaterial({ name: 'ink_outline', color: '#4a1d24', side: THREE.BackSide }), true);
   fade(rockMat); fade(inkMat); // (far off they dissolve into the haze)
   const tileMeshes = new Map(), toBuild = []; // tile key → { rock, ink }
+  // the map's own loading (loadArea): a queue, six tiles at a time
+  const areaQ = []; let areaOn = 0;
+  const pumpArea = () => { while (areaOn < 6 && areaQ.length) { const t = areaQ.shift(); areaOn++; Promise.resolve(load('rocks', 15, t.x, t.y)).finally(() => { areaOn--; pumpArea(); }); } };
   const islands = createPineIslands(THREE, { scene, WL });
   function buildTile(key) { const list = rocks.get(key)?.filter(r => !isMedium(r)); if (!list?.length || tileMeshes.has(key)) return;
     const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;
@@ -178,6 +181,13 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       onHit?.(k); },
     /** Rocks close by (for the compass): the nearest few within 60 m. */
     hazards() { const b = getBoat(); return nearR.map(r => ({ r, d: Math.hypot(r.x - b.x, r.z - b.z) - r.r })).filter(o => o.d < 60).sort((a, c) => a.d - c.d).slice(0, 3).map(o => ({ name: 'Rocks', x: o.r.x, z: o.r.z })); },
+    /** The map: load the islands of an area too (not only round the boat), nearest to (cx, cz) first, a few at a time.
+     *  Each map tile is fetched once and kept on the device (geo cache). */
+    loadArea(x0, z0, x1, z1, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2) {
+      if (!on) return; const H = WORLD.half;
+      const want = tilesIn(Math.max(-H, x0), Math.max(-H, z0), Math.min(H, x1), Math.min(H, z1), 15).filter(([x, y]) => !rocks.has(`rocks:15/${x}/${y}`))
+        .map(([x, y]) => { const r = tileRect(x, y, 15); return { x, y, d: Math.hypot((r.x0 + r.x1) / 2 - cx, (r.z0 + r.z1) / 2 - cz) }; }).sort((a, b) => a.d - b.d);
+      areaQ.length = 0; areaQ.push(...want); pumpArea(); },
     /** Every rock known so far (the map). */
     all() { const out = []; rocks.forEach(l => l.forEach(r => out.push(r))); return out; },
     /** Every frame: load the tiles round the boat, and draw what's near. */
