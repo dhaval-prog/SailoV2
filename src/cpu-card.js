@@ -2,7 +2,7 @@
 import { captain, stateAt, today, hoursOf, statusText, statusOf } from './cpu-captains.js';
 
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const BOAT = { tug: ['Lighthouse Tug', 'boat-tug'], sail: ['Sail Boat', 'boat-sail'], yacht: ['Motor Yacht', 'boat-yacht'], dinghy: ['Dinghy Sailing Boat', 'boat-sail'], woodtug: ['Wooden Tug', 'boat-tug'] };
+const BOAT = { tug: ['Lighthouse Tug', 'boat-tug'], sail: ['Sail Boat', 'boat-sail'], yacht: ['Motor Yacht', 'boat-yacht'], dinghy: ['Dinghy Sailing Boat', 'boat-sail'], woodtug: ['Wooden Tug', 'boat-tug'], voyager: ['Voyager', 'boat-sail'] };
 
 export function captainCard(c, ms = Date.now()) {
   const s = stateAt(c, ms), d = today(c, ms), [boatName, icon] = BOAT[c.boat], col = c.colours.sail || c.colours.hull || c.colours.flag || '#ffffff';
