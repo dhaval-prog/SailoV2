@@ -7,6 +7,7 @@ import { initStation, SPEED_UP, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus,
 import { watchMarket } from './market.js';
 import { createHarbourSounds } from './harbour-sounds.js';
 import { createHelmButtons } from './helm-buttons.js';
+import { createPassengers } from './passengers.js';
 import { createTerrain } from './terrain.js';
 import { createFishShadows } from './fish-shadows.js';
 import { mergeStatic, tidyOutlines, moving } from './merge-static.js';
@@ -1026,13 +1027,19 @@ const moveBoat = (x, z, newYaw, moving) => { const dx = x - boat.position.x, dz 
 // (the wallet sits under the place name and the clock in the top-left block)
 queueMicrotask(() => { const w = document.getElementById('stn-wallet'); if (w) document.getElementById('hud-tl').appendChild(w); });
 const fadeFar = farFade(seaU.uFog); // (rocks and islands far off dissolve into the haze, as the sea does)
+let passengers = null; // (passenger trips: passengers.js, made just below)
 const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, fade: fadeFar, boat, boatPos: () => boat.position, boatYaw: () => yaw, moveBoat, night: () => E.night,
   camTo: (focus, off, dur) => animCam(off, focus.y, dur, new THREE.Vector3(focus.x - boat.position.x, 0, focus.z - boat.position.z)),
   onDockEnd: () => setView(state.view),
+  onMoored: st => passengers?.moored(st), onPassengers: () => passengers?.openBoard(),
   berthInfo: i => berths?.info(i), bookBerth: i => berths ? berths.book(i) : Promise.resolve({ ok: true }), berthState: s => berths?.state(s),
   canDock: () => { if (ACT.anchor !== 'up') { floatText(boat.position.clone().setY(9), 'Raise the anchor first', '#ffd36b'); return false; } return true; },
   onDockStart: () => { clearCourse(false); if (ACT.fish !== 'off') stopFishing(); boatActions.setOpen(false); } });
-onBoatApplied = id => station.setActive(id); onBoatApplied(boatId);
+onBoatApplied = id => { station.setActive(id); passengers?.boatChanged(); }; onBoatApplied(boatId);
+// passengers waiting at every Paradise Station: take them to another for coins (the server sets and pays the fares)
+passengers = createPassengers({ THREE, chartId: CHART.id, stations: () => STATIONS, here: () => STATION, home: HOME, boat, boatId: () => boatId, boatPos: () => boat.position,
+  docked: () => station.mode === 'docked', pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
+  celebrate: n => floatText(boat.position.clone().setY(9), `+${n}c`, '#ffd36b', true) });
 const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
   seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
@@ -1201,6 +1208,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   stepCourse(t, dt);
   station.tick(t, dt);
   stepSinkOut(dt); stepDropIn(dt);
+  passengers?.tick();
   // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
   { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
     const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;
@@ -1255,4 +1263,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), passengers: () => passengers, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };

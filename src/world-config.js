@@ -59,6 +59,15 @@ export const MARKET = {
 
 // the economy's numbers, as the server applies them (econ_cfg() in supabase/migrations/…_sailov2_economy.sql: keep the
 // two in step).
+// passenger trips (passengers.js): the same numbers as the server's ride_cfg() (migration …_sailov2_passenger_trips),
+// which sets the real fare and deadline: these only preview them on the board
+export const RIDES = {
+  perMile: 30, minFare: 20, groupBonus: 0.5, tip: 0.2, lateFloor: 0.5,
+  seats: { dinghy: 1, tug: 2, sail: 3, yacht: 6 },
+  kn: { dinghy: 15.75, tug: 21, sail: 26.25, yacht: 38.5 }, // (the boats' top speeds as you sail them)
+  deadlineSlack: 1.8, deadlineExtra: 90,
+};
+
 export const ECONOMY = {
   fuelPrice: 2,          // coins a litre
   catchGap: 3,           // seconds: at most one fish kept (or released) this often
