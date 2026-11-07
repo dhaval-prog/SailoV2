@@ -38,7 +38,7 @@ export function createOnline({ chartId, me, on = {}, positions = true }) {
     ws.onclose = () => { joined = false; clearInterval(hb); if (!closed) setTimeout(connect, retry = Math.min(30000, retry * 2)); };
     ws.onerror = () => { /* onclose follows */ };
   }
-  const clean = v => ({ name: String(v?.name || 'Captain').slice(0, 18), boat: ['tug', 'sail', 'yacht', 'dinghy', 'woodtug'].includes(v?.boat) ? v.boat : 'tug',
+  const clean = v => ({ name: String(v?.name || 'Captain').slice(0, 18), boat: ['tug', 'sail', 'yacht', 'dinghy', 'woodtug', 'voyager'].includes(v?.boat) ? v.boat : 'tug',
     colours: v?.colours && typeof v.colours === 'object' ? Object.fromEntries(Object.entries(v.colours).filter(([, c]) => /^#[0-9a-f]{3,8}$/i.test(c)).slice(0, 4)) : {},
     rank: String(v?.rank || '').slice(0, 24), catches: Math.max(0, +v?.catches || 0) });
   function meet(id, meta) { if (!meta || id === uid) return; if (!players.has(id)) { sent = null; posT = 0; } // (a newcomer: show them where I am now)

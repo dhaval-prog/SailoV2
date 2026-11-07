@@ -17,6 +17,7 @@ const BOATS = {
   sail: { ico: 'boat-sail', sub: 'Sloop with mainsail and jib · sails furl at anchor', edit: 'sail' },
   yacht: { ico: 'boat-yacht', sub: 'Flybridge cruiser with radar arch · custom flag', edit: 'yacht' },
   dinghy: { ico: 'boat-sail', sub: 'Daysailer with tall mast and genoa · heels under sail', edit: 'dinghy' },
+  voyager: { ico: 'boat-sail', sub: 'Conservatory ship: a glasshouse on deck, lateen sails and outrigger floats' },
   woodtug: { ico: 'boat-tug', sub: 'Big planked wooden tug with tyre fenders, a wheelhouse and chain rails · custom hull', edit: 'woodtug' },
 };
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
