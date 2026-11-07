@@ -21,6 +21,8 @@ const GLASS = 'mat_cdeeea_t', CLOTH = 'mat_f4efe6_t';
 const SAILS = [{ parts: ['part_407', 'part_410', 'part_411', 'part_412'], tack: [0, 4.4, -1.6] }, { parts: ['part_473', 'part_476', 'part_477', 'part_478'], tack: [0, 3.9, 13.4] }];
 const SAIL_PART = new Map(SAILS.flatMap((s, i) => s.parts.map(p => [p, i])));
 const SCREW_X = 9.55; // the floats' axes (model x = ±9.55, y = 0, along z)
+const FLOAT_UP = DRAFT; // the floats (and their screws) ride this much higher than the hull: their axes at the surface, so
+// the top half of each screw turns in the air, where you can see it
 const FUNNELS = [[-0.95, 7.3, 2.2], [0.95, 7.3, 2.2]];
 // the sail colour (the Garage): 'classic' is the cloth as it comes
 const SAIL_KEY = 'voyager.sail', SAIL_COLS = ['classic', '#ee3427', '#ffb21a', '#2343a0', '#2cc4a8', '#3f8f4a', '#f4a3c4', '#3b3134'];
@@ -38,21 +40,21 @@ export function buildVoyager({ THREE, scene, emit }) {
   const ready = new Promise(resolve => new GLTFLoader().load(shipUrl, gltf => {
     const root = gltf.scene; root.updateMatrixWorld(true);
     // the screws: in each float's group, the long gold parts (its three flights and the nose), not the hoops or the float
-    const screwOf = new Map(), box = new THREE.Box3();
+    const screwOf = new Map(), floatPart = new Set(), box = new THREE.Box3();
     root.traverse(o => { if (o.isMesh || !o.children.length || !o.parent || o.parent.name !== 'ConservatoryShip') return;
       box.setFromObject(o); const cx = (box.min.x + box.max.x) / 2; if (Math.abs(Math.abs(cx) - SCREW_X) > 0.8) return;
       const side = Math.sign(cx);
-      o.children.forEach(m => { if (!m.isMesh) return; box.setFromObject(m); if (m.material.name === 'mat_e0a93c' && box.max.z - box.min.z > 1) screwOf.set(m, side); }); });
+      o.children.forEach(m => { if (!m.isMesh) return; floatPart.add(m); box.setFromObject(m); if (m.material.name === 'mat_e0a93c' && box.max.z - box.min.z > 1) screwOf.set(m, side); }); });
     // every part baked into the model's frame, then merged per material (only the attributes they all have);
     // the sails and the screws are merged per piece of their own instead, so they can move
     const buckets = new Map(), bucket = (key, mat, build) => { if (!buckets.has(key)) buckets.set(key, { mat, list: [], build }); return buckets.get(key).list; };
-    root.traverse(o => { if (!o.isMesh) return; const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.applyMatrix4(o.matrixWorld);
+    root.traverse(o => { if (!o.isMesh) return; const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.applyMatrix4(o.matrixWorld); if (floatPart.has(o)) g.translate(0, FLOAT_UP, 0);
       const si = SAIL_PART.get(o.name), sw = screwOf.get(o);
       if (si !== undefined) bucket(`sail${si}|${o.material.uuid}`, o.material, { sail: si }).push(g);
       else if (sw !== undefined) bucket(`screw${sw}|${o.material.uuid}`, o.material, { screw: sw }).push(g);
       else bucket(o.material.uuid, o.material, {}).push(g); });
     const sailG = SAILS.map(s => { const g = new THREE.Group(); g.position.set(...s.tack); holder.add(g); return g; });
-    const screwG = new Map([-1, 1].map(side => { const g = new THREE.Group(); g.position.set(side * SCREW_X, 0, 0); holder.add(g); return [side, g]; }));
+    const screwG = new Map([-1, 1].map(side => { const g = new THREE.Group(); g.position.set(side * SCREW_X, FLOAT_UP, 0); holder.add(g); return [side, g]; }));
     buckets.forEach(({ mat, list, build }) => {
       const keep = ['position', 'normal', 'uv'].filter(a => list.every(g => g.attributes[a]));
       list.forEach(g => Object.keys(g.attributes).forEach(a => { if (!keep.includes(a)) g.deleteAttribute(a); }));
@@ -63,7 +65,7 @@ export function buildVoyager({ THREE, scene, emit }) {
       let m2 = mat; if (mat.name === CLOTH) { if (!cloth) { cloth = mat.clone(); clothColor = mat.color.clone(); } m2 = cloth; } // (the player's own sail cloth)
       const mesh = new THREE.Mesh(merged, m2); mesh.name = 'voyager_' + mat.name; mesh.castShadow = !mat.transparent; mesh.receiveShadow = true;
       if (build.sail !== undefined) { mesh.position.set(...SAILS[build.sail].tack.map(v => -v)); sailG[build.sail].add(mesh); }
-      else if (build.screw !== undefined) { mesh.position.set(-build.screw * SCREW_X, 0, 0); screwG.get(build.screw).add(mesh); }
+      else if (build.screw !== undefined) { mesh.position.set(-build.screw * SCREW_X, -FLOAT_UP, 0); screwG.get(build.screw).add(mesh); }
       else holder.add(mesh);
     });
     sails.push(...sailG); screws.push(...screwG.values());
@@ -115,9 +117,40 @@ export function buildVoyager({ THREE, scene, emit }) {
       m.material.opacity = 0.4 * Math.min(1, a * 6) * (1 - a); m.material.color.setScalar(0.94 - 0.4 * night); });
   }
 
-  // ---------- the screws' white water: foam kicked up behind each float, more the faster they turn ----------
-  const churn = [-1, 1].map(side => [new THREE.Vector3(...at(side * SCREW_X, 0.2, 12.8)), new THREE.Vector3(...at(side * SCREW_X, 0.2, 4))]);
-  let churnAcc = 0;
+  // ---------- the screws' white water: foam spreading on the sea behind and beside each float, and water flung up by the
+  // turning flights; more, and further, the faster they turn ----------
+  const fxG = new THREE.Group(); fxG.name = 'voyager_wash'; scene?.add(fxG);
+  const foamGeo = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), dropGeo = new THREE.IcosahedronGeometry(0.09, 0);
+  const foams = Array.from({ length: 90 }, () => { const m = new THREE.Mesh(foamGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }));
+    m.visible = false; m.renderOrder = 3; m.userData = { life: 0, max: 1, v: new THREE.Vector3(), s0: 1, s1: 2 }; fxG.add(m); return m; });
+  const drops = Array.from({ length: 120 }, () => { const m = new THREE.Mesh(dropGeo, new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, opacity: 0.9, depthWrite: false }));
+    m.visible = false; m.userData = { v: new THREE.Vector3(), sea: 0 }; fxG.add(m); return m; });
+  // along each float (boat units): where the foam starts (its stern end, its middle, its bow end) and the float's top
+  const SEA_Y = 0.85; // the sea, in boat units
+  const along = [-1, 1].map(side => [12.8, 9, 5, 1, -1.5].map(z => new THREE.Vector3(...at(side * SCREW_X, 0, z)).setY(SEA_Y + 0.05)));
+  const sideOut = [-1, 1].map(side => new THREE.Vector3(...at(side, 0, 0)).sub(new THREE.Vector3(...at(0, 0, 0))).setY(0).normalize()); // (outboard, per side)
+  let foamI = 0, dropI = 0, foamAcc = 0, dropAcc = 0; const wq = new THREE.Vector3(), wv = new THREE.Vector3(), out = new THREE.Vector3();
+  function foam(k, dir) {
+    const m = foams[foamI++ % foams.length], u = m.userData, sIdx = Math.random() < 0.5 ? 0 : 1, pts = along[sIdx];
+    const p = pts[Math.random() < 0.55 ? 0 : 1 + Math.floor(Math.random() * (pts.length - 1))];
+    group.localToWorld(wq.copy(p)); out.copy(sideOut[sIdx]).applyQuaternion(q).setY(0);
+    m.position.set(wq.x + (Math.random() - 0.5) * 1.2, wq.y, wq.z + (Math.random() - 0.5) * 1.2);
+    u.life = 0; u.max = 1.6 + Math.random() * 1.4 + k; u.s0 = 0.5 + Math.random() * 0.5; u.s1 = 2.2 + k * 3 + Math.random() * 1.5;
+    u.v.copy(back).multiplyScalar((0.6 + k * 2.5) * dir).addScaledVector(out, 0.4 + Math.random() * 0.8);
+    m.rotation.y = Math.random() * 6; m.visible = true;
+  }
+  function drop(k) {
+    const m = drops[dropI++ % drops.length], u = m.userData, sIdx = Math.random() < 0.5 ? 0 : 1, pts = along[sIdx];
+    const a = pts[0], b = pts[pts.length - 1], f = Math.random(); wq.lerpVectors(a, b, f); wq.y = SEA_Y + 0.3 * K; group.localToWorld(wq);
+    out.copy(sideOut[sIdx]).applyQuaternion(q).setY(0).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
+    m.position.copy(wq); u.sea = wq.y - 0.3 * K; u.v.copy(out).multiplyScalar(0.8 + Math.random() * 2 * k).addScaledVector(back, 1 + 2 * k).setY(1.8 + Math.random() * 3 * k);
+    m.scale.setScalar(0.7 + Math.random() * 0.9); m.visible = true;
+  }
+  function washTick(dt) {
+    foams.forEach(m => { const u = m.userData; if (!m.visible) return; u.life += dt; const a = u.life / u.max; if (a >= 1) { m.visible = false; return; }
+      m.position.addScaledVector(u.v, dt); u.v.multiplyScalar(1 - dt * 0.8); m.scale.setScalar(u.s0 + (u.s1 - u.s0) * Math.sqrt(a)); m.material.opacity = 0.6 * (1 - a) * Math.min(1, a * 8); });
+    drops.forEach(m => { const u = m.userData; if (!m.visible) return; u.v.y -= 9.8 * dt; m.position.addScaledVector(u.v, dt); if (m.position.y < u.sea) m.visible = false; });
+  }
 
   let sailF = 0, spin = 0;
   /** Every frame while it's the boat you sail: the screws, sails, smoke and white water for the speed and the anchor;
@@ -130,10 +163,8 @@ export function buildVoyager({ THREE, scene, emit }) {
     // screws: a slow turn at idle, fast at full ahead (opposite hands, so they look like a pair); backwards astern
     spin += dt * (0.8 + k * 26) * dir; screws.forEach((s, i) => { s.rotation.z = i ? -spin : spin; });
     group.getWorldQuaternion(q); back.set(-1, 0, 0).applyQuaternion(q).setY(0).normalize();
-    if (emit && k > 0.04) { churnAcc += dt * (8 + 40 * k); while (churnAcc > 1) { churnAcc -= 1;
-      const pair = churn[Math.random() < 0.5 ? 0 : 1], p = pair[Math.random() < 0.7 ? 0 : 1]; group.localToWorld(wp.copy(p));
-      const sp = 1 + Math.random() * 1.5 * k, side = (Math.random() - 0.5) * 1.6;
-      emit(wp.x + back.z * side, wp.y, wp.z - back.x * side, back.x * sp * dir + back.z * side, 0.8 + Math.random() * 2.2 * k, back.z * sp * dir - back.x * side); } }
+    if (k > 0.03) { foamAcc += dt * (10 + 55 * k); while (foamAcc > 1) { foamAcc -= 1; foam(k, dir); } dropAcc += dt * (6 + 70 * k); while (dropAcc > 1) { dropAcc -= 1; drop(k); } }
+    washTick(dt);
     // sails: down onto the deck while the anchor drops and holds; back up when it's raised
     const want = anchor === 'dropping' || anchor === 'down' ? 1 : 0;
     sailF = want ? Math.min(1, sailF + dt / 1.6) : Math.max(0, sailF - dt / 2); const e = sailF * sailF * (3 - 2 * sailF);
@@ -143,7 +174,9 @@ export function buildVoyager({ THREE, scene, emit }) {
     if (k > 0.05) { puffAcc += dt * (1.5 + 6 * k); while (puffAcc > 1) { puffAcc -= 1; puff(k * maxV * 0.25); } }
     smokeTick(dt, night);
   }
-  return { group, template, outline, fit, outlines: [], ready, tick, smokeTick,
+  /** After a switch to another boat: let the smoke and the wash fade out. */
+  const fadeTick = (dt, night) => { smokeTick(dt, night); washTick(dt); };
+  return { group, template, outline, fit, outlines: [], ready, tick, smokeTick: fadeTick,
     /** The Garage: the sail colour ('classic' or a colour), its swatches, and a change to it. */
     sail: () => ({ sail: { c: sailCol }, colours: SAIL_COLS, set(next) { if (next.c) sailCol = next.c; try { localStorage.setItem(SAIL_KEY, JSON.stringify({ c: sailCol })); } catch { /* storage blocked */ } applySail(); } }) };
 }

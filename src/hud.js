@@ -8,6 +8,7 @@ import { STATION, STATIONS, S as ECON, FISH, REGION, localOdds, fishWhere } from
 import { currentSession, signOut } from './auth.js';
 import { beforeSignOut, lastSaved } from './cloud.js';
 import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
+import { nameIslands } from './island-names.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
 import { isTablet, isLefty, setLefty } from './tablet.js';
@@ -312,12 +313,13 @@ export function initHud(api) {
     const L = mapLevel(), sr = mapSvg.getBoundingClientRect(), px = 1 / pxW, vh = view.w * ar, x0 = view.cx - view.w / 2, y0 = view.cz - vh / 2;
     // islands have no names of their own (they're the map's buildings): one takes the real name of a place that sits on
     // it or right beside it (a landmark, a society, a locality), and that place isn't labelled again on its own
+    // every island in view is named (island-names.js: the same names as its signboard at sea); a place that names the
+    // island it sits on isn't labelled again on its own
     const real = L === 1 ? [] : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])], onIsle = new Map();
-    if (L >= 3) for (const p of real) { if (p.kind === 'major' || p.kind === 'region' || p.kind === 'road') continue; let best = null, bd = Infinity;
-      for (const it of isles) { if (it.big) continue; const d = Math.hypot(it.x - p.x, it.z - p.z); if (d < it.r * 1.6 + 25 && d < bd) { bd = d; best = it; } }
-      if (best && !(onIsle.get(best)?.d <= bd)) onIsle.set(best, { p, d: bd }); }
-    const used = new Set([...onIsle.values()].map(v => v.p));
-    const isleNames = [...onIsle].map(([it, { p }]) => ({ kind: 'isle', name: p.name, x: it.x, z: it.z + Math.max(it.r, 3.5 * pxW) * 1.14 + 16 * pxW }));
+    if (L >= 3) { const m = Math.max(view.w, vh) * 0.05, inView = isles.filter(it => it.x > x0 - m && it.x < x0 + view.w + m && it.z > y0 - m && it.z < y0 + vh + m);
+      if (inView.length) nameIslands(inView, isles).forEach((n, it) => onIsle.set(it, n)); }
+    const used = new Set([...onIsle.values()].filter(v => v.on).map(v => v.p));
+    const isleNames = [...onIsle].map(([it, { name }]) => ({ kind: 'isle', name, x: it.x, z: it.z + Math.max(it.r, 3.5 * pxW) * 1.14 + 16 * pxW }));
     const list = L === 1 ? regionList() : [...real.filter(p => !used.has(p)), ...isleNames];
     const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + vh).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
     const bx = (boatXY[0] - x0) * px, by = (boatXY[1] - y0) * px;
