@@ -233,7 +233,7 @@ const tugModel = new THREE.Group(); tugModel.name = 'tug_model'; [...boat.childr
 const sailBoat = buildSailBoat({ THREE, M, emit: (...a) => emit(...a) }); sailBoat.group.visible = false; boat.add(sailBoat.group); outlines.push(...sailBoat.outlines);
 const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false; boat.add(motorYacht.group); outlines.push(...motorYacht.outlines);
 const dinghy = buildDinghy({ THREE, emit: (...a) => emit(...a) }); dinghy.group.visible = false; boat.add(dinghy.group); outlines.push(...dinghy.outlines);
-const woodTug = buildWoodTug({ THREE }); woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
+const woodTug = buildWoodTug({ THREE, scene: stage._scene }); woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
 const BOATS = {
   tug: { name: 'Lighthouse Tug', outline, fit: { anchor: { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }, hawseY: 2.45, rod: [-3.9, 2.35, -1.35], land: [-3.0, 2.3, -0.4], menuY: 10.6 } },
   sail: { name: 'Sail Boat', outline: sailBoat.outline, fit: sailBoat.fit },
@@ -1191,6 +1191,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     if (boatId === 'sail') sailBoat.tick(t, dt, { steer: steerS, vel, anchor: ACT.anchor, night: E.night, amp: E.amp });
     if (boatId === 'dinghy') dinghy.tick(t, dt, { steer: steerS, vel, anchor: ACT.anchor, night: E.night, amp: E.amp, maxV: MAXV });
     if (boatId === 'yacht') motorYacht.tick(t, dt, { steer: steerS, vel, night: E.night, amp: E.amp, maxV: MAXV });
+    if (boatId === 'woodtug') woodTug.tick(t, dt, { vel, night: E.night, maxV: MAXV }); else woodTug.smokeTick(dt, E.night); // (its smoke drifts off after a switch)
     wakeT += dt;
     vT += Math.abs(vel) * dt; if (Math.abs(vel) > 0.8 && vT > 1.1) { vT = 0; dropVWake(fx, fz, sv, Math.abs(vel)); } // (a pair every metre or so: an unbroken V at any frame rate)
     if (Math.abs(vel) > 0.6 && wakeT > 0.07) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }
