@@ -201,12 +201,11 @@ export function initHud(api) {
     for (let i = 0; i < n; i++) { const a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n], e = p[(i + 2) % n];
       d += `C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (e[0] - b[0]) / 6)} ${f(c[1] - (e[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`; }
     return d + 'Z'; };
-  const ISLE_NAMES = ['Gull Rock', 'Mango Cay', 'Driftwood Isle', 'Coral Knoll', 'Lantern Key', 'Pelican Islet', 'Saltbush Isle', 'Shell Cay', 'Heron Isle', 'Kite Rock', 'Turtle Cay', 'Conch Key', 'Seagrass Isle', 'Puffin Rock', 'Cormorant Cay', 'Tern Islet'];
   const isles = []; let islesDrawn = 0;
   const addIsle = (x, z, r, seed, big) => { const pts = blobPts(seed), sz = el('g', {}, sandG), cg = el('g', {}, contourG);
     [2.1, 1.7, 1.35].forEach((k, j) => el('path', { d: blobPath(pts, k), class: 'map-contour', style: `stroke-opacity:calc(var(--sc-cop) * ${0.5 + j * 0.25})`, 'vector-effect': 'non-scaling-stroke' }, cg));
     el('path', { d: blobPath(pts, 1.14), class: 'map-beach' }, sz); el('path', { d: blobPath(pts, 1), class: 'map-isle', 'vector-effect': 'non-scaling-stroke' }, sz);
-    const it = { x, z, r, g: [sz, cg], big, minPx: big ? 30 : 3.5, name: ISLE_NAMES[(seed >>> 0) % ISLE_NAMES.length] }; isles.push(it); return it; };
+    const it = { x, z, r, g: [sz, cg], big, minPx: big ? 30 : 3.5 }; isles.push(it); return it; };
   const paintRocks = () => { const all = api.rocks?.() || []; if (all.length === islesDrawn) return;
     for (let i = islesDrawn; i < all.length; i++) { const r = all[i]; addIsle(r.x, r.z, r.r, (Math.round(r.x) * 73856093) ^ (Math.round(r.z) * 19349663), false); }
     islesDrawn = all.length; placeIsles(); };
@@ -302,8 +301,15 @@ export function initHud(api) {
   const paintGeo = () => {
     geoDirty = false; geoG.replaceChildren(); if (!mapOpen) return;
     const L = mapLevel(), sr = mapSvg.getBoundingClientRect(), px = 1 / pxW, vh = view.w * ar, x0 = view.cx - view.w / 2, y0 = view.cz - vh / 2;
-    const isleNames = L >= 3 ? isles.filter(it => !it.big).map(it => ({ kind: 'isle', name: it.name, x: it.x, z: it.z + Math.max(it.r, 3.5 * pxW) * 1.14 + 16 * pxW })) : [];
-    const list = L === 1 ? regionList() : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...isleNames, ...(L === 4 ? poiList() : [])];
+    // islands have no names of their own (they're the map's buildings): one takes the real name of a place that sits on
+    // it or right beside it (a landmark, a society, a locality), and that place isn't labelled again on its own
+    const real = L === 1 ? [] : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])], onIsle = new Map();
+    if (L >= 3) for (const p of real) { if (p.kind === 'major' || p.kind === 'region' || p.kind === 'road') continue; let best = null, bd = Infinity;
+      for (const it of isles) { if (it.big) continue; const d = Math.hypot(it.x - p.x, it.z - p.z); if (d < it.r * 1.6 + 25 && d < bd) { bd = d; best = it; } }
+      if (best && !(onIsle.get(best)?.d <= bd)) onIsle.set(best, { p, d: bd }); }
+    const used = new Set([...onIsle.values()].map(v => v.p));
+    const isleNames = [...onIsle].map(([it, { p }]) => ({ kind: 'isle', name: p.name, x: it.x, z: it.z + Math.max(it.r, 3.5 * pxW) * 1.14 + 16 * pxW }));
+    const list = L === 1 ? regionList() : [...real.filter(p => !used.has(p)), ...isleNames];
     const items = list.filter(p => p.x > x0 && p.x < x0 + view.w && p.z > y0 && p.z < y0 + vh).sort((a, b) => PRI[a.kind] - PRI[b.kind]);
     const bx = (boatXY[0] - x0) * px, by = (boatXY[1] - y0) * px;
     const taken = [[bx - 20, by - 20, bx + 20, by + 20], ...overlays.map(s => mapEl.querySelector(s)).filter(n => n && n.offsetParent).map(n => { const r = n.getBoundingClientRect(); return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6]; })];
