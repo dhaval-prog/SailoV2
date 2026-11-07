@@ -17,7 +17,7 @@ const BOATS = {
   sail: { ico: 'boat-sail', sub: 'Sloop with mainsail and jib · sails furl at anchor', edit: 'sail' },
   yacht: { ico: 'boat-yacht', sub: 'Flybridge cruiser with radar arch · custom flag', edit: 'yacht' },
   dinghy: { ico: 'boat-sail', sub: 'Daysailer with tall mast and genoa · heels under sail', edit: 'dinghy' },
-  voyager: { ico: 'boat-sail', sub: 'Conservatory ship: a glasshouse on deck, lateen sails and outrigger floats' },
+  voyager: { ico: 'boat-sail', sub: 'The biggest ship: a glasshouse on deck, screw-driven outrigger floats, lateen sails that come down at anchor · custom sails', edit: 'voyager' },
   woodtug: { ico: 'boat-tug', sub: 'Big planked wooden tug with tyre fenders, a wheelhouse and chain rails · custom hull', edit: 'woodtug' },
 };
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -49,7 +49,7 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
         <button class="gf-edit${editing === ed ? ' on' : ''}" type="button" data-edit="${ed}" title="Customise" aria-label="Customise ${esc(b.name)}" aria-pressed="${editing === ed}">${icon('white', 'edit', 'w')}${icon('navy', 'edit', 'n')}</button>` : ''}
       </div>`}</div>`;
   };
-  const swatches = (cols, cur, attrs) => `<div class="gf-sws">${cols.map(c => `<button type="button" class="gf-sw${c === cur ? ' on' : ''}" style="background:${c === 'natural' ? 'repeating-linear-gradient(0deg, #d9774f 0 5px, #c4643f 5px 7px)' : c}" ${attrs(c)} aria-label="${c === 'natural' ? 'Natural wood' : `Colour ${c}`}" aria-pressed="${c === cur}"></button>`).join('')}</div>`;
+  const swatches = (cols, cur, attrs) => `<div class="gf-sws">${cols.map(c => `<button type="button" class="gf-sw${c === cur ? ' on' : ''}" style="background:${c === 'natural' ? 'repeating-linear-gradient(0deg, #d9774f 0 5px, #c4643f 5px 7px)' : c === 'classic' ? '#f4efe6' : c}" ${attrs(c)} aria-label="${c === 'natural' ? 'Natural wood' : c === 'classic' ? 'Classic cream' : `Colour ${c}`}" aria-pressed="${c === cur}"></button>`).join('')}</div>`;
   const imgRow = (id, has, note) => `<div class="gf-imgrow"><label class="gf-dash">${icon('white', 'add-image')}${has ? 'Change image' : 'Add image'}<input id="${id}" type="file" accept="image/*" hidden></label>${has ? `<button class="gf-dash" type="button" id="${id}x">Remove image</button>` : ''}<small>${note}</small></div>`;
   const editHead = t => `<div class="gf-h"><h4>${t}</h4><button class="gf-done" type="button" data-done>Done${icon('teal', 'check', 'sm')}</button></div>`;
   const tabs = (list, cur, attr) => `<div class="gf-tabs" role="tablist">${list.map(([v, l]) => `<button type="button" role="tab" aria-selected="${v === cur}" class="${v === cur ? 'on' : ''}" ${attr}="${v}">${l}</button>`).join('')}</div>`;
@@ -64,6 +64,8 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
     if (editing === 'woodtug') { const wp = api.woodtugPaint(), pt = wp.paint;
       return `<section class="gf-editsec">${editHead('Hull colours · Wooden tug')}<div class="gf-swrow"><span>Hull</span>${swatches(wp.colours, pt.hull, c => `data-wt-hull="${c}"`)}</div>
         <div class="gf-swrow"><span>Trim</span>${swatches(wp.colours, pt.trim, c => `data-wt-trim="${c}"`)}</div></section>`; }
+    if (editing === 'voyager') { const vs = api.voyagerSail(), sl = vs.sail;
+      return `<section class="gf-editsec">${editHead('Sail colour · Voyager')}<div class="gf-swrow">${swatches(vs.colours, sl.c, c => `data-voy-c="${c}"`)}</div></section>`; }
     if (editing === 'dinghy') { const ds = api.dinghySail(), sl = ds.sail;
       return `<section class="gf-editsec">${editHead('Sail colour · Dinghy sailing boat')}<div class="gf-swrow">${swatches(ds.colours, sl.c, c => `data-dinghy-c="${c}"`)}</div>${imgRow('gf-dimg', !!sl.img, 'Shows pixelated on the mainsail')}</section>`; }
     return '';
@@ -125,6 +127,9 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
     const wp = api.woodtugPaint?.();
     all('[data-wt-hull]').forEach(b => b.addEventListener('click', () => { wp.set({ hull: b.dataset.wtHull }); rerender(); }));
     all('[data-wt-trim]').forEach(b => b.addEventListener('click', () => { wp.set({ trim: b.dataset.wtTrim }); rerender(); }));
+    // voyager sails
+    const vs = api.voyagerSail?.();
+    all('[data-voy-c]').forEach(b => b.addEventListener('click', () => { vs.set({ c: b.dataset.voyC }); rerender(); }));
     // dinghy sail
     const ds = api.dinghySail();
     all('[data-dinghy-c]').forEach(b => b.addEventListener('click', () => { ds.set({ c: b.dataset.dinghyC }); rerender(); }));

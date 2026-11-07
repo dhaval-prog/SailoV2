@@ -23,6 +23,7 @@ const PAINT = {
   yacht: { hull: ['paint_navy'], flag: ['flag_cloth', 'flag_cloth_custom'] },
   dinghy: { sail: ['mainsail_cloth', 'sail_cloth'], hull: ['hull_sage'] },
   woodtug: { hull: ['wood_orange'] },
+  voyager: { sail: ['mat_f4efe6_t'] },
 };
 
 export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen, cpu = true }) {
