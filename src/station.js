@@ -101,7 +101,7 @@ export const BOAT_SPECS = {
   yacht: { fuel: 240, hold: 45, kn: 22, burn: 1.9 },
   dinghy: { fuel: 20, hold: 8, kn: 9, burn: 0.25 },
   woodtug: { fuel: 150, hold: 36, kn: 13, burn: 1.1 },
-  voyager: { fuel: 320, hold: 70, kn: 15, burn: 1.5 },
+  voyager: { fuel: 320, hold: 70, kn: 24, burn: 1.5 }, // (the fastest: ahead of the motor yacht)
 };
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; } catch { return {}; } };
 const saved = load();
