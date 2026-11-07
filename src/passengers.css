@@ -1,0 +1,57 @@
+/* Passenger trips (passengers.js): the board at the pier and the trip chip, in the Sea Charts look */
+.px-modal, .px-chip {
+  --px-card: #fffaf0; --px-card2: #f8eedb; --px-ink: #1d2b3a; --px-muted: #6f7583; --px-line: rgba(29, 43, 58, 0.12);
+  --px-gold: #ffc93c; --px-gold-ink: #3a2600; --px-accent: #c21f55; --px-glass: #0b8f9e;
+  --px-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif; --px-mono: 'Geist Mono', ui-monospace, monospace; --px-serif: 'Instrument Serif', Georgia, serif;
+}
+body.is-night .px-modal, body.is-night .px-chip {
+  --px-card: #0b1d2c; --px-card2: #102738; --px-ink: #f3ece2; --px-muted: #8ea7b3; --px-line: rgba(127, 211, 223, 0.16);
+  --px-gold: #f2c14e; --px-gold-ink: #2a1d00; --px-accent: #ff9d80; --px-glass: #7fd3df;
+}
+.px-modal { position: fixed; inset: 0; z-index: 97; display: grid; place-items: center; padding: calc(16px + var(--safe-t, 0px)) 16px calc(16px + var(--safe-b, 0px));
+  background: rgba(8, 18, 40, 0.35); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.22s ease; font-family: var(--px-sans); }
+.px-modal[hidden] { display: none; }
+.px-modal.open { opacity: 1; }
+.px-card { width: min(440px, 100%); max-height: 100%; overflow: auto; padding: 18px 18px 14px; border-radius: 24px; background: var(--px-card); color: var(--px-ink);
+  border: 1px solid var(--px-line); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4); transform: translateY(12px) scale(0.97); transition: transform 0.35s cubic-bezier(0.3, 1.3, 0.5, 1); }
+.px-modal.open .px-card { transform: none; }
+.px-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.px-card h2 { margin: 0; font: 400 30px/1 var(--px-serif); }
+.px-card header p { margin: 6px 0 0; font-size: 12.5px; color: var(--px-muted); }
+.px-x { width: 36px; height: 36px; flex: none; padding: 0; border-radius: 50%; border: 1px solid var(--px-line); background: var(--px-card2); color: var(--px-ink); cursor: pointer; display: grid; place-items: center; }
+.px-x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.px-trip { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 12px 14px; border-radius: 16px; background: var(--px-card2); border: 1px solid var(--px-line); font-size: 14px; }
+.px-trip small { display: block; margin-top: 3px; font: 12px var(--px-mono); color: var(--px-muted); }
+.px-list { display: flex; flex-direction: column; }
+.px-row { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--px-line); }
+.px-row:first-child { border-top: 0; }
+.px-row.off .px-main, .px-row.off .px-av { opacity: 0.5; }
+.px-av { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 16px var(--px-sans); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.px-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.px-main b { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.px-main small { font-size: 12.5px; color: var(--px-muted); }
+.px-seats { display: flex; align-items: center; gap: 3px; margin-top: 3px; }
+.px-seats i { width: 9px; height: 9px; border-radius: 3px 3px 1px 1px; background: var(--px-glass); }
+.px-seats em { margin-left: 6px; font: normal 500 11px var(--px-sans); color: var(--px-accent); }
+.px-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.px-fare { font: 500 14px var(--px-mono); }
+.px-gold { height: 34px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--px-gold); color: var(--px-gold-ink); font: 600 14px var(--px-sans); cursor: pointer; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18); }
+.px-gold:active { transform: translateY(2px); box-shadow: none; }
+.px-gold:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+.px-ghost { height: 32px; flex: none; padding: 0 12px; border-radius: 99px; border: 1px solid var(--px-line); background: transparent; color: var(--px-ink); font: 500 12.5px var(--px-sans); cursor: pointer; }
+.px-none { margin: 8px 0; font-size: 13px; color: var(--px-muted); }
+.px-hint { margin: 10px 0 0; font-size: 12px; color: var(--px-muted); }
+
+/* the trip under way: a pill at the top of the screen (tap: the course again) */
+.px-chip { position: fixed; z-index: 32; left: 50%; top: calc(var(--safe-t, 0px) + 84px); transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+  max-width: calc(100vw - 24px); padding: 6px 8px 6px 6px; border-radius: 99px; border: 1px solid var(--px-line); background: color-mix(in srgb, var(--px-card) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); color: var(--px-ink); font: 500 13px var(--px-sans); cursor: pointer; white-space: nowrap; }
+.px-chip[hidden] { display: none; }
+.px-chip > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+.px-chip-av { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 12px var(--px-sans); }
+.px-chip-m { font: 12px var(--px-mono); color: var(--px-muted); }
+.px-chip-t { padding: 3px 9px; border-radius: 99px; background: var(--px-card2); font: 500 12.5px var(--px-mono); font-variant-numeric: tabular-nums; }
+.px-chip.soon .px-chip-t { background: var(--px-gold); color: var(--px-gold-ink); }
+.px-chip.late .px-chip-t { background: var(--px-accent); color: #fff; }
+body:is(.map-open, .boat-sel) .px-chip { display: none; }
+@media (max-width: 640px) { .px-chip { top: calc(var(--safe-t, 0px) + 70px); font-size: 12.5px; } .px-chip-m { display: none; } }

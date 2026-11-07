@@ -195,6 +195,7 @@ export function initStation(ctx) {
     <div class="hud bc stn-bar" id="stn-bar" hidden><div><div class="dc-title">Paradise Station</div><div class="dc-sub" id="dockSub"></div></div><button class="btn" id="sailBtn"></button></div>
     <button class="marker locked" id="mk-market" hidden><span class="mk"><span class="mk-name">Fish Market</span><span class="mk-sub">Sell your catch</span></span></button>
     <button class="marker locked" id="mk-boathouse" hidden><span class="mk"><span class="mk-name">Boathouse</span><span class="mk-sub">Refuel · boat inventory</span></span></button>
+    <button class="marker locked" id="mk-passengers" hidden><span class="mk"><span class="mk-name">Passengers</span><span class="mk-sub">Ferry them for coins</span></span></button>
     <div id="toast"></div>
     <div class="modal" id="stn-modal" hidden><div class="card" id="card"></div></div>`;
   const $ = id => ui.querySelector('#' + id) || document.getElementById(id); // (the wallet lives in the HUD's top-left block)
@@ -233,7 +234,7 @@ export function initStation(ctx) {
   const frame = (focus, dist, up, dur = 1.4) => ctx.camTo?.(focus, seaSide(focus, dist, up), dur);
   // ---------- docking ----------
   let mode = 'sea', berth = BERTHS[0], route = null, prog = 0, dur = 1, near = false, lastWarn = 0;
-  const shops = [{ id: 'market', at: [-2, 3.5 + 1.57, -10] }, { id: 'boathouse', at: [(hx0 + hx1) / 2, 1.85 + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] }];
+  const shops = [{ id: 'market', at: [-2, 3.5 + 1.57, -10] }, { id: 'boathouse', at: [(hx0 + hx1) / 2, 1.85 + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] }, { id: 'passengers', at: [xa1 - 1, 3.2, PZ + 5] }]; // (passengers wait on the pier)
   const worldAt = ([x, y, z]) => new V3(O.x + x * K, WL + y * K, O.z + z * K);
   const ropes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), M('rope', '#e6cf9a')); m.visible = false; stage._scene.add(m); return m; });
   const renderBar = () => {
@@ -246,7 +247,7 @@ export function initStation(ctx) {
     else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = `Moored at ${berth.name} · shops open`; }
     else { b.textContent = 'Heading out…'; b.disabled = true; sub.textContent = 'Leaving the harbour'; }
     BERTHS.forEach(x => { x.el.hidden = mode !== 'picking'; }); if (mode === 'picking') paintBerths();
-    ['market', 'boathouse'].forEach(id => { $('mk-' + id).hidden = mode !== 'docked'; $('mk-' + id).classList.toggle('locked', mode !== 'docked'); });
+    ['market', 'boathouse', 'passengers'].forEach(id => { $('mk-' + id).hidden = mode !== 'docked'; $('mk-' + id).classList.toggle('locked', mode !== 'docked'); });
   };
   // a path from where the boat is to a berth, swinging round the island if the island is in the way
   const routeTo = (bi, from) => {
@@ -291,6 +292,7 @@ export function initStation(ctx) {
     else if (mode === 'docked') castOff();
   };
   ['market', 'boathouse'].forEach(id => { $('mk-' + id).onclick = () => openPanel(id); });
+  $('mk-passengers').onclick = () => ctx.onPassengers?.();
 
   // ---------- fish models + mini renderer for the shop windows (ported) ----------
   const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -567,7 +569,7 @@ export function initStation(ctx) {
       const targetYaw = mode === 'docking' ? yawT + wrapA(berth.yaw - yawT) * ss(0.6, 0.97, e) : yawT;
       ctx.moveBoat(P.x, P.z, ctx.boatYaw() + wrapA(targetYaw - ctx.boatYaw()) * Math.min(1, dt * 4), Math.sin(prog * Math.PI));
       if (prog >= 1) {
-        if (mode === 'docking') { mode = 'docked'; ctx.berthState?.('occupied'); const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`);
+        if (mode === 'docking') { mode = 'docked'; ctx.berthState?.('occupied'); const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`); ctx.onMoored?.(STATION);
           const mid = toW(xa0 + 4, PZ - 4); frame(new V3((end.x + mid.x) / 2, WL + 2, (end.z + mid.z) / 2), 62, 40, 1.6);
           const b = ctx.boat; b.updateMatrixWorld(true);
           berth.tie = [new V3(3.7, 2.25, 2.1 * berth.side), new V3(-3.9, 2.4, 2.1 * berth.side)].map(local => { const w = b.localToWorld(local.clone()); let best = null, bd = 1e9;
@@ -631,6 +633,10 @@ export function initStation(ctx) {
       return true; },
     /** Resolves once the last economy change has been answered. */
     settled: () => pending,
+    /** For passenger trips (passengers.js): a call to the server's economy (its answer applied), whether that's on,
+     *  the station's toast, and coins earned on this device (signed out). */
+    econCall: (fn, args) => call(fn, args), isServer: () => server, serverReady: () => loading, toast: m => toast(m),
+    earnLocal(n) { if (server) return; S.coins += n; save(); renderWallet(); },
     /** The boat you're sailing (for the server's checks). */
     activeBoat: () => S.active,
     coins: () => S.coins,
