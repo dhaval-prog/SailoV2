@@ -22,6 +22,7 @@ const PAINT = {
   sail: { sail: ['sail_cloth'], accent: ['sail_red', 'sail_navy'] },
   yacht: { hull: ['paint_navy'], flag: ['flag_cloth', 'flag_cloth_custom'] },
   dinghy: { sail: ['mainsail_cloth', 'sail_cloth'], hull: ['hull_sage'] },
+  woodtug: { hull: ['wood_orange'] },
 };
 
 export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen, cpu = true }) {
@@ -35,7 +36,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
     const want = PAINT[m.c.boat] || {}, colourOf = {}; Object.entries(want).forEach(([k, names]) => { const col = m.c.colours[k]; if (col) names.forEach(n => { colourOf[n] = col; }); });
     const made = new Map();
     g.traverse(o => { o.visible = o.visible || o === g; if (!o.isMesh || !o.material) return;
-      const one = mat => { const col = colourOf[mat.name]; if (!col) return mat; if (!made.has(mat)) { const k = mat.clone(); k.onBeforeCompile = mat.onBeforeCompile; k.map = null; k.color = new THREE.Color(col); k.needsUpdate = true; made.set(mat, k); } return made.get(mat); };
+      const one = mat => { const col = colourOf[mat.name]; if (!col) return mat; if (!made.has(mat)) { const k = mat.clone(); k.onBeforeCompile = mat.onBeforeCompile; k.map = mat.userData.grey || null; k.color = new THREE.Color(col); k.needsUpdate = true; made.set(mat, k); } return made.get(mat); };
       o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material); });
     // nothing on a local sailor's boat moves by itself: all of it is merged per material (a few dozen draw calls, not
     // hundreds), and its lamps keep their glow but not a light of their own (each light costs every lit surface, and a
