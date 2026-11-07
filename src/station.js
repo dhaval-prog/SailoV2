@@ -100,6 +100,7 @@ export const BOAT_SPECS = {
   sail: { fuel: 60, hold: 16, kn: 15, burn: 0.45 },
   yacht: { fuel: 240, hold: 45, kn: 22, burn: 1.9 },
   dinghy: { fuel: 20, hold: 8, kn: 9, burn: 0.25 },
+  woodtug: { fuel: 150, hold: 36, kn: 13, burn: 1.1 },
 };
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE)) || {}; } catch { return {}; } };
 const saved = load();

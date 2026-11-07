@@ -30,7 +30,8 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
 
   // a captain's boat: a clone of the game's model with their colours on their own materials
   function build(m) {
-    const src = templates[m.c.boat]; const g = src.clone(true); g.visible = true; g.rotation.order = 'YXZ';
+    let src = templates[m.c.boat] || templates.tug; if (m.c.boat === 'woodtug' && !src.children[0]?.children.length) src = templates.tug; // (its model still loading: the tug for now)
+    const g = src.clone(true); g.visible = true; g.rotation.order = 'YXZ';
     const want = PAINT[m.c.boat] || {}, colourOf = {}; Object.entries(want).forEach(([k, names]) => { const col = m.c.colours[k]; if (col) names.forEach(n => { colourOf[n] = col; }); });
     const made = new Map();
     g.traverse(o => { o.visible = o.visible || o === g; if (!o.isMesh || !o.material) return;
