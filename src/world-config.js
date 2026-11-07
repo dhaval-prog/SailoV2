@@ -66,6 +66,9 @@ export const RIDES = {
   seats: { dinghy: 1, tug: 2, sail: 3, yacht: 6 },
   kn: { dinghy: 15.75, tug: 21, sail: 26.25, yacht: 38.5 }, // (the boats' top speeds as you sail them)
   deadlineSlack: 1.8, deadlineExtra: 90,
+  // kinds: fare multiplier, deadline slack; a tourist's sight seen adds this share of the fare
+  kinds: { commuter: { fare: 1, slack: 1.8 }, tourist: { fare: 1.15, slack: 2.4, sight: 0.15 }, vip: { fare: 2, slack: 1.3 }, night: { fare: 1.5, slack: 1.8 } },
+  poorStars: 2, poorCut: 0.1, // (a ride of two stars or fewer takes this share off the fare)
 };
 
 export const ECONOMY = {

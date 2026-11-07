@@ -1,8 +1,12 @@
 // Passenger trips: moor at any Paradise Station and a few people are waiting there for a ride to another one. Take a
 // group aboard (as many as your boat has seats), the course to their station is pinned, and when you moor there they
 // step off and pay: the fare, plus a tip if you made it in time (less when late, never under half).
-// Signed in, the server sets every fare and deadline and pays only when you're moored at the destination
-// (migration …_sailov2_passenger_trips: ride_board / ride_finish); signed out it all stays on this device.
+// - Kinds: commuters; tourists (they'd like to sail past another station on the way: a bonus if you do); VIPs (double
+//   fare, a tight deadline, and they mind bumps twice as much); night owls (after dark only, +50%).
+// - Comfort: every trip starts at five stars. Hitting rocks or the shore costs one, racing through rough seas costs
+//   one for every 20 s of it. The stars scale the on-time tip; two or fewer take a little off the fare.
+// Signed in, the server makes the offers and sets every fare and deadline, and pays only when you're moored at the
+// destination (migrations …_sailov2_passenger_trips, …_types_comfort); signed out it all stays on this device.
 import { RIDES } from './world-config.js';
 import { rpc } from './econ.js';
 import './passengers.css';
@@ -12,77 +16,110 @@ const NAMES = ['Priya', 'Arjun', 'Meera', 'Rohan', 'Ananya', 'Kabir', 'Isha', 'V
   'Riya', 'Omkar', 'Leela', 'Farhan', 'Nisha', 'Siddharth', 'Gauri', 'Yusuf', 'Pooja', 'Rahul', 'Maya', 'Imran', 'Diya', 'Aditya'];
 const GROUP = ['and a friend', 'and family', 'and crew'];
 const SHIRTS = ['#e8604c', '#3d7bd9', '#f2b636', '#5fb37a', '#b76bd6', '#ef8fb0', '#2fb3b0', '#f08a3c'], SKIN = ['#f1c7a5', '#d9a47c', '#b9805a', '#8d5a3b', '#f5d6bd'];
+// how each kind reads on the board (the numbers are the server's ride_cfg kinds, mirrored in world-config.js RIDES.kinds)
+const KIND = {
+  commuter: { label: 'Commuter', note: 'Just wants to get there' },
+  tourist: { label: 'Tourist', note: sight => `Would love to sail past ${sight}` },
+  vip: { label: 'VIP', note: 'Double fare · tight deadline · hates bumps' },
+  night: { label: 'Night owl', note: 'Out after dark · +50%' },
+};
+const QUOTES = { 5: ['Smoothest ride on the water!', 'Perfect. I’ll ride with you again.', 'What a captain!'], 4: ['Lovely trip, thanks!', 'Nice and easy.'],
+  3: ['Got me here, that’s what counts.', 'A bit bumpy, but fine.'], 2: ['Hold on to your hats…', 'I think I’m seasick.'], 1: ['Never again!', 'My coffee is everywhere.'] };
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const rand = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = seed; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
-const stName = st => st.id === 'home' ? 'Paradise Station' : st.at;
-/** The fare the server will set (shown on the board). */
-export const fareFor = (metres, seats) => Math.round(Math.max(RIDES.minFare, metres / MILE * RIDES.perMile) * (1 + RIDES.groupBonus * (seats - 1)));
-const deadlineSecs = (metres, boat) => metres / (RIDES.kn[boat] / 1.944) * RIDES.deadlineSlack + RIDES.deadlineExtra;
+const stName = st => !st ? 'their station' : st.id === 'home' ? 'Paradise Station' : st.at;
+const starStr = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 const mmss = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+/** The fare (as the server sets it). */
+export const fareFor = (metres, seats, kind = 'commuter') => Math.round(Math.max(RIDES.minFare, metres / MILE * RIDES.perMile) * (1 + RIDES.groupBonus * (seats - 1)) * RIDES.kinds[kind].fare);
+const deadlineSecs = (metres, boat, kind) => metres / (RIDES.kn[boat] / 1.944) * RIDES.kinds[kind].slack + RIDES.deadlineExtra;
+/** What a trip pays when you moor at its station (the server works it out the same way). */
+export function payFor(trip, nowMs, stars, sight) {
+  const onTime = nowMs <= Date.parse(trip.deadline); let pay, tip = 0, extra = 0;
+  if (onTime) { pay = trip.fare; tip = Math.round(trip.fare * RIDES.tip * stars / 5); }
+  else { const span = Math.max(1, Date.parse(trip.deadline) - Date.parse(trip.started)), late = (nowMs - Date.parse(trip.deadline)) / span; pay = Math.max(Math.round(trip.fare * RIDES.lateFloor), Math.round(trip.fare * (1 - late))); }
+  if (stars <= RIDES.poorStars) pay = Math.round(pay * (1 - RIDES.poorCut));
+  if (trip.kind === 'tourist' && sight) extra = Math.round(trip.fare * RIDES.kinds.tourist.sight);
+  return { paid: pay + tip + extra, tip, sight: extra, onTime };
+}
 
-/** ctx: { THREE, chartId, stations(), here() (the station you're nearest), home, boat, boatId(), seats?, docked(), pinCourse(x, z),
- *  station (station.js: econCall, isServer, toast, earnLocal) } */
+/** ctx: { THREE, chartId, stations(), here() (the station you're nearest), home, boat, boatId(), boatPos(), docked(), night(),
+ *  pinCourse(x, z), clearCourse(), celebrate(n), station (station.js: econCall, isServer, serverReady, toast, earnLocal) } */
 export function createPassengers(ctx) {
   const { THREE, station } = ctx, toast = m => station.toast(m);
-  let trip = null, offset = 0, busy = false; // (offset: server clock minus ours)
+  let trip = null, offset = 0, busy = false, shown = null; // (offset: server clock minus ours; shown: the board's offers)
   const now = () => Date.now() + offset;
   const seatsOf = () => RIDES.seats[ctx.boatId()] || 1;
   const stationById = id => ctx.stations().find(s => s.id === id);
+  const isNight = () => !!ctx.night?.();
 
-  // ---------- who's waiting: a few groups, the same while you're moored (they change every ten minutes) ----------
-  function offers(st) {
-    const r = rand(hash(`${ctx.chartId}:${st.id}:${Math.floor(Date.now() / 600000)}`));
-    const others = ctx.stations().filter(s => s.id !== st.id).map(s => ({ s, d: Math.hypot(s.x - st.x, s.z - st.z) })).filter(o => o.d > 0.3 * MILE);
-    const near = others.filter(o => o.d < 6 * MILE), pool = (near.length >= 3 ? near : others).sort(() => r() - 0.5);
-    return pool.slice(0, 3).map((o, i) => { const k = r(), seats = k < 0.55 ? 1 : k < 0.85 ? 2 : k < 0.95 ? 3 : 4 + Math.floor(r() * 3);
+  // ---------- who's waiting: three groups, the same for ten minutes at each station ----------
+  // (signed in, the server makes them: ride_offers; on this device the same rules make them here)
+  function localOffers(st) {
+    const w = Math.floor(Date.now() / 600000), r = rand(hash(`${ctx.chartId}:${st.id}:${w}`)), all = ctx.stations();
+    const others = all.filter(s => s.id !== st.id).map(s => ({ s, d: Math.hypot(s.x - st.x, s.z - st.z) })).filter(o => o.d > 0.3 * MILE);
+    const pool = others.sort((a, b) => ((a.d > 6 * MILE) - (b.d > 6 * MILE)) || r() - 0.5).slice(0, 3);
+    return { window: w, offers: pool.map((o, i) => { const k = r(); let kind = isNight() && k < 0.35 ? 'night' : k < 0.5 ? 'tourist' : k > 0.86 ? 'vip' : 'commuter', sight = null;
+      if (kind === 'tourist') { const det = s => Math.hypot(s.x - st.x, s.z - st.z) + Math.hypot(o.s.x - s.x, o.s.z - s.z) - o.d;
+        const best = all.filter(s => s.id !== st.id && s.id !== o.s.id && det(s) < 1.5 * MILE).sort((a, b) => det(a) - det(b))[0]; if (best) sight = best.id; else kind = 'commuter'; }
+      const q = r(), seats = kind === 'vip' ? 1 : q < 0.55 ? 1 : q < 0.85 ? 2 : q < 0.95 ? 3 : 4 + Math.floor(r() * 3);
       const name = NAMES[Math.floor(r() * NAMES.length)], who = seats === 1 ? name : `${name} ${GROUP[Math.floor(r() * GROUP.length)]}`;
-      return { key: `${st.id}:${o.s.id}:${i}`, from: st, to: o.s, dist: o.d, seats, name, who, fare: fareFor(o.d, seats), shirt: SHIRTS[Math.floor(r() * SHIRTS.length)] }; });
+      return { i, to: o.s.id, kind, seats, name, who, dist: o.d, fare: fareFor(o.d, seats, kind), sight }; }) };
   }
+  async function loadOffers(st) {
+    if (station.isServer()) { const r = await rpc('ride_offers', { p_chart: ctx.chartId, p_night: isNight(), p_home_x: ctx.home.x, p_home_z: ctx.home.z }); return { window: r.window, offers: r.offers || [] }; }
+    return localOffers(st);
+  }
+  const shirtOf = o => SHIRTS[hash(o.who + o.to) % SHIRTS.length];
 
   // ---------- the board (a card over the pier) ----------
   const board = document.createElement('div'); board.className = 'px-modal'; board.hidden = true; board.setAttribute('role', 'dialog'); board.setAttribute('aria-modal', 'true'); board.setAttribute('aria-label', 'Passengers');
   document.body.appendChild(board);
   board.addEventListener('click', e => { if (e.target === board) closeBoard(); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && !board.hidden) closeBoard(); });
-  function openBoard() { paintBoard(); board.hidden = false; requestAnimationFrame(() => board.classList.add('open')); }
+  async function openBoard() { shown = null; paintBoard(); board.hidden = false; requestAnimationFrame(() => board.classList.add('open'));
+    try { shown = await loadOffers(ctx.here()); } catch (e) { shown = { window: 0, offers: [], err: niceErr(e) }; } paintBoard(); }
   function closeBoard() { board.classList.remove('open'); setTimeout(() => { if (!board.classList.contains('open')) board.hidden = true; }, 220); }
   function paintBoard() {
-    const st = ctx.here(), cap = seatsOf(), list = offers(st);
-    const tripHtml = trip ? `<div class="px-trip"><div><b>${esc(trip.who || trip.passenger)}</b> is aboard<small>to ${esc(stName(stationById(trip.to) || { at: trip.to }))} · ${(trip.dist / MILE).toFixed(1)} mi · ${trip.fare}c</small></div>
+    const st = ctx.here(), cap = seatsOf(), list = shown?.offers || [];
+    const tripHtml = trip ? `<div class="px-trip"><div><b>${esc(trip.passenger)}</b> ${trip.seats > 1 ? 'are' : 'is'} aboard<small>to ${esc(stName(stationById(trip.to)))} · ${(trip.dist / MILE).toFixed(1)} mi · ${trip.fare}c · ${starStr(trip.stars ?? 5)}</small></div>
       <button type="button" class="px-ghost" data-act="cancel">Cancel trip</button></div>` : '';
-    const rows = list.map((o, i) => { const tooBig = o.seats > cap, blocked = !!trip || tooBig;
-      return `<div class="px-row${blocked ? ' off' : ''}"><span class="px-av" style="background:${o.shirt}">${esc(o.name[0])}</span>
-        <div class="px-main"><b>${esc(o.who)}</b><small>to ${esc(stName(o.to))} · ${(o.dist / MILE).toFixed(1)} mi</small>
+    const rows = !shown ? '<p class="px-none">Asking who’s waiting…</p>' : shown.err ? `<p class="px-none">${esc(shown.err)}</p>` : list.map(o => { const tooBig = o.seats > cap, blocked = !!trip || tooBig, K = KIND[o.kind] || KIND.commuter;
+      const note = typeof K.note === 'function' ? K.note(stName(stationById(o.sight))) : K.note;
+      return `<div class="px-row${blocked ? ' off' : ''}"><span class="px-av" style="background:${shirtOf(o)}">${esc(o.name[0])}</span>
+        <div class="px-main"><b>${esc(o.who)}</b><small>to ${esc(stName(stationById(o.to)))} · ${(o.dist / MILE).toFixed(1)} mi</small>
+          <span class="px-kind k-${o.kind}"><em>${K.label}</em>${esc(note)}</span>
           <span class="px-seats" aria-label="${o.seats} seat${o.seats === 1 ? '' : 's'}">${'<i></i>'.repeat(Math.min(o.seats, 6))}${tooBig ? `<em>Needs ${o.seats} seats</em>` : ''}</span></div>
-        <div class="px-side"><span class="px-fare">${o.fare}c</span><button type="button" class="px-gold" data-i="${i}" ${blocked ? 'disabled' : ''}>Take</button></div></div>`; }).join('');
+        <div class="px-side"><span class="px-fare">${o.fare}c</span><button type="button" class="px-gold" data-i="${o.i}" ${blocked ? 'disabled' : ''}>Take</button></div></div>`; }).join('') || '<p class="px-none">Nobody’s waiting here right now.</p>';
     board.innerHTML = `<div class="px-card"><header><div><h2>Passengers</h2><p>${esc(stName(st))} · your ${ctx.boatId() === 'sail' ? 'sail boat' : ctx.boatId()} seats ${cap}</p></div>
       <button type="button" class="px-x" data-act="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></header>
-      ${tripHtml}<div class="px-list">${rows || '<p class="px-none">Nobody’s waiting here right now.</p>'}</div>
-      <p class="px-hint">${trip ? 'Drop off your passengers first.' : 'Sail them to their station before the time runs out for a tip.'}</p></div>`;
+      ${tripHtml}<div class="px-list">${rows}</div>
+      <p class="px-hint">${trip ? 'Drop off your passengers first.' : 'On time and smooth: a bigger tip. Rocks and racing through rough seas cost stars.'}</p></div>`;
     board.querySelector('[data-act="close"]').onclick = closeBoard;
     board.querySelector('[data-act="cancel"]')?.addEventListener('click', cancelTrip);
-    board.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => take(list[+b.dataset.i])));
+    board.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => take(list.find(o => o.i === +b.dataset.i))));
   }
 
   // ---------- taking a group aboard ----------
   async function take(o) {
-    if (busy || trip) return; busy = true;
+    if (busy || trip || !o) return; busy = true;
     try {
-      const boat = ctx.boatId(), home = ctx.home;
+      const boat = ctx.boatId(), extra = { shirt: shirtOf(o), stars: 5, bumps: 0, rough: 0, seen: false };
       if (station.isServer()) {
-        const t = await rpc('ride_board', { p_chart: ctx.chartId, p_to: o.to.id, p_passenger: o.who, p_seats: o.seats, p_boat: boat, p_home_x: home.x, p_home_z: home.z });
-        setTrip({ ...t, who: o.who, shirt: o.shirt, server: true });
-      } else setTrip({ id: 'local', from: o.from.id, to: o.to.id, passenger: o.who, who: o.who, shirt: o.shirt, seats: o.seats, boat, dist: o.dist, fare: o.fare,
-        started: new Date().toISOString(), deadline: new Date(Date.now() + deadlineSecs(o.dist, boat) * 1000).toISOString(), now: new Date().toISOString(), server: false });
+        const t = await rpc('ride_board', { p_chart: ctx.chartId, p_window: shown.window, p_offer: o.i, p_boat: boat, p_night: isNight() });
+        setTrip({ ...t, ...extra, server: true });
+      } else setTrip({ id: 'local', from: ctx.here().id, to: o.to, passenger: o.who, seats: o.seats, boat, dist: o.dist, fare: o.fare, kind: o.kind, sight: o.sight,
+        started: new Date().toISOString(), deadline: new Date(Date.now() + deadlineSecs(o.dist, boat, o.kind) * 1000).toISOString(), now: new Date().toISOString(), ...extra, server: false });
       closeBoard(); deck.board(trip.seats, trip.shirt);
-      const to = o.to; ctx.pinCourse(to.x + 70, to.z + 80);
-      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${stName(to)}: the course is pinned.`);
-    } catch (e) { toast(niceErr(e)); paintBoard(); }
+      const to = stationById(o.to); if (to) ctx.pinCourse(to.x + 70, to.z + 80);
+      const sight = trip.kind === 'tourist' && stationById(trip.sight);
+      toast(`${o.name} ${o.seats > 1 ? `(+${o.seats - 1}) are` : 'is'} aboard. Sail to ${stName(to)}${sight ? `, past ${stName(sight)} if you can` : ''}: the course is pinned.`);
+    } catch (e) { toast(niceErr(e)); if (e?.code === 'offer_gone') openBoard(); else paintBoard(); }
     finally { busy = false; }
   }
   const NICE = { not_docked: 'Moor at the pier first.', trip_active: 'You already have passengers aboard.', too_many_seats: 'Your boat hasn’t the seats for them.',
-    same_station: 'They’re already here!', no_such_station: 'That station isn’t on the chart yet. Try another.', too_close: 'That’s too close to ferry.' };
+    offer_gone: 'They’ve found another boat. Here’s who’s waiting now.', no_trip: 'Those passengers have already left.' };
   const niceErr = e => NICE[e?.code] || NICE[String(e?.message)] || e?.message || 'The harbour didn’t answer. Try again?';
   async function cancelTrip() {
     if (!trip || busy) return; busy = true;
@@ -91,20 +128,33 @@ export function createPassengers(ctx) {
     finally { busy = false; paintBoard(); }
   }
 
+  // ---------- comfort on the way: bumps and rough sailing cost stars; a tourist's sight ----------
+  let bumpT = 0, saveT = 0;
+  const starsNow = t => Math.max(1, 5 - t.bumps * (t.kind === 'vip' ? 2 : 1) - Math.floor(t.rough / 20));
+  const lostStar = why => { const n = trip.passenger.split(' ')[0], s = starsNow(trip); if (s >= trip.stars) return; trip.stars = s; save(); paintChip(); chip.classList.remove('hurt'); void chip.offsetWidth; chip.classList.add('hurt');
+    toast(`${why(n)} ${starStr(s)}`); try { navigator.vibrate?.(30); } catch { /* not allowed */ } };
+  function bump() { if (!trip || ctx.docked()) return; const t = performance.now(); if (t - bumpT < 2500) return; bumpT = t; trip.bumps++;
+    lostStar(n => trip.kind === 'vip' ? `${n} is not amused by that bump.` : `Ouch! ${n} didn’t like that bump.`); }
+  function ride(dt, speed, amp) {
+    if (!trip || ctx.docked()) return;
+    if (amp >= 1.5 && speed > 0.75) { trip.rough += dt; if (Math.floor(trip.rough / 20) > Math.floor((trip.rough - dt) / 20)) lostStar(n => `${n} is getting soaked: ease off in this swell.`); }
+    if (trip.kind === 'tourist' && !trip.seen && trip.sight) { const s = stationById(trip.sight), p = ctx.boatPos();
+      if (s && Math.hypot(s.x - p.x, s.z - p.z) < 350) { trip.seen = true; save(); paintChip(); toast(`${trip.passenger.split(' ')[0]} loved the view of ${stName(s)}! 📸`); } }
+    if ((saveT += dt) > 5) { saveT = 0; save(); }
+  }
+
   // ---------- arriving: moored at their station ----------
   async function moored(st) {
     if (!trip) return;
-    if (st.id !== trip.to) { toast(`${trip.passenger.split(' ')[0]} is headed for ${stName(stationById(trip.to) || { at: trip.to })}.`); return; }
+    if (st.id !== trip.to) { toast(`${trip.passenger.split(' ')[0]} is headed for ${stName(stationById(trip.to))}.`); return; }
     if (busy) return; busy = true;
     try {
-      let paid, tip, onTime;
-      if (trip.server) { const r = await station.econCall('ride_finish', { p_chart: ctx.chartId }); paid = r.paid; tip = r.tip; onTime = r.onTime; }
-      else { onTime = now() <= Date.parse(trip.deadline); if (onTime) { tip = Math.round(trip.fare * RIDES.tip); paid = trip.fare + tip; }
-        else { const span = Math.max(1, Date.parse(trip.deadline) - Date.parse(trip.started)), late = (now() - Date.parse(trip.deadline)) / span; tip = 0; paid = Math.max(Math.round(trip.fare * RIDES.lateFloor), Math.round(trip.fare * (1 - late))); }
-        station.earnLocal(paid); }
-      const n = trip.passenger.split(' ')[0]; setTrip(null); deck.alight(true);
-      ctx.celebrate?.(paid);
-      toast(onTime ? `${n} paid ${paid}c (${tip}c tip for arriving on time). ★★★★★` : `${n} paid ${paid}c. A little late, but they made it.`);
+      const stars = starsNow(trip), sight = !!trip.seen; let r;
+      if (trip.server) r = await station.econCall('ride_finish', { p_chart: ctx.chartId, p_stars: stars, p_sight: sight });
+      else { r = payFor(trip, now(), stars, sight); station.earnLocal(r.paid); }
+      const n = trip.passenger.split(' ')[0], q = QUOTES[stars], quote = q[hash(trip.id + n) % q.length];
+      setTrip(null); deck.alight(true); ctx.celebrate?.(r.paid);
+      toast(`${n} paid ${r.paid}c${r.onTime && r.tip ? ` (+${r.tip}c tip)` : r.onTime ? '' : ', a little late'}${r.sight ? ` (+${r.sight}c for the view)` : ''}. ${starStr(stars)} “${quote}”`);
       try { navigator.vibrate?.([12, 40, 18]); } catch { /* not allowed */ }
     } catch (e) { toast(e?.code === 'too_fast' ? 'Hmm, that was quicker than any boat. No fare.' : niceErr(e)); }
     finally { busy = false; }
@@ -114,27 +164,26 @@ export function createPassengers(ctx) {
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'px-chip'; chip.hidden = true; chip.setAttribute('aria-label', 'Passenger trip');
   document.body.appendChild(chip);
   chip.onclick = () => { if (!trip) return; const to = stationById(trip.to); if (to && !ctx.docked()) { ctx.pinCourse(to.x + 70, to.z + 80); toast(`Course pinned to ${stName(to)}.`); } };
-  const paintChip = () => {
+  function paintChip() {
     chip.hidden = !trip; if (!trip) return; const to = stationById(trip.to), p = ctx.boatPos(), left = (Date.parse(trip.deadline) - now()) / 1000;
-    const d = to ? Math.hypot(to.x - p.x, to.z - p.z) / MILE : trip.dist / MILE;
+    const d = to ? Math.hypot(to.x - p.x, to.z - p.z) / MILE : trip.dist / MILE, K = KIND[trip.kind] || KIND.commuter;
     chip.classList.toggle('late', left < 0); chip.classList.toggle('soon', left >= 0 && left < 60);
-    chip.innerHTML = `<span class="px-chip-av" style="background:${trip.shirt || '#3d7bd9'}">${esc(trip.passenger[0])}</span><span><b>${esc(trip.passenger.split(' ')[0])}${trip.seats > 1 ? ` +${trip.seats - 1}` : ''}</b> → ${esc(to ? stName(to) : trip.to)}</span>
-      <span class="px-chip-m">${d.toFixed(1)} mi</span><span class="px-chip-t">${left < 0 ? `late ${mmss(-left)}` : mmss(left)}</span>`;
-  };
+    chip.innerHTML = `<span class="px-chip-av" style="background:${trip.shirt || '#3d7bd9'}">${esc(trip.passenger[0])}</span><span><b>${esc(trip.passenger.split(' ')[0])}${trip.seats > 1 ? ` +${trip.seats - 1}` : ''}</b> → ${esc(stName(to))}</span>
+      ${trip.kind !== 'commuter' ? `<span class="px-chip-k k-${trip.kind}">${K.label}${trip.kind === 'tourist' && trip.seen ? ' ✓' : ''}</span>` : ''}
+      <span class="px-chip-s" aria-label="${trip.stars ?? 5} stars">${starStr(trip.stars ?? 5)}</span><span class="px-chip-m">${d.toFixed(1)} mi</span><span class="px-chip-t">${left < 0 ? `late ${mmss(-left)}` : mmss(left)}</span>`;
+  }
   setInterval(paintChip, 1000);
 
-  // ---------- keeping the trip (the server's copy wins; guests keep it here) ----------
-  function setTrip(t) {
-    trip = t; if (t?.now) offset = Date.parse(t.now) - Date.now();
-    try { if (t) localStorage.setItem(SAVE, JSON.stringify({ ...t, chart: ctx.chartId })); else localStorage.removeItem(SAVE); } catch { /* storage blocked */ }
-    paintChip();
-  }
+  // ---------- keeping the trip (the server's copy wins; comfort and the rest are kept here) ----------
+  const save = () => { try { if (trip) localStorage.setItem(SAVE, JSON.stringify({ ...trip, chart: ctx.chartId })); else localStorage.removeItem(SAVE); } catch { /* storage blocked */ } };
+  function setTrip(t) { trip = t; if (t?.now) offset = Date.parse(t.now) - Date.now(); save(); paintChip(); }
   (async () => {
     let local = null; try { local = JSON.parse(localStorage.getItem(SAVE)); } catch { /* none */ }
+    const keep = l => (l && l.chart === ctx.chartId ? { shirt: l.shirt, stars: l.stars ?? 5, bumps: l.bumps ?? 0, rough: l.rough ?? 0, seen: !!l.seen } : { stars: 5, bumps: 0, rough: 0, seen: false });
     if (station.isServer() || await station.serverReady?.()) {
-      try { const t = await rpc('ride_get', {}); if (t && t.chart === ctx.chartId) { setTrip({ ...t, who: local?.who, shirt: local?.shirt, server: true }); deck.board(t.seats, trip.shirt, true); } else setTrip(null); }
+      try { const t = await rpc('ride_get', {}); if (t && t.chart === ctx.chartId) { setTrip({ ...t, ...keep(local?.id === t.id ? local : null), server: true }); deck.board(t.seats, trip.shirt, true); } else setTrip(null); }
       catch { if (local?.server && local.chart === ctx.chartId) { trip = local; paintChip(); deck.board(local.seats, local.shirt, true); } }
-    } else if (local && !local.server && local.chart === ctx.chartId) { setTrip(local); deck.board(local.seats, local.shirt, true); }
+    } else if (local && !local.server && local.chart === ctx.chartId) { setTrip({ ...local, ...keep(local) }); deck.board(local.seats, local.shirt, true); }
   })();
 
   // ---------- the passengers on deck: little figures, standing where the deck is flat and low ----------
@@ -182,5 +231,5 @@ export function createPassengers(ctx) {
     };
   })();
 
-  return { openBoard, moored, tick: () => deck.tick(), boatChanged: () => deck.reseat(), get trip() { return trip; } };
+  return { openBoard, moored, bump, tick: (dt = 0, speed = 0, amp = 1) => { ride(dt, speed, amp); deck.tick(); }, boatChanged: () => deck.reseat(), get trip() { return trip; } };
 }

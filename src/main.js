@@ -1038,7 +1038,7 @@ const station = initStation({ THREE, stage, M, WL, waveJS, toScreen, fade: fadeF
 onBoatApplied = id => { station.setActive(id); passengers?.boatChanged(); }; onBoatApplied(boatId);
 // passengers waiting at every Paradise Station: take them to another for coins (the server sets and pays the fares)
 passengers = createPassengers({ THREE, chartId: CHART.id, stations: () => STATIONS, here: () => STATION, home: HOME, boat, boatId: () => boatId, boatPos: () => boat.position,
-  docked: () => station.mode === 'docked', pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
+  docked: () => station.mode === 'docked', night: () => E.night > 0.5, pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
   celebrate: n => floatText(boat.position.clone().setY(9), `+${n}c`, '#ffd36b', true) });
 const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
@@ -1163,10 +1163,10 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     // Pune Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
     let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
     if (busy) { nx = boat.position.x; nz = boat.position.z; vel = dockVel; } // position comes from the station's mooring route
-    else if (station.blocked(nx, nz) && !station.blocked(boat.position.x, boat.position.z)) { nx = boat.position.x; nz = boat.position.z; vel *= 0.2; station.shoreWarn(); clearCourse(false); } // island, pier and rocks (a boat already inside, e.g. reloaded at a berth, can still sail out)
+    else if (station.blocked(nx, nz) && !station.blocked(boat.position.x, boat.position.z)) { nx = boat.position.x; nz = boat.position.z; vel *= 0.2; station.shoreWarn(); passengers?.bump(); clearCourse(false); } // island, pier and rocks (a boat already inside, e.g. reloaded at a berth, can still sail out)
     else if (terrain?.blocked(nx, nz) && !terrain.blocked(boat.position.x, boat.position.z)) { // a rock: slide along it if the boat meets it at a slant, else stop
       if (!terrain.blocked(nx, boat.position.z)) nz = boat.position.z; else if (!terrain.blocked(boat.position.x, nz)) nx = boat.position.x; else { nx = boat.position.x; nz = boat.position.z; }
-      terrain.hit(vel, (nx + boat.position.x) / 2 + Math.cos(yaw) * 4, (nz + boat.position.z) / 2 - Math.sin(yaw) * 4); vel *= 0.35; clearCourse(false); }
+      terrain.hit(vel, (nx + boat.position.x) / 2 + Math.cos(yaw) * 4, (nz + boat.position.z) / 2 - Math.sin(yaw) * 4); passengers?.bump(); vel *= 0.35; clearCourse(false); }
     const dx = nx - boat.position.x, dz = nz - boat.position.z;
     if (!busy && dt > 0 && Math.hypot(dx, dz) < Math.abs(vel * dt) * 0.999) vel = Math.sign(vel) * Math.hypot(dx, dz) / dt; // keep only the part of the motion that slides along the edge
     if (!busy) fuelK = station.burn(Math.hypot(dx, dz), Math.abs(thr));
@@ -1208,7 +1208,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   stepCourse(t, dt);
   station.tick(t, dt);
   stepSinkOut(dt); stepDropIn(dt);
-  passengers?.tick();
+  passengers?.tick(dt, Math.abs(vel) / MAXV, E.amp);
   // the sun (and its shadows) follows the boat; near Paradise Station the shadow area widens to cover the island
   { const kc = lights.key.shadow.camera, nearSt = Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) < 320, span = nearSt ? 75 : keySpan;
     const cx = nearSt ? (boat.position.x + STATION.x) / 2 : boat.position.x, cz = nearSt ? (boat.position.z + STATION.z) / 2 : boat.position.z;
