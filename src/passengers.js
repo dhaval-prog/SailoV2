@@ -142,7 +142,7 @@ export function createPassengers(ctx) {
     const g = new THREE.Group(); g.name = 'passengers'; ctx.boat.add(g);
     const body = new THREE.CylinderGeometry(0.2, 0.26, 0.82, 8), head = new THREE.SphereGeometry(0.19, 10, 8), leg = new THREE.CylinderGeometry(0.09, 0.09, 0.62, 6);
     const legM = new THREE.MeshStandardMaterial({ color: '#2f3a4d', roughness: 0.9 });
-    const spots = new Map(); let people = [], leaving = null, t0 = 0;
+    const spots = new Map(), BIG = 1.3; let people = [], leaving = null, t0 = 0; // (BIG: a little larger than life, so they read at sea)
     // stand-points for a boat: look down at it from above and keep the lowest flat hits (the deck, not the cabin roof)
     const findSpots = id => { if (spots.has(id)) return spots.get(id);
       const b = ctx.boat, pos = b.position.clone(), rot = b.rotation.clone(); b.position.set(0, 0, 0); b.rotation.set(0, 0, 0); b.updateMatrixWorld(true);
@@ -174,9 +174,9 @@ export function createPassengers(ctx) {
       reseat() { if (!people.length) return; spots.delete(ctx.boatId()); const sp = findSpots(ctx.boatId()); people.forEach((p, i) => { p.userData.base = (sp[i] || sp[0]).clone(); }); },
       tick() { if (!people.length) return; const t = performance.now() / 1000;
         people.forEach((p, i) => { const u = t - t0 - p.userData.t, b = p.userData.base;
-          if (leaving) { const v = Math.min(1, (t - leaving.t - i * 0.15) / 0.5); if (v <= 0) return; p.position.set(b.x, b.y + Math.sin(v * Math.PI) * 1.2, b.z + v * 2.2 * (i % 2 ? 1 : -1)); p.scale.setScalar(Math.max(0.001, 1 - v)); return; }
+          if (leaving) { const v = Math.min(1, (t - leaving.t - i * 0.15) / 0.5); if (v <= 0) return; p.position.set(b.x, b.y + Math.sin(v * Math.PI) * 1.2, b.z + v * 2.2 * (i % 2 ? 1 : -1)); p.scale.setScalar(Math.max(0.001, (1 - v) * BIG)); return; }
           const k = Math.min(1, Math.max(0, u / 0.45)); // (hopping aboard)
-          p.scale.setScalar(Math.max(0.001, k)); p.position.set(b.x, b.y + Math.sin(k * Math.PI) * 0.8 + Math.sin(t * 2 + p.userData.ph) * 0.02, b.z);
+          p.scale.setScalar(Math.max(0.001, k * BIG)); p.position.set(b.x, b.y + Math.sin(k * Math.PI) * 0.8 + Math.sin(t * 2 + p.userData.ph) * 0.02, b.z);
           p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.04; });
         if (leaving && t - leaving.t > 0.5 + people.length * 0.15) { clear(); leaving = null; } },
     };
