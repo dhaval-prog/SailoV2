@@ -4,7 +4,8 @@
 
 import { WORLD, formatPosition } from './world.js';
 import { PLACE, clock, fetchWeather, isNight } from './live.js';
-import { STATION, STATIONS, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
+import { STATION, STATIONS, S as ECON, FISH, REGION, localOdds, fishWhere, BOAT_SPECS, SPEED_UP, burnFor, boatStatus } from './station.js';
+import { routeLength } from './route.js';
 import { currentSession, signOut } from './auth.js';
 import { beforeSignOut, lastSaved } from './cloud.js';
 import { regionList, placeList, poiList, shackList, SHACK_NAME, ensure, zoneAt, onChange, groupLabel } from './geo.js';
@@ -229,11 +230,16 @@ export function initHud(api) {
   const scaleT = $('map-scale-t'), scaleB = $('map-scale-b');
   // hover preview, pinned course (marching dashes) and pin marker
   const ghost = el('circle', { r: 9, class: 'map-ghost', visibility: 'hidden' });
-  const destLine = el('line', { class: 'map-route', 'vector-effect': 'non-scaling-stroke', visibility: 'hidden' });
+  const destLine = el('polyline', { class: 'map-route', 'vector-effect': 'non-scaling-stroke', visibility: 'hidden' }); // (the route round the islands: route.js)
+  const previewLine = el('polyline', { class: 'map-route map-route-pv', 'vector-effect': 'non-scaling-stroke', visibility: 'hidden' }); // (the way to a place you've tapped)
   const destM = el('g', { class: 'map-dest', visibility: 'hidden' });
   el('circle', { r: 14, class: 'map-dest-ring' }, destM);
   el('path', { d: 'M0 0C0 0-10-12-10-18A10 10 0 0 1 10-18C10-12 0 0 0 0Z', class: 'map-pin' }, destM);
   el('circle', { cy: -18, r: 3.5, class: 'map-pin-dot' }, destM);
+  // the tapped place (a hollow pin) and the route's tag: distance · time · fuel, amber when the tank's tight, red when it won't make it
+  const pvM = el('g', { class: 'map-dest map-dest-pv', visibility: 'hidden' }); el('circle', { r: 12, class: 'map-dest-ring' }, pvM);
+  el('path', { d: 'M0 0C0 0-10-12-10-18A10 10 0 0 1 10-18C10-12 0 0 0 0Z', class: 'map-pin' }, pvM); el('circle', { cy: -18, r: 3.5, class: 'map-pin-dot' }, pvM);
+  const routeTag = el('g', { class: 'map-route-tag', visibility: 'hidden' }), routeTagR = el('rect', { y: -11, height: 22, rx: 11 }, routeTag), routeTagT = el('text', { y: 4.5 }, routeTag);
   // a passenger trip's destination (passengers.js): a gold marker and a name pill
   const tripM = el('g', { class: 'map-trip', visibility: 'hidden' }); let tripFn = null, tripLabel = '';
   el('circle', { r: 13, class: 'map-trip-ring' }, tripM); el('circle', { r: 9, class: 'map-trip-dot' }, tripM);
@@ -305,13 +311,14 @@ export function initHud(api) {
     const live = list.filter(p => p.c.live).length, cpu = list.length - live, row = $('map-others-row');
     if (row) { row.hidden = !list.length; $('map-others').textContent = [cpu ? `${cpu} local sailor${cpu === 1 ? '' : 's'} out` : '', live ? `${live} captain${live === 1 ? '' : 's'} online` : ''].filter(Boolean).join(' · '); }
   };
-  const placeMarks = () => { placeOthers(); placeTrip(); boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${pxW})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${pxW})`); };
+  const pop = { it: null }; // (the tap card's place, when one's open)
+  const placeMarks = () => { placeOthers(); placeTrip(); boatM.setAttribute('transform', `translate(${boatXY[0]} ${boatXY[1]}) scale(${pxW})`); if (destXY) destM.setAttribute('transform', `translate(${destXY[0]} ${destXY[1]}) scale(${pxW})`); if (pop.it) pvM.setAttribute('transform', `translate(${pop.it.t.x} ${pop.it.t.z}) scale(${pxW})`); };
   // place names, sized in screen pixels, drawn most important first and never overlapping (nor under the chart's
   // floating cards and buttons)
   const PRI = { region: 0, major: 1, isle: 2, minor: 2, road: 3, poi: 3, society: 4 }, SIZE = { region: 10.5, major: 10, isle: 15, minor: 9.5, road: 11, poi: 11, society: 10.5 };
   const SPACING = { region: 3, major: 2.4, minor: 1.6 };
   const CATC = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
-  const overlays = ['.sc-hd', '.sc-tabs', '.sc-scale', '.sc-compass', '.sc-ctrls', '.sc-panel'];
+  const overlays = ['.sc-hd', '.sc-tabs', '.sc-layers', '.sc-scale', '.sc-compass', '.sc-ctrls', '.sc-panel', '.map-pop'];
   const paintGeo = () => {
     geoDirty = false; geoG.replaceChildren(); if (!mapOpen) return;
     const L = mapLevel(), sr = mapSvg.getBoundingClientRect(), px = 1 / pxW, vh = view.w * ar, x0 = view.cx - view.w / 2, y0 = view.cz - vh / 2;
@@ -374,7 +381,7 @@ export function initHud(api) {
   const setMap = open => {
     if (open === mapOpen) return; mapOpen = open;
     if (open) { paintRocks(); coinsEl.textContent = `${api.coins()}c`; lastFocus = document.activeElement; mapEl.hidden = false; requestAnimationFrame(() => { mapEl.classList.add('open'); applyView(); }); $('map-close').focus(); }
-    else { mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
+    else { closePop(); mapEl.classList.remove('open'); setTimeout(() => { if (!mapOpen) mapEl.hidden = true; }, 260); if (lastFocus) lastFocus.focus(); }
     document.body.classList.toggle('map-open', open);
   };
   $('map-close').addEventListener('click', () => setMap(false));
@@ -399,21 +406,87 @@ export function initHud(api) {
     const sg = e.target.closest?.('.map-sos'); if (sg && sosPick) { setMap(false); sosPick(sg.dataset.id); return; } // an SOS: its card
     const o = otherAt(e); if (o && othersPick) { setMap(false); othersPick(o.c); return; } // a boat: their card
     const w = toWorld(e); if (!w) return;
-    if (api.pinCourse(w.x, w.y)) { showTip(e, w, `Pinned · ${tipText(w)}`); if (navigator.vibrate) navigator.vibrate(10); }
-    else showTip(e, w, 'Raise the anchor first');
+    hideTip(); openPop(pickAt(e, w)); // (a card first: what's there, how far, how long, the fuel; "Sail here" pins it)
   });
   $('map-unpin').addEventListener('click', () => api.clearCourse());
+  // ---- the tap card: what's at the spot you tapped, and the trip there ----
+  const popEl = document.createElement('div'); popEl.className = 'map-pop'; popEl.hidden = true; popEl.setAttribute('role', 'dialog'); popEl.setAttribute('aria-label', 'Place');
+  popEl.innerHTML = `<div class="mp-hd"><span class="mp-kind"></span><button type="button" class="mp-x" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
+    <b class="mp-name"></b><span class="mp-sub"></span><div class="mp-stats"></div><div class="mp-chips"></div><p class="mp-warn" hidden></p><button type="button" class="mp-go">Sail here</button>`;
+  mapEl.querySelector('.map-card').appendChild(popEl);
+  const q = c => popEl.querySelector(c);
+  // what's under a tap: a station, a Fisher's Shack, the passenger drop-off, an island, or open water (captains and SOS
+  // calls keep their own cards). Each says where to sail to: beside it, not onto it.
+  function pickAt(e, w) {
+    const r = mapSvg.getBoundingClientRect(), px = (x, z) => [r.left + (x - (view.cx - view.w / 2)) / pxW, r.top + (z - (view.cz - view.w * ar / 2)) / pxW], near = (x, z, R) => { const [sx, sy] = px(x, z); return Math.hypot(sx - e.clientX, sy - e.clientY) < R; };
+    const toward = (x, z, d) => { const dx = boatXY[0] - x, dz = boatXY[1] - z, L = Math.hypot(dx, dz) || 1; return { x: x + dx / L * d, z: z + dz / L * d }; };
+    const zn = n => zoneAt(n.x, n.z)?.name;
+    const hidden = k => mapSvg.classList.contains('no-' + k);
+    if (!hidden('stations')) for (const st of STATIONS) if (near(st.x, st.z, 20)) { const t = { x: st.x + 70, z: st.z + 80 };
+      return { kind: 'Paradise Station', name: st.id === 'home' ? 'Paradise Station' : `Paradise Station · ${st.at || zn(st) || ''}`, sub: zn(st) || formatPosition(st.x, st.z), chips: ['Fuel', 'Fish market', 'Berths', 'Passengers'], x: st.x, z: st.z, t }; }
+    if (near(0, 0, 18)) return { kind: 'Harbour', name: 'The Harbour', sub: 'Where voyages start', chips: [], x: 0, z: 0, t: toward(0, 0, 30) };
+    if (!hidden('trips')) { const tr = tripFn?.(); if (tr && near(tr.x, tr.z, 22)) return { kind: 'Passenger drop-off', name: tr.name, sub: zn(tr) || formatPosition(tr.x, tr.z), chips: ['Your passengers'], x: tr.x, z: tr.z, t: { x: tr.x, z: tr.z } }; }
+    if (!hidden('shacks')) for (const sh of shackList()) if (!sh.off && near(sh.x, sh.z, 18)) return { kind: SHACK_NAME, name: sh.was || SHACK_NAME, sub: zn(sh) || formatPosition(sh.x, sh.z), chips: ['Fuel', 'Fish market', 'Passengers'], x: sh.x, z: sh.z, t: toward(sh.x, sh.z, 34) };
+    let best = null, bd = Infinity; for (const it of isles) { if (it.big) continue; const d = Math.hypot(it.x - w.x, it.z - w.y) - Math.max(it.r, it.minPx * pxW); if (d < 8 * pxW && d < bd) { bd = d; best = it; } }
+    if (best) { const nm = nameIslands([best], isles).get(best)?.name || 'Island', shack = shackList().some(sh => Math.hypot(sh.x - best.x, sh.z - best.z) < best.r + 120);
+      return { kind: 'Island', name: nm, sub: zn(best) || formatPosition(best.x, best.z), chips: ['Beach', ...(shack ? ['Fisher\u2019s Shack nearby'] : [])], x: best.x, z: best.z, t: toward(best.x, best.z, best.r + 24) }; }
+    const z = zoneAt(w.x, w.y); return { kind: 'Open water', name: z ? z.name : 'Open water', sub: formatPosition(w.x, w.y), chips: [], x: w.x, z: w.y, t: { x: w.x, z: w.y } };
+  }
+  function openPop(it) {
+    pop.it = it; it.legs = api.route?.(it.t.x, it.t.z) || [it.t]; const trip = tripOf(it.legs);
+    q('.mp-kind').textContent = it.kind; q('.mp-name').textContent = it.name; q('.mp-sub').textContent = it.sub;
+    q('.mp-stats').innerHTML = `<span><small>Distance</small>${fmtDist(trip.L)}</span><span><small>Time</small>${fmtTime(trip.secs)}</span><span class="${trip.state}"><small>Fuel</small>${Math.ceil(trip.need)} of ${Math.floor(trip.have)} L</span>`;
+    q('.mp-chips').innerHTML = it.chips.map(c => `<i>${escM(c)}</i>`).join('');
+    const w = q('.mp-warn'), go = q('.mp-go'); w.hidden = trip.state === 'ok'; w.className = `mp-warn ${trip.state}`;
+    w.textContent = trip.state === 'out' ? 'Not enough fuel to get there: refuel at a Fisher\u2019s Shack or a Paradise Station first.' : 'Fuel will be tight: you\u2019ll arrive nearly empty.';
+    go.textContent = api.anchored?.() ? 'Raise the anchor first' : 'Sail here'; go.disabled = !!api.anchored?.();
+    const pts = ptsOf(boatXY[0], boatXY[1], it.legs); previewLine.setAttribute('points', polyStr(pts)); previewLine.setAttribute('visibility', 'visible');
+    pvM.setAttribute('visibility', 'visible'); placeTag(pts, trip); placeMarks();
+    popEl.hidden = false; mapEl.classList.add('pop-open'); requestAnimationFrame(() => popEl.classList.add('in'));
+  }
+  function closePop() { if (!pop.it) return; pop.it = null; popEl.classList.remove('in'); mapEl.classList.remove('pop-open'); previewLine.setAttribute('visibility', 'hidden'); pvM.setAttribute('visibility', 'hidden'); routeT = 0;
+    setTimeout(() => { if (!pop.it) popEl.hidden = true; }, 220); }
+  q('.mp-x').addEventListener('click', e => { e.stopPropagation(); closePop(); });
+  q('.mp-go').addEventListener('click', e => { e.stopPropagation(); const it = pop.it; if (!it) return;
+    if (api.pinCourse(it.t.x, it.t.z)) { if (navigator.vibrate) navigator.vibrate(10); closePop(); } else { const go = q('.mp-go'); go.textContent = 'Raise the anchor first'; go.disabled = true; } });
+  popEl.addEventListener('pointerdown', e => e.stopPropagation());
+  // ---- layers: show only what you're looking for (remembered on this device) ----
+  const LAYERS = [['names', 'Names'], ['shacks', 'Shacks'], ['stations', 'Stations'], ['trips', 'Passengers'], ['captains', 'Captains']];
+  let off = new Set(); try { off = new Set(JSON.parse(localStorage.getItem('sailo:map-layers')) || []); } catch { /* none */ }
+  const layersEl = document.createElement('div'); layersEl.className = 'sc-layers'; layersEl.setAttribute('role', 'group'); layersEl.setAttribute('aria-label', 'Map layers');
+  layersEl.innerHTML = LAYERS.map(([k, label]) => `<button type="button" data-layer="${k}" aria-pressed="true"><i aria-hidden="true"></i>${label}</button>`).join('');
+  mapEl.querySelector('.map-card').appendChild(layersEl);
+  const paintLayers = () => { LAYERS.forEach(([k]) => { const on = !off.has(k); mapSvg.classList.toggle('no-' + k, !on); const b = layersEl.querySelector(`[data-layer="${k}"]`); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('on', on); }); geoDirty = true; };
+  layersEl.addEventListener('click', e => { const b = e.target.closest('[data-layer]'); if (!b) return; e.stopPropagation(); const k = b.dataset.layer; off.has(k) ? off.delete(k) : off.add(k);
+    try { localStorage.setItem('sailo:map-layers', JSON.stringify([...off])); } catch { /* storage blocked */ } paintLayers(); });
+  layersEl.addEventListener('pointerdown', e => e.stopPropagation());
+  paintLayers();
   const pinRow = $('map-pin-row'), pinPos = $('map-pin'), pinDist = $('map-pin-d');
   mapEl.addEventListener('click', e => { if (e.target === mapEl) setMap(false); });
-  addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) setMap(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && mapOpen) { if (pop.it) closePop(); else setMap(false); } });
+  // ---- a trip's numbers: how far by the route, how long at this boat's speed, the fuel it takes and whether the tank will do ----
+  const fmtDist = m => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / WORLD.mile).toFixed(1)} mi`;
+  const fmtTime = s => s < 60 ? 'under a min' : s < 3600 ? `~${Math.round(s / 60)} min` : `~${(s / 3600).toFixed(1)} h`;
+  const tripOf = legs => { const id = api.boatId?.() || ECON.active, sp = BOAT_SPECS[id] || BOAT_SPECS.tug, L = routeLength({ x: boatXY[0], z: boatXY[1] }, legs);
+    const need = burnFor(id, L, 1), have = boatStatus(id)?.fuel ?? 0, secs = L / (sp.kn * SPEED_UP / 1.944 * 0.85);
+    return { L, secs, need, have, state: have < need ? 'out' : have < need * 1.3 ? 'low' : 'ok' }; };
+  const ptsOf = (x, z, legs) => [[x, z], ...legs.map(p => [p.x, p.z])];
+  const polyStr = pts => pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  // the tag sits just above the destination's pin (clear of the boat, however short the route looks)
+  const placeTag = (pts, trip) => { const [mx, mz] = pts[pts.length - 1];
+    const text = `${fmtDist(trip.L)} · ${fmtTime(trip.secs)} · ${Math.ceil(trip.need)} L`; if (routeTagT.textContent !== text) { routeTagT.textContent = text; const w = text.length * 6.4 + 20; routeTagR.setAttribute('x', -w / 2); routeTagR.setAttribute('width', w); }
+    routeTag.setAttribute('class', `map-route-tag ${trip.state}`); routeTag.setAttribute('transform', `translate(${mx} ${mz}) scale(${pxW}) translate(0 -50)`); routeTag.setAttribute('visibility', 'visible'); };
+  let routeT = 0;
   const drawMap = (x, z, heading, dest, pos) => {
     boatXY = [x, z]; destXY = dest ? [dest.x, dest.z] : null;
     if (performance.now() > othersT) { othersT = performance.now() + 250; paintOthers(); paintSOS(); }
     placeMarks();
     boatArrow.setAttribute('transform', `rotate(${-heading * 180 / Math.PI})`);
     const vis = dest ? 'visible' : 'hidden'; destM.setAttribute('visibility', vis); destLine.setAttribute('visibility', vis);
-    if (dest) { destLine.setAttribute('x1', x); destLine.setAttribute('y1', z); destLine.setAttribute('x2', dest.x); destLine.setAttribute('y2', dest.z);
-      pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${(Math.hypot(dest.x - x, dest.z - z) / WORLD.mile).toFixed(1)} mi to go`; }
+    if (dest) { const legs = api.courseRoute?.() || [dest], pts = ptsOf(x, z, legs.length ? legs : [dest]); destLine.setAttribute('points', polyStr(pts));
+      if (performance.now() > routeT && !pop.it) { routeT = performance.now() + 400; const trip = tripOf(legs.length ? legs : [dest]); placeTag(pts, trip);
+        pinPos.textContent = formatPosition(dest.x, dest.z); pinDist.textContent = `${fmtDist(trip.L)} to go · ${fmtTime(trip.secs)}`; } }
+    else if (!pop.it) routeTag.setAttribute('visibility', 'hidden');
     pinRow.hidden = !dest; help.hidden = !!dest;
     const zn = zoneAt(x, z), here = `You're at <b>${escM(zn ? zn.name : WORLD.city)}</b> <span class="sc-mono">${escM(pos)}</span>`; if (mapPos.innerHTML !== here) mapPos.innerHTML = here;
     // the islands met so far, and the way home to Paradise Station

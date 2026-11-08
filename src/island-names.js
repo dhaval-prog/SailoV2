@@ -19,7 +19,7 @@ export function nameIslands(isles, all = isles, places = placeList(), pois = poi
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; isles.forEach(it => { x0 = Math.min(x0, it.x); z0 = Math.min(z0, it.z); x1 = Math.max(x1, it.x); z1 = Math.max(z1, it.z); });
   const W = REACH * 3, box = p => p.x > x0 - W && p.x < x1 + W && p.z > z0 - W && p.z < z1 + W;
   const isRoad = p => p.cat === 'road' || p.kind === 'road';
-  const labels = [...places.filter(p => p.kind !== 'major' && p.kind !== 'region'), ...pois].filter(box);
+  const labels = [...places.filter(p => p.kind !== 'major' && p.kind !== 'region'), ...pois.filter(p => p.cat !== 'shack')].filter(box); // (a Fisher's Shack is a place of its own, not a name for an island)
   const towns = places.filter(p => p.kind !== 'region');
   const grid = new Map(); labels.forEach(p => { const k = `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`; (grid.get(k) || grid.set(k, []).get(k)).push(p); });
   const n = Math.ceil(REACH * ROAD_K / CELL);
