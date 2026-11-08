@@ -70,8 +70,12 @@ export function initHud(api) {
     tod.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.t === mode)));
     document.querySelectorAll('.wx').forEach(b => b.setAttribute('aria-checked', String(b.dataset.w === st.w)));
     document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === st.view)); // (on phones they orbit the wheel, outside the dock)
-    document.body.classList.toggle('view-top', st.view === 'top');
+    const top = st.view === 'top', was = document.body.classList.contains('view-top'); document.body.classList.toggle('view-top', top);
+    // the course hint: shown for a few seconds each time the top view opens, then it fades away
+    if (top && !was) { document.body.classList.add('hint-on'); clearTimeout(hintT); hintT = setTimeout(() => document.body.classList.remove('hint-on'), 5000); }
+    if (!top) { clearTimeout(hintT); document.body.classList.remove('hint-on'); }
   };
+  let hintT = 0;
   // picking a time of day or weather by hand switches live mode off
   // Day (midday), Sunset (the golden hour look) or Night; picking one turns live time off
   const manualDay = () => api.setDayTime?.(prefs.sunset ? { mins: 1095, set: 1110 } : null);
