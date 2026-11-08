@@ -235,7 +235,8 @@ const sailBoat = buildSailBoat({ THREE, M, emit: (...a) => emit(...a) }); sailBo
 const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false; boat.add(motorYacht.group); outlines.push(...motorYacht.outlines);
 const dinghy = buildDinghy({ THREE, emit: (...a) => emit(...a) }); dinghy.group.visible = false; boat.add(dinghy.group); outlines.push(...dinghy.outlines);
 const woodTug = buildWoodTug({ THREE, scene: stage._scene });
-const voyager = buildVoyager({ THREE }); voyager.group.visible = false; boat.add(voyager.group); // (the Voyager: a model file, loaded as the game starts) woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
+woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
+const voyager = buildVoyager({ THREE, scene: stage._scene, emit: (...a) => emit(...a) }); voyager.group.visible = false; boat.add(voyager.group); // (the Voyager: likewise)
 const BOATS = {
   tug: { name: 'Lighthouse Tug', outline, fit: { anchor: { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }, hawseY: 2.45, rod: [-3.9, 2.35, -1.35], land: [-3.0, 2.3, -0.4], menuY: 10.6 } },
   sail: { name: 'Sail Boat', outline: sailBoat.outline, fit: sailBoat.fit },
@@ -586,6 +587,7 @@ const hud = initHud({
     swapBoat(id); return 'ok'; },
   dinghySail: () => ({ sail: dinghy.sail, colours: dinghy.sailColours, set: v => dinghy.setSail(v) }),
   woodtugPaint: () => woodTug.paint(),
+  voyagerSail: () => voyager.sail(),
   yachtFlag: () => ({ flag: motorYacht.flag, colours: motorYacht.flagColours, set: v => motorYacht.setFlag(v) }),
   sailStyle: () => ({ style: sailBoat.style, colours: sailBoat.styleColours, set: v => sailBoat.setStyle(v) }),
   setNight: n => { state.night = n; }, setDayTime: d => { state.day = d; }, /* d: { mins, set } in live mode, null for manual day (midday) */ setWeather: w => { if (PRESET[w]) state.w = w; },
@@ -1065,7 +1067,7 @@ const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: (n, step) => stati
 // local sailors: 20 computer captains on their daily routines, the same for every account (Pune Paradise)
 // the local sailors (Pune Paradise) and real captains online (every chart) share one fleet on the water
 const isPuneChart = CHART.id === 'pune';
-const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.template, voyager: voyager.group }, waveJS, WL, toScreen, cpu: isPuneChart,
+const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.template, voyager: voyager.template }, waveJS, WL, toScreen, cpu: isPuneChart,
   playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c) });
 // the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
 const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
@@ -1081,6 +1083,7 @@ const myColours = () => { const get = k => { try { return JSON.parse(localStorag
   if (boatId === 'dinghy') { const s = get('daysailer.sail'); return s.c ? { sail: s.c } : {}; }
   if (boatId === 'yacht') { const s = get('motoryacht.flag'); return s.on && s.c ? { flag: s.c } : {}; }
   if (boatId === 'woodtug') { const s = get('woodtug.paint'); return s.hull && s.hull !== 'natural' ? { hull: s.hull } : {}; }
+  if (boatId === 'voyager') { const s = get('voyager.sail'); return s.c ? { sail: s.c } : {}; }
   return {}; };
 let myCatches = { n: 0, at: 0 }; const caughtTotal = () => { if (Date.now() - myCatches.at > 60000) { let n = 0; try { Object.values(JSON.parse(localStorage.getItem('sailo:fishlog') || '{}')).forEach(r => { n += r.n || 0; }); } catch { /* storage blocked */ } myCatches = { n, at: Date.now() }; } return myCatches.n; };
 const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x, z: boat.position.z, yaw, kn: Math.abs(vel * 1.944), boat: boatId, colours: myColours(), name: hud.captainName(), rank: hud.rank(), catches: caughtTotal(),
@@ -1197,7 +1200,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     if (boatId === 'dinghy') dinghy.tick(t, dt, { steer: steerS, vel, anchor: ACT.anchor, night: E.night, amp: E.amp, maxV: MAXV });
     if (boatId === 'yacht') motorYacht.tick(t, dt, { steer: steerS, vel, night: E.night, amp: E.amp, maxV: MAXV });
     if (boatId === 'woodtug') woodTug.tick(t, dt, { vel, night: E.night, maxV: MAXV }); else woodTug.smokeTick(dt, E.night); // (its smoke drifts off after a switch)
-    if (boatId === 'voyager') voyager.tick(t, dt, { night: E.night });
+    if (boatId === 'voyager') voyager.tick(t, dt, { night: E.night, vel, maxV: MAXV, anchor: ACT.anchor }); else voyager.smokeTick(dt, E.night);
     wakeT += dt;
     vT += Math.abs(vel) * dt; if (Math.abs(vel) > 0.8 && vT > 1.1) { vT = 0; dropVWake(fx, fz, sv, Math.abs(vel)); } // (a pair every metre or so: an unbroken V at any frame rate)
     if (Math.abs(vel) > 0.6 && wakeT > 0.07) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }

@@ -17,7 +17,7 @@ const BOATS = {
   sail: { ico: 'boat-sail', sub: 'Sloop with mainsail and jib · sails furl at anchor', edit: 'sail' },
   yacht: { ico: 'boat-yacht', sub: 'Flybridge cruiser with radar arch · custom flag', edit: 'yacht' },
   dinghy: { ico: 'boat-sail', sub: 'Daysailer with tall mast and genoa · heels under sail', edit: 'dinghy' },
-  voyager: { ico: 'boat-sail', sub: 'Conservatory ship: a glasshouse on deck, lateen sails and outrigger floats' },
+  voyager: { ico: 'boat-sail', sub: 'The big conservatory ship: a glasshouse on deck, lateen sails and screw floats · sails drop at anchor', edit: 'voyager' },
   woodtug: { ico: 'boat-tug', sub: 'Big planked wooden tug with tyre fenders, a wheelhouse and chain rails · custom hull', edit: 'woodtug' },
 };
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -61,6 +61,8 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
     if (editing === 'yacht') { const yf = api.yachtFlag(), fl = yf.flag;
       return `<section class="gf-editsec">${editHead('Custom flag · Motor yacht')}${tabs([['1', 'Flag up'], ['0', 'No flag']], fl.on ? '1' : '0', 'data-flag')}
         ${fl.on ? `<div class="gf-swrow">${swatches(yf.colours, fl.c, c => `data-flag-c="${c}"`)}</div>${imgRow('gf-fimg', !!fl.img, 'Shows pixelated on the flag')}` : ''}</section>`; }
+    if (editing === 'voyager') { const vs = api.voyagerSail(), sl = vs.sail;
+      return `<section class="gf-editsec">${editHead('Sail colour · Voyager')}<div class="gf-swrow">${swatches(vs.colours, sl.c, c => `data-vy-c="${c}"`)}</div></section>`; }
     if (editing === 'woodtug') { const wp = api.woodtugPaint(), pt = wp.paint;
       return `<section class="gf-editsec">${editHead('Hull colours · Wooden tug')}<div class="gf-swrow"><span>Hull</span>${swatches(wp.colours, pt.hull, c => `data-wt-hull="${c}"`)}</div>
         <div class="gf-swrow"><span>Trim</span>${swatches(wp.colours, pt.trim, c => `data-wt-trim="${c}"`)}</div></section>`; }
@@ -121,6 +123,9 @@ export function createGarageFriends({ api, openSheet, closeSheet, sheet, sheetBo
     all('[data-flag-c]').forEach(b => b.addEventListener('click', () => { yf.set({ c: b.dataset.flagC }); rerender(); }));
     $('#gf-fimg')?.addEventListener('change', e => { const f = e.target.files[0]; if (f) pixelate(f, 40, img => { yf.set({ img }); rerender(); }); });
     $('#gf-fimgx')?.addEventListener('click', () => { yf.set({ img: null }); rerender(); });
+    // voyager sails
+    const vs = api.voyagerSail?.();
+    all('[data-vy-c]').forEach(b => b.addEventListener('click', () => { vs.set({ c: b.dataset.vyC }); rerender(); }));
     // wooden tug paint
     const wp = api.woodtugPaint?.();
     all('[data-wt-hull]').forEach(b => b.addEventListener('click', () => { wp.set({ hull: b.dataset.wtHull }); rerender(); }));
