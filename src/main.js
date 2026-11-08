@@ -538,8 +538,9 @@ const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new 
 // interpolate camera offsets on a sphere (shortest way round) so view changes orbit instead of dipping through the boat
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
 const animCam = (to, ty1, dur = 1.3, focus = null) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0, fo: focus || new THREE.Vector3() }; };
-const setView = v => { state.view = v; const top = v === 'top', d = VIEWS.top.up / Math.cos(Math.PI / 6);
-  stage._controls.minDistance = top ? 30 : 8; stage._controls.maxDistance = top ? 320 : 260; // the top view zooms too (pinch, wheel, the buttons), from close over the boat to well out
+const setView = v => { state.view = v; stage._frame?.(); const top = v === 'top', d = VIEWS.top.up / Math.cos(Math.PI / 6);
+  stage._controls.minDistance = top ? 30 : 8; stage._controls.maxDistance = top ? 320 : 260;
+  stage._controls.enablePan = !top; // (the top view keeps the boat in the middle: pinch zooms, it doesn't slide the view away) // the top view zooms too (pinch, wheel, the buttons), from close over the boat to well out
   animCam(viewOffset(v), top ? WL : 2.5); };
 const recenter = () => setView(state.view);
 const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };
@@ -744,12 +745,12 @@ const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
   thr.addEventListener('keydown', e => { const k = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[e.key];
     if (k) { e.preventDefault(); e.stopPropagation(); setLever(HELM.lever ? HELM.lever + k : Math.sign(k) * 0.15); } else if (e.key === 'Home' || e.key === '0') setLever(0); });
   addEventListener('sailo:controls', paintLever); addEventListener('resize', () => setTimeout(paintLever, 100)); paintLever(); }
-// upright phones: the picture is framed a little higher, so the boat sits clear of the wheel and its icons at the bottom
+// upright phones: the chase view is framed a little higher, so the boat sits clear of the wheel and its icons at the bottom
 // (the view is shifted, not the camera, so taps on the water and labels on the scene still line up)
 { const upright = matchMedia('(max-width: 720px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)'), cam = stage._camera;
   const frame = () => { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
-    if (upright.matches) cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
-  new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); }
+    if (upright.matches && state.view !== 'top') cam.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); }; // (the top view keeps the boat in the very middle)
+  new ResizeObserver(() => requestAnimationFrame(frame)).observe(stage); upright.addEventListener?.('change', frame); frame(); stage._frame = frame; }
 // installed on the Home Screen, iPad and iPhone can leave a strip under the game (by the home indicator) that the game
 // can't draw in: it shows the page's own background. That background takes the colour of the sea along the picture's
 // bottom edge, so the strip blends in. It's worked out the way the sea's shader colours that water (its distance from the
@@ -1241,6 +1242,9 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     boat.position.x += dx; boat.position.z += dz; stats.dist += Math.hypot(dx, dz); stats.top = Math.max(stats.top, Math.abs(vel));
     stage._camera.position.x += dx; stage._camera.position.z += dz; stage._controls.target.x += dx; stage._controls.target.z += dz;
     // chase view: as the boat turns, the camera swings round with it (keeping its place behind, or wherever you set it)
+    // top view: the boat stays in the middle of the screen (eased back if anything has nudged the view off it)
+    if (state.view === 'top' && !camAnim && ACT.fish === 'off' && (ACT.anchor === 'up' || ACT.anchor === 'down') && menu.style.display === 'none') { const tg = stage._controls.target, k = Math.min(1, dt * 4), ex = (boat.position.x - tg.x) * k, ez = (boat.position.z - tg.z) * k;
+      if (Math.abs(ex) + Math.abs(ez) > 1e-4) { tg.x += ex; tg.z += ez; stage._camera.position.x += ex; stage._camera.position.z += ez; } }
     if (state.view === 'chase' && !camAnim && !camDrag && yaw !== yaw0) { const tg = stage._controls.target; tmpV.copy(stage._camera.position).sub(tg).applyAxisAngle(UPY, yaw - yaw0); stage._camera.position.copy(tg).add(tmpV); }
     const bx = boat.position.x, bz = boat.position.z, sx = Math.sin(yaw), sz = Math.cos(yaw);
     const hC = waveJS(bx, bz, t), hF = waveJS(bx + fx * 3, bz + fz * 3, t), hB = waveJS(bx - fx * 3, bz - fz * 3, t), hS = waveJS(bx + sx * 2, bz + sz * 2, t), hP = waveJS(bx - sx * 2, bz - sz * 2, t);
