@@ -340,22 +340,22 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float st = fbm(vec2(p.x * 0.09, p.y * 0.55) + vec2(time * 0.05, 0.0));
       col = mix(col, lite, smoothstep(0.66, 0.7, st) * 0.4);
       float cr = noise(vec2(p.x * 0.55 + time * 0.35, p.y * 2.8));
-      col = mix(col, vec3(0.9, 0.98, 0.93), step(0.96, cr) * 0.5 * (1.0 - smoothstep(25.0, 110.0, d)));
+      col = mix(col, vec3(0.9, 0.98, 0.93), step(0.96, cr) * (0.12 + 0.3 * smoothstep(0.85, 1.4, uAmp)) * (1.0 - smoothstep(25.0, 110.0, d)));
       vec2 dd = p - bp - vec2(-0.6, 0.9); vec2 lc = vec2(dot(dd, vec2(cos(yaw), -sin(yaw))), dot(dd, vec2(sin(yaw), cos(yaw)))); float sh = length(lc / vec2(6.8, 3.4));
       col *= mix(0.72, 1.0, smoothstep(0.55, 1.15, sh));
       // ripples everywhere, catching the light: strong close by, fading into the distance (where they'd only shimmer)
       float rk = 1.0 - smoothstep(25.0, 200.0, d);
       vec3 rn = rippleN(p, time, rk);
       float rl = dot(rn, uSun) - dot(vec3(0.0, 1.0, 0.0), uSun) * rn.y;
-      col *= 1.0 + rl * 1.6 * rk;
-      col = mix(col, lite, smoothstep(0.03, 0.08, rl) * 0.28 * rk); // (the faces turned to the sun catch it)
+      col *= 1.0 + rl * 0.9 * rk;
+      col = mix(col, lite, smoothstep(0.03, 0.1, rl) * 0.08 * rk); // (the faces turned to the sun catch it, softly)
       // whitecaps: streaks of foam blown along the wind, a few on a clear day, many in a storm (uAmp)
       float capD = 0.7 - 0.14 * clamp(uAmp - 0.8, 0.0, 1.6), caps = 0.0;
       for (int i = 0; i < 2; i++) { vec2 wd = i == 0 ? uWindDirs.xy : uWindDirs.zw; float wk = i == 0 ? 1.0 - uWindK : uWindK; if (wk <= 0.0) continue; // (streaks along the wind, old and new)
         vec2 wq = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
         float capF = noise(vec2(wq.x * 0.22 - time * 0.25, wq.y * 0.9)) * noise(vec2(wq.x * 0.07 + 3.0, wq.y * 0.19 - time * 0.03));
         caps += smoothstep(capD, capD + 0.06, capF) * wk; }
-      caps *= 1.0 - smoothstep(80.0, 280.0, d) * 0.5;
+      caps *= (1.0 - smoothstep(80.0, 280.0, d) * 0.5) * smoothstep(0.85, 1.4, uAmp); // (none in fair weather: only rain and storms whip them up)
       col = mix(col, vec3(0.92, 0.98, 0.95), caps * 0.55);
       #ifdef WAVES
       vec3 n = normalize(cross(dFdx(wp), dFdy(wp))); if (n.y < 0.0) n = -n;
@@ -365,9 +365,9 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float wf = 1.0 - smoothstep(260.0, 420.0, d); // (the swell's light and shade, out to the horizon)
       col *= mix(1.0, 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb), wf);
       float crest = vh / (max(uAmp, 0.3) * ${f4(SWELL_MAX)});
-      col = mix(col, lite, smoothstep(0.25, 0.6, crest) * 0.45 * wf);
+      col = mix(col, lite, smoothstep(0.2, 0.7, crest) * 0.22 * wf); // (crests a shade lighter: a soft roll, not foam)
       float capN = noise(p * 1.3 + vec2(time * 0.6, 0.0));
-      col = mix(col, vec3(0.92, 0.98, 0.95), smoothstep(0.62 - 0.08 * clamp(uAmp - 1.0, 0.0, 1.5), 0.72, crest + (capN - 0.5) * 0.3) * 0.8 * wf); // (foam on the tallest crests)
+      col = mix(col, vec3(0.92, 0.98, 0.95), smoothstep(0.62 - 0.08 * clamp(uAmp - 1.0, 0.0, 1.5), 0.72, crest + (capN - 0.5) * 0.3) * 0.8 * wf * smoothstep(1.05, 1.5, uAmp)); // (foam on the tallest crests, in a storm)
       vec3 vdir = normalize(cameraPosition - wp);
       float spec = pow(max(dot(reflect(-sunD, n), vdir), 0.0), 60.0);
       float tw = step(0.72, noise(p * 2.6 + vec2(time * 1.7, -time * 1.3)));
@@ -566,7 +566,7 @@ function stepEnv(t, dt) {
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
   if (P.storm) { nextBolt -= dt; if (nextBolt <= 0) { flash = 1; nextBolt = 2.5 + Math.random() * 6; setTimeout(() => { flash = 0.8; }, 140); } }
   flash = Math.max(0, flash - dt * 4.5);
-  ENV.amp = E.amp * 0.8; seaU.uAmp.value = E.amp * 0.8; // the swell for the weather: rolling on a clear day, heavy in a storm
+  ENV.amp = E.amp * 0.6; seaU.uAmp.value = E.amp * 0.6; // the swell for the weather: a slow, gentle roll on a clear day, heavy in a storm
   seaU.uTint.value.copy(E.tint); // (the sea darkens with the sky)
   // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
   const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);

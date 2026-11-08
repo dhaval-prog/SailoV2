@@ -135,7 +135,7 @@ export function createTerrain({ THREE, scene, WL, sea, stations, getBoat, onHit,
         float brk = noise(vec2(vA * 7.0 + vSeed * 13.0, u * 3.0 - time * 0.4));              // broken along the shore
         float a = line * smoothstep(0.32, 0.62, brk + 0.2) * (1.0 - smoothstep(0.55, 1.0, u));
         a += (1.0 - smoothstep(0.0, 0.2, u)) * (0.5 + 0.5 * sin(time * 1.25 + vSeed * 6.283)) * 0.75 * smoothstep(0.25, 0.6, brk + 0.3); // the wash on the sand
-        a *= 0.85 * (1.0 - smoothstep(260.0, 420.0, vD));
+        a *= 0.45 * (1.0 - smoothstep(220.0, 380.0, vD)); // (soft: a quiet line of surf, not a ring of foam)
         gl_FragColor = vec4(mix(vec3(0.95, 1.0, 0.98), vec3(0.32, 0.42, 0.5), uNight), a); }`,
   }), MAXS);
   if (surfIM) { surfIM.count = 0; surfIM.frustumCulled = false; surfIM.renderOrder = 2; scene.add(surfIM); }
