@@ -10,7 +10,7 @@
 // boat icon: tap the boat to sail there. Labels never overlap each other, the boat or the fishing game. Also announces
 // "Entering …" / "Leaving …" as the boat crosses localities.
 
-import { regionList, placeList, poisNear, ensure, zoneAt, groupLabel } from './geo.js';
+import { regionList, placeList, poisNear, shackList, ensure, zoneAt, groupLabel } from './geo.js';
 
 const NEAR = 1000;       // metres: closer names float on the water at their real spot
 const MAX_NEAR = 12;     // floating names on screen at once
@@ -18,7 +18,7 @@ const MAX_FAR = 5;       // horizon names at once (the compass strip shows the r
 const FADE = [2500, 3500]; // metres: horizon names fade out across this range and vanish beyond it
 const RANGE = { major: 12000, minor: 4500 };
 const STRIP = { major: 9000, minor: 3500, max: 16, ppd: 130 / 45 }; // compass strip: ranges, marker cap, pixels per degree (a cardinal every 130 px)
-const CAT = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
+const CAT = { food: '#ffb870', hotel: '#c9a7ff', mall: '#ff8fc7', fuel: '#ffd36b', health: '#ff8a8a', shack: '#2cc4a8', school: '#8fd0ff', park: '#7ff0c8', road: '#e9f1ff', society: '#bfefff' };
 const CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 export const levelFor = d => d < 35 ? 4 : d < 90 ? 3 : d < 170 ? 2 : 1;
 const bearing = (dx, dz) => (Math.atan2(dx, -dz) * 180 / Math.PI + 360) % 360; // degrees clockwise from north (−z)
@@ -126,14 +126,15 @@ export function createSeaLabels({ THREE, stage, boat, WL, toScreen, avoid, onZon
       if (Math.abs(wrap(bearing(dx, dz) - camHead)) > 80) return; // behind or beside the camera
       // depth: nearer horizon names sit lower (projected closer), farther ones higher up
       if (far) { const k = Math.min(1, Math.max(0, (Math.min(dist, 12000) - NEAR) / 11000)), dd = 360 + k * 1340, L = Math.hypot(dx, dz) || 1; v.set(camXZ.x + dx / L * dd, WL, camXZ.y + dz / L * dd); }
-      else v.set(p.x, WL + (rank >= 3 ? 1.2 : 2.5), p.z);
+      else v.set(p.x, WL + (p.cat === 'shack' ? 19 : rank >= 3 ? 1.2 : 2.5), p.z); // (a Fisher's Shack's name over its roof)
       const [x, y, z] = toScreen(v); if (z > 1 || x < -200 || x > W + 200 || y < 60 || y > H + 20) return;
       cand.push({ key, p, rank, far, x, y, dist });
     };
     if (level === 1) regionList().forEach(p => consider('r:' + p.name, p, 0));
     else {
       for (const p of placeList()) { if (p.kind === 'minor' && level < 3) continue; const r = Math.hypot(p.x - tgt.x, p.z - tgt.z); if (r > RANGE[p.kind]) continue; consider('p:' + p.key, p, p.kind === 'major' ? 1 : 2); }
-      if (level === 4) poisNear(tgt.x, tgt.z, 430).forEach(p => consider('i:' + p.id, p, 3));
+      if (level === 4) poisNear(tgt.x, tgt.z, 430).forEach(p => { if (p.cat !== 'shack') consider('i:' + p.id, p, 3); });
+      for (const p of shackList()) if (!p.off && Math.hypot(p.x - tgt.x, p.z - tgt.z) < 1400) consider('i:' + p.id, p, 2); // (Fisher's Shacks: named whenever you're near one)
     }
     // floating names first (nearest), then at most a few horizon names (most important, then nearest)
     cand.sort((a, b) => (a.far - b.far) || (a.far ? a.rank - b.rank : 0) || a.dist - b.dist);

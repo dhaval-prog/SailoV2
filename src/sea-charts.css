@@ -185,3 +185,7 @@ body.is-night #map.sc, body.is-night .wm {
 .map-trip-dot { fill: var(--sc-gold); stroke: var(--sc-card); stroke-width: 3; }
 .map-trip-ring { fill: none; stroke: var(--sc-gold); stroke-width: 2.5; transform-box: fill-box; transform-origin: center; animation: sc-pulse 2s ease-out infinite; }
 .map-trip-p { fill: none; stroke: var(--sc-gold-ink); stroke-width: 1.6; stroke-linecap: round; }
+/* Fisher's Shacks (every petrol pump and hospital): a teal hut badge with a name pill */
+.map-shack-b { fill: #0b8f9e; stroke: #fff; stroke-width: 2; }
+.map-shack-i { fill: #fff; stroke: none; fill-rule: evenodd; }
+.map-shack-t { font-size: 10.5px; }

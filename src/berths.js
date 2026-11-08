@@ -36,11 +36,12 @@ export function createBerths({ chartId: harbour, home = () => true, online, play
   function info(i) {
     const r = bookings.get(i);
     if (r && Date.parse(r.expires_at) > Date.now()) return { by: r.user_id === meId() ? 'you' : 'captain', name: r.captain, state: r.state };
-    if (cpu && atHome()) { const c = berthsHeld().get(i); if (c) return { by: 'local', name: c.name }; }
+    if (cpu && atHome() && chartId === harbour()) { const c = berthsHeld().get(i); if (c) return { by: 'local', name: c.name }; }
     return null;
   }
-  /** Book berth i before sailing in: { ok, offline?, msg? }. */
-  async function book(i) {
+  /** Book berth i before sailing in: { ok, offline?, msg? }. `key`: another harbour's (a Fisher's Shack's landing). */
+  async function book(i, key) {
+    if (key && !mine && key !== chartId) { chartId = key; bookings = new Map(); }
     const held = info(i); if (held && held.by !== 'you') return { ok: false, msg: held.by === 'local' ? `${held.name.split(' ')[0]} is moored at that berth.` : `${held.name} has that berth.` };
     try { const r = await rest('rpc/book_berth', { method: 'POST', body: { p_chart: chartId, p_berth: i, p_captain: String(playerName() || 'Captain').slice(0, 18) } });
       if (mine && mine.berth !== i) bookings.delete(mine.berth);
