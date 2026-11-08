@@ -6,7 +6,8 @@
 //   Sail Boat       no engine: wind in the sails, gusting, with the odd creak of the rigging
 //   Dinghy          no engine: a lighter, brighter wind, and water slapping the small hull
 //   Voyager         a steam engine: a deep hum, the chuff of the stack, and the churn of the two screws
-// The sea: a slow swell and waves lapping (more in rough weather), and the rush of water past the hull with the speed.
+// The sea: the swell you ride (rising as a crest lifts the boat, rushing by as it passes under), waves lapping (more in
+// rough weather), and the rush of water past the hull with the speed.
 // Starts with the captain's first touch (browsers don't allow sound before that) and goes quiet while the app is hidden.
 // Turned off with localStorage 'sailo:sound' = 'off'.
 export function createBoatSounds() {
@@ -39,11 +40,14 @@ export function createBoatSounds() {
   function buildSea() {
     const swellG = gain(0), swell = filt('lowpass', 420, 0.5, swellG); loopNoise(swell, 0.5);   // the low roar of the swell
     const washG = gain(0), wash = filt('bandpass', 900, 0.6, washG); loopNoise(wash, 1.1);     // water rushing past the hull
-    return { swellG, washG, wash, lap: 1.5, t: 0 };
+    return { swellG, washG, wash, lap: 1.5, t: 0, crest: 0 };
   }
-  function seaTick(dt, k, amp) {
-    sea.t += dt; const sw = 0.5 + 0.5 * Math.sin(sea.t * 0.55) * Math.sin(sea.t * 0.21 + 1);
-    set(sea.swellG.gain, (0.10 + 0.08 * amp) * (0.55 + 0.45 * sw), 0.4);
+  function seaTick(dt, k, amp, crest) {
+    // the swell you're riding: the roar rises as a crest lifts the boat, and each one rushes by as it passes under
+    sea.t += dt; const lift = Math.max(0, Math.min(1, (crest + 0.3) / 1.2));
+    set(sea.swellG.gain, (0.10 + 0.08 * amp) * (0.45 + 0.75 * lift), 0.35);
+    if (crest > 0.35 && sea.crest <= 0.35) burst(300 + Math.random() * 250, 0.7, 0.12 + 0.08 * amp, 1.1 + Math.random() * 0.5, 'lowpass');
+    sea.crest = crest;
     set(sea.washG.gain, 0.02 + 0.22 * k * k, 0.2); set(sea.wash.frequency, 650 + 900 * k, 0.3);
     if ((sea.lap -= dt) <= 0) { sea.lap = (1.2 + Math.random() * 2.6) / (0.7 + 0.5 * amp); burst(380 + Math.random() * 500, 0.9, 0.09 + 0.06 * amp, 0.5 + Math.random() * 0.5, 'lowpass'); }
   }
@@ -77,10 +81,10 @@ export function createBoatSounds() {
 
   return {
     /** Every frame: the boat you sail (id), how fast it's going (k, 0…1 of its top speed), the sea's roughness (amp). */
-    update(dt, { boat, k = 0, amp = 1, quiet = false }) {
+    update(dt, { boat, k = 0, amp = 1, crest = 0, quiet = false }) {
       if (!ac || ac.state !== 'running') { if (ac?.state === 'suspended' && !document.hidden) ac.resume?.(); return; }
       if (off()) { set(out.gain, 0, 0.2); return; } set(out.gain, quiet ? 0.25 : 0.55, 0.5);
-      useVoice(boat); voice?.tick(Math.max(0, Math.min(1, k)), dt); seaTick(dt, k, Math.max(0.3, Math.min(2, amp)));
+      useVoice(boat); voice?.tick(Math.max(0, Math.min(1, k)), dt); seaTick(dt, k, Math.max(0.3, Math.min(2, amp)), crest);
     },
   };
 }

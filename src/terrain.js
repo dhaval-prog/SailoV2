@@ -58,7 +58,7 @@ function coralsOf(shapes, clear) {
  * @param o.stations [{ x, z }]   every Paradise Station (kept clear)
  * @param o.getBoat () => ({ x, z })
  */
-export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWarn, emit, amp = () => 1, light = () => 1, fade = () => {} }) {
+export function createTerrain({ THREE, scene, WL, sea, stations, getBoat, onHit, onWarn, emit, amp = () => 1, light = () => 1, fade = () => {} }) {
   const on = provider === 'mapbox'; // (OpenStreetMap has no footprints at this scale: then there are none)
   const clear = (x, z, r) => Math.hypot(x, z) < T.startClear + r || stations.some(s => Math.hypot(s.x - x, s.z - z) < T.stationClear + r);
   const rocks = new Map(), corals = new Map(), loading = new Set(); // tile key → list
@@ -119,6 +119,26 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
     glowIM = new THREE.InstancedMesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.6, depthWrite: false }), MAXR);
   glowIM.renderOrder = -2;
   [foamIM, glowIM].forEach(m => { m.count = 0; m.frustumCulled = false; scene.add(m); });
+  // surf round the islands: lines of foam that roll in from the open sea and break on the beach, each island in its own
+  // time, broken up along the shore; riding the swell (the sea's own waves, main.js), so they rise and fall with it
+  const MAXS = 320, surfIM = sea && new THREE.InstancedMesh(new THREE.RingGeometry(0.78, 1.6, 72, 4).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+    name: 'island_surf', uniforms: sea.uniforms, transparent: true, depthWrite: false,
+    vertexShader: `uniform float time; uniform vec2 bp; uniform float uAmp; varying float vU; varying float vA; varying float vSeed; varying float vD; ${sea.glsl}
+      void main(){ vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vec3 c = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vU = (length(position.xz) - 0.78) / 0.82; vA = atan(position.z, position.x); vSeed = fract(sin(dot(c.xz, vec2(12.9898, 78.233))) * 43758.5453);
+        w.y = ${WL.toFixed(3)} + waveH(w.xz, time, length(w.xz - bp)) * uAmp + 0.08; vD = distance(w.xyz, cameraPosition);
+        gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `uniform float time; uniform float uNight; varying float vU; varying float vA; varying float vSeed; varying float vD; ${sea.glsl}
+      void main(){ float u = clamp(vU, 0.0, 1.0);
+        float band = fract(u * 2.4 + time * 0.3 + vSeed * 7.0);                             // the lines roll in toward the shore
+        float line = smoothstep(0.8, 0.9, band) * (1.0 - smoothstep(0.9, 0.985, band));
+        float brk = noise(vec2(vA * 7.0 + vSeed * 13.0, u * 3.0 - time * 0.4));              // broken along the shore
+        float a = line * smoothstep(0.32, 0.62, brk + 0.2) * (1.0 - smoothstep(0.55, 1.0, u));
+        a += (1.0 - smoothstep(0.0, 0.2, u)) * (0.5 + 0.5 * sin(time * 1.25 + vSeed * 6.283)) * 0.75 * smoothstep(0.25, 0.6, brk + 0.3); // the wash on the sand
+        a *= 0.85 * (1.0 - smoothstep(260.0, 420.0, vD));
+        gl_FragColor = vec4(mix(vec3(0.95, 1.0, 0.98), vec3(0.32, 0.42, 0.5), uNight), a); }`,
+  }), MAXS);
+  if (surfIM) { surfIM.count = 0; surfIM.frustumCulled = false; surfIM.renderOrder = 2; scene.add(surfIM); }
   // corals: drawn on canvases (branching staghorn, a brain coral, a fan, tubes, kelp), in greens, seen through the water
   const coralTex = [0, 1, 2, 3, 4].map(k => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.translate(64, 64); x.lineCap = 'round';
     const rnd = (n => () => (n = (n * 16807) % 2147483647) / 2147483647)(k * 977 + 5);
@@ -160,6 +180,8 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       Q.setFromAxisAngle(UP, r.a); V.set(r.x, WL + 0.02, r.z); Sc.set(r.r * 2.4, 1, r.r * 2.4); M4.compose(V, Q, Sc); glowIM.setMatrixAt(nf, M4);
       V.set(r.x, WL + 0.06, r.z); Sc.set(isMedium(r) ? 0.0001 : fr, 1, isMedium(r) ? 0.0001 : fr); M4.compose(V, Q, Sc); foamIM.setMatrixAt(nf++, M4); });
     foamIM.count = nf; foamIM.instanceMatrix.needsUpdate = true; glowIM.count = nf; glowIM.instanceMatrix.needsUpdate = true;
+    if (surfIM) { let ns = 0; nearR.forEach(r => { if (ns >= MAXS || !isMedium(r)) return; Q.setFromAxisAngle(UP, r.a); V.set(r.x, WL, r.z); const sr = r.r * 1.05; Sc.set(sr, 1, sr); M4.compose(V, Q, Sc); surfIM.setMatrixAt(ns++, M4); });
+      surfIM.count = ns; surfIM.instanceMatrix.needsUpdate = true; }
   }
 
   /** Would a boat here hit a rock? (radius: the boat's own clearance) */

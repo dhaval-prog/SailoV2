@@ -12,6 +12,7 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import shipUrl from '../assets/ship/conservatory_ship.glb?url';
+import { WIND } from '../wind.js'; // (the smoke drifts on it)
 
 const K = 0.78, DRAFT = 1.0; // scale; and how deep the model's own waterline (y=0, the hull's lower edge) sits under the sea
 const LIFT = 0.85 - DRAFT * K; // the model's origin above the boat's (the sea is at 0.85)
@@ -108,7 +109,7 @@ export function buildVoyager({ THREE, scene, emit }) {
   function puff(speed) {
     const m = puffs[puffI++ % puffs.length], u = m.userData; group.localToWorld(wp.copy(funnels[funnelI++ % funnels.length])); m.position.copy(wp);
     u.life = 0; u.max = 2.4 + Math.random() * 1.2; u.s0 = 0.5 + Math.random() * 0.3;
-    u.v.set(back.x * (0.5 + speed * 0.45) + (Math.random() - 0.5) * 0.35, 1.3 + Math.random() * 0.6, back.z * (0.5 + speed * 0.45) + (Math.random() - 0.5) * 0.35);
+    u.v.set(back.x * (0.5 + speed * 0.45) + (Math.random() - 0.5) * 0.35 + WIND.x * 1.4, 1.3 + Math.random() * 0.6, back.z * (0.5 + speed * 0.45) + (Math.random() - 0.5) * 0.35 + WIND.z * 1.4);
     m.rotation.set(Math.random() * 6, Math.random() * 6, 0); m.visible = true;
   }
   function smokeTick(dt, night = 0) {

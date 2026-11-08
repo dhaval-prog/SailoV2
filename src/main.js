@@ -22,6 +22,7 @@ import { buildDinghy } from './boats/dinghy.js';
 import { buildWoodTug } from './boats/woodtug.js';
 import { buildVoyager } from './boats/voyager.js';
 import { createBoatSounds } from './boat-sounds.js';
+import { WIND, BASE as WIND_BASE, stepWind } from './wind.js';
 import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
 import './boat-actions.css';
@@ -272,30 +273,41 @@ const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATIO
 const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
 addEventListener('sailo:station', () => { CALM.c.copy(stW(2, 2)); SHORE.c.copy(stW(-6, -3)); }); // (the calm water and shallows go with the nearest station)
 const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 1.5) return 1; const k = Math.max(0, (u - 1) / 0.5); return 0.12 + 0.88 * k * k * (3 - 2 * k); }; // (calm in the harbour, open swell soon after it)
-const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, uAft: { value: 0 }, uGold: { value: 0 }, uGlint: { value: new THREE.Color(1, 0.97, 0.86) }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
+const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uWind: { value: new THREE.Vector4(1, 0, 1, 0) }, uWindK: { value: 1 }, uWindDirs: { value: new THREE.Vector4(1, 0, 1, 0) }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, uAft: { value: 0 }, uGold: { value: 0 }, uGlint: { value: new THREE.Color(1, 0.97, 0.86) }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
 // the swell: four wave trains (direction, height, wavenumber, speed: deep water, so longer waves run faster), each with
 // peaked crests and wide troughs (shp). The same numbers drive the sea's shader (WAVE_GLSL) and the boats riding it (waveJS).
 const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.6, 0.36, 0.2, 0.09], WK = [0.1, 0.16, 0.3, 0.6], WS = WK.map(k => +(Math.sqrt(9.8 * k) * 0.95).toFixed(4));
 const shp = s => { const u = 0.5 + 0.5 * s; return (u * u - 0.375) * 2; };
 const ENV = { amp: 1 };
-const waveJS = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * shp(Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i])); return s * calmJS(x, z) * ENV.amp; };
+// the wind turns the swell (wind.js): while it shifts, the old wind's swell fades into the new one's (turning one set of
+// waves would sweep them round wildly this far from the origin)
+const WV = { ca: 1, sa: 0, cb: 1, sb: 0, k: 1 }; // cos/sin of the old and new winds' turn from BASE, and how far it's gone
+const swell1 = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * shp(Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i])); return s; };
+const waveJS = (x, z, t) => { const k = WV.k, a = k < 1 ? swell1(WV.ca * x + WV.sa * z, -WV.sa * x + WV.ca * z, t) : 0, b = k > 0 ? swell1(WV.cb * x + WV.sb * z, -WV.sb * x + WV.cb * z, t) : 0;
+  return (a + (b - a) * k) * calmJS(x, z) * ENV.amp; };
 const SWELL_MAX = WA.reduce((a, b) => a + b, 0) * 1.25; // (the highest a crest gets, in a clear sea)
 const f4 = v => v.toFixed(4);
+// short waves fade out with distance from the boat (out there they'd only shimmer), the long swell runs to the horizon
+const LOD = [null, null, [70, 125], [50, 110]];
 const WAVE_GLSL = `
+  uniform vec4 uWind; uniform float uWindK;
   float shp(float s){ float u = 0.5 + 0.5 * s; return (u * u - 0.375) * 2.0; }
-  float waveH(vec2 p, float t){
-    return ${WA.map((A, i) => `${f4(A)} * shp(sin(dot(vec2(${f4(WD[i][0])}, ${f4(WD[i][1])}), p) * ${f4(WK[i])} + t * ${f4(WS[i])}))`).join('\n         + ')}; }`;
+  float swell1(vec2 p, float t, float dist){
+    return ${WA.map((A, i) => `${f4(A)} * shp(sin(dot(vec2(${f4(WD[i][0])}, ${f4(WD[i][1])}), p) * ${f4(WK[i])} + t * ${f4(WS[i])}))${LOD[i] ? ` * (1.0 - smoothstep(${LOD[i][0]}.0, ${LOD[i][1]}.0, dist))` : ''}`).join('\n         + ')}; }
+  float waveH(vec2 p, float t, float dist){
+    vec2 a = vec2(uWind.x * p.x + uWind.y * p.y, -uWind.y * p.x + uWind.x * p.y), b = vec2(uWind.z * p.x + uWind.w * p.y, -uWind.w * p.x + uWind.z * p.y);
+    return mix(uWindK < 1.0 ? swell1(a, t, dist) : 0.0, uWindK > 0.0 ? swell1(b, t, dist) : 0.0, uWindK); }`;
 const makeSea = waves => new THREE.ShaderMaterial({
   name: 'sea', uniforms: seaU, defines: waves ? { WAVES: 1 } : {}, extensions: { derivatives: true },
   vertexShader: `uniform float time; uniform vec2 bp; uniform float uAmp; uniform vec2 calmC; uniform vec2 calmR; varying vec3 wp; varying float vh; ${WAVE_GLSL}
     void main(){ wp = (modelMatrix * vec4(position, 1.0)).xyz; vh = 0.0;
       #ifdef WAVES
       float calm = 0.12 + 0.88 * smoothstep(1.0, 1.5, length((wp.xz - calmC) / calmR));
-      float f = 1.0 - smoothstep(105.0, 145.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
+      vh = waveH(wp.xz, time, length(wp.xz - bp)) * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
       #endif
       gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
-  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform float uAft; uniform float uGold; uniform vec3 uGlint; uniform vec2 shoreC; uniform vec2 shoreR; uniform float uAmp; varying vec3 wp; varying float vh; ${NOISE}
+  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform float uAft; uniform float uGold; uniform vec3 uGlint; uniform vec2 shoreC; uniform vec2 shoreR; uniform float uAmp; uniform vec4 uWindDirs; uniform float uWindK; varying vec3 wp; varying float vh; ${NOISE}
     // ripples: two layers of small waves drifting across each other (wind-driven, so the whole sea moves even when calm)
     // (smooth wave trains, their phases bent by a slow noise so they never line up into a pattern; slopes worked out exactly)
     vec3 rippleN(vec2 p, float t, float k){
@@ -338,16 +350,19 @@ const makeSea = waves => new THREE.ShaderMaterial({
       col *= 1.0 + rl * 1.6 * rk;
       col = mix(col, lite, smoothstep(0.03, 0.08, rl) * 0.28 * rk); // (the faces turned to the sun catch it)
       // whitecaps: streaks of foam blown along the wind, a few on a clear day, many in a storm (uAmp)
-      vec2 wq = vec2(dot(p, vec2(0.958, 0.287)), dot(p, vec2(-0.287, 0.958)));
-      float capF = noise(vec2(wq.x * 0.22 - time * 0.25, wq.y * 0.9)) * noise(vec2(wq.x * 0.07 + 3.0, wq.y * 0.19 - time * 0.03)), capD = 0.62 - 0.12 * clamp(uAmp - 0.8, 0.0, 1.6);
-      float caps = smoothstep(capD, capD + 0.06, capF) * (1.0 - smoothstep(80.0, 280.0, d) * 0.5);
+      float capD = 0.7 - 0.14 * clamp(uAmp - 0.8, 0.0, 1.6), caps = 0.0;
+      for (int i = 0; i < 2; i++) { vec2 wd = i == 0 ? uWindDirs.xy : uWindDirs.zw; float wk = i == 0 ? 1.0 - uWindK : uWindK; if (wk <= 0.0) continue; // (streaks along the wind, old and new)
+        vec2 wq = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
+        float capF = noise(vec2(wq.x * 0.22 - time * 0.25, wq.y * 0.9)) * noise(vec2(wq.x * 0.07 + 3.0, wq.y * 0.19 - time * 0.03));
+        caps += smoothstep(capD, capD + 0.06, capF) * wk; }
+      caps *= 1.0 - smoothstep(80.0, 280.0, d) * 0.5;
       col = mix(col, vec3(0.92, 0.98, 0.95), caps * 0.55);
       #ifdef WAVES
       vec3 n = normalize(cross(dFdx(wp), dFdy(wp))); if (n.y < 0.0) n = -n;
       vec3 sunD = uSun;
       float lamb = dot(n, sunD);
       // wave shading fades out with the waves, so the near patch blends into the open sea instead of showing as a square
-      float wf = 1.0 - smoothstep(95.0, 140.0, length(p - bp));
+      float wf = 1.0 - smoothstep(260.0, 420.0, d); // (the swell's light and shade, out to the horizon)
       col *= mix(1.0, 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb), wf);
       float crest = vh / (max(uAmp, 0.3) * ${f4(SWELL_MAX)});
       col = mix(col, lite, smoothstep(0.25, 0.6, crest) * 0.45 * wf);
@@ -375,7 +390,9 @@ const makeSea = waves => new THREE.ShaderMaterial({
       gl_FragColor = vec4(col, 1.0);
     }`,
 });
-const seaMesh = new THREE.Mesh(new THREE.CircleGeometry(420, 128), makeSea(false)); seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = WL - 0.02; seaGroup.add(seaMesh);
+// the open sea round the near water, out to the horizon: a ring that rolls with the long swell (the same waves as the near
+// water at their meeting, so there's no seam; the near water draws over it where they overlap)
+const seaMesh = new THREE.Mesh(new THREE.RingGeometry(128, 430, 256, 40), makeSea(true)); seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = WL - 0.02; seaGroup.add(seaMesh);
 const nearGeo = new THREE.PlaneGeometry(300, 300, 256, 256); nearGeo.rotateX(-Math.PI / 2);
 const seaNear = new THREE.Mesh(nearGeo, makeSea(true)); seaNear.position.y = WL; seaNear.frustumCulled = false; seaGroup.add(seaNear);
 // spray particles (bow spray when moving, hull splashes when idle)
@@ -1129,7 +1146,7 @@ const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPu
 createHelmButtons({ orbit: helmOrbit, note: t => hud.note(t, 2500) });
 // the sea's terrain: rocks where the map's buildings are (hurdles to steer round), green corals where it's green, and
 // the local fish seen beneath the surface (terrain.js, fish-shadows.js; settings in world-config.js)
-terrain = createTerrain({ THREE, scene: stage._scene, WL, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night, fade: fadeFar,
+terrain = createTerrain({ THREE, scene: stage._scene, WL, sea: { glsl: WAVE_GLSL + NOISE, uniforms: seaU }, stations: STATIONS, getBoat: () => ({ x: boat.position.x, z: boat.position.z, vel, yaw }), emit, amp: () => ENV.amp, light: () => 1 - 0.62 * E.night, fade: fadeFar,
   onHit: k => { hud.note('Rocks! Steer round them.', 2500); const p = 3 + 7 * k; // (the picture jolts: harder the faster you hit)
     stage.animate?.([{ transform: 'translate(0,0)' }, { transform: `translate(${p}px,${-p * 0.6}px)` }, { transform: `translate(${-p * 0.8}px,${p * 0.5}px)` }, { transform: `translate(${p * 0.4}px,${-p * 0.3}px)` }, { transform: 'translate(0,0)' }], { duration: 320, easing: 'ease-out' }); },
   onWarn: () => hud.note('Rocks ahead!', 1800) });
@@ -1249,6 +1266,10 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   navFx.forEach(n => { const on = ((t + n.ph) % 1.2) < 0.75 ? 1 : 0.15; n.mat.emissiveIntensity = on * (1 + E.night); n.halo.material.opacity = (0.45 + 0.4 * E.night) * on; n.pl.intensity = 3 * on * (1 + 2.5 * E.night); });
   anemo.rotation.y = t * (5 + E.amp * 2);
   seaU.time.value = t;
+  // the wind (wind.js): turns the swell and the whitecaps, a word on the HUD when it shifts
+  stepWind(text => hud.note(text, 5000));
+  { const da = WIND.from - WIND_BASE, db = WIND.to - WIND_BASE; WV.ca = Math.cos(da); WV.sa = Math.sin(da); WV.cb = Math.cos(db); WV.sb = Math.sin(db); WV.k = WIND.k;
+    seaU.uWind.value.set(WV.ca, WV.sa, WV.cb, WV.sb); seaU.uWindK.value = WIND.k; seaU.uWindDirs.value.set(Math.cos(WIND.from), Math.sin(WIND.from), Math.cos(WIND.to), Math.sin(WIND.to)); }
   stepEnv(t, dt);
   stepActions(t, dt);
   stepCourse(t, dt);
@@ -1266,7 +1287,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
   { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
-  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, crest: waveJS(boat.position.x, boat.position.z, t) / Math.max(0.1, SWELL_MAX * ENV.amp), quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 
