@@ -11,6 +11,7 @@ import { WORLD } from './world.js';
 import { TERRAIN as T } from './world-config.js';
 import { rockBuilder } from './rock-shapes.js';
 import { createPineIslands } from './pine-islands.js';
+import { createIslandSigns } from './island-signs.js';
 const isMedium = () => true; // every map rock is drawn as a pine island (pine-islands.js), the huge ones bigger // medium rocks are drawn as pine islands (pine-islands.js); the huge ones stay rocks
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -99,6 +100,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
   const areaQ = []; let areaOn = 0;
   const pumpArea = () => { while (areaOn < 6 && areaQ.length) { const t = areaQ.shift(); areaOn++; Promise.resolve(load('rocks', 15, t.x, t.y)).finally(() => { areaOn--; pumpArea(); }); } };
   const islands = createPineIslands(THREE, { scene, WL });
+  const signs = createIslandSigns(THREE, { scene, WL }); let signAt = 0; // (a signboard with its name on each island near the boat)
   function buildTile(key) { const list = rocks.get(key)?.filter(r => !isMedium(r)); if (!list?.length || tileMeshes.has(key)) return;
     const geos = list.map(r => RB.build({ ...r, y0: WL })), g = mergeGeometries(geos, false); geos.forEach(q => q.dispose()); if (!g) return;
     g.computeBoundingSphere(); const rock = new THREE.Mesh(g, rockMat), ink = new THREE.Mesh(g, inkMat); rock.castShadow = true; scene.add(rock, ink); tileMeshes.set(key, { rock, ink }); }
@@ -201,6 +203,7 @@ export function createTerrain({ THREE, scene, WL, stations, getBoat, onHit, onWa
       // rocks ahead at speed: a word of warning (and the compass shows them)
       if (b.vel > 3 && now - warnT > 7000) { const fx = Math.cos(b.yaw), fz = -Math.sin(b.yaw);
         if (nearR.some(r => { const dx = r.x - b.x, dz = r.z - b.z, d = Math.hypot(dx, dz) - r.r; return d < 35 && d > 0 && (dx * fx + dz * fz) / Math.hypot(dx, dz) > 0.9; })) { warnT = now; onWarn?.(); } }
+      if (now - signAt > 1000) { signAt = now; { const all = []; rocks.forEach(l => l.forEach(r => all.push(r))); signs.update(nearR.filter(isMedium), b, all); } } // (also picks up names as the map's labels load)
       if (now - lastLoad > 1500) { lastLoad = now; const R = T.loadAround;
         tilesIn(b.x - R, b.z - R, b.x + R, b.z + R, 15).forEach(([x, y]) => load('rocks', 15, x, y));
         /* (no corals: the seabed stays clear) */ }
