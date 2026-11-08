@@ -24,6 +24,7 @@ import { buildWoodTug } from './boats/woodtug.js';
 import { buildVoyager } from './boats/voyager.js';
 import { buildDryDock } from './boats/drydock.js';
 import { createBoatSounds } from './boat-sounds.js';
+import { planRoute } from './route.js';
 import { WIND, BASE as WIND_BASE, stepWind } from './wind.js';
 import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
@@ -625,6 +626,7 @@ function stepEnv(t, dt) {
 const hud = initHud({
   stage, getState: () => state, rocks: () => terrain?.all() || [], loadIslands: (x0, z0, x1, z1, cx, cz) => terrain?.loadArea(x0, z0, x1, z1, cx, cz), setView, zoomBy, faceNorth, recenter,
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false),
+  route: (x, z) => planFrom(x, z), courseRoute: () => { if (!course.on) return null; if (!course.auto && performance.now() > (course.planAt || 0)) { course.planAt = performance.now() + 1500; course.legs = planFrom(course.p.x, course.p.z); } return course.legs; }, // (steering by hand: the way from here, worked out again now and then) boatId: () => boatId, anchored: () => ACT.anchor !== 'up',
   boats: () => Object.entries(BOATS).map(([id, b]) => ({ id, name: b.name })),
   getBoat: () => sinkOut ? sinkOut.id : boatId,
   boatStatus,
@@ -1001,7 +1003,10 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
 const seaPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -WL), tapP = new THREE.Vector3();
 // on: a pin is set (the buoy, and 'Your course' on the compass strip); auto: the autopilot is steering for it. Taking the
 // helm only pauses the autopilot: the pin stays until you reach it, set another, or dock
-const course = { on: false, auto: false, p: new THREE.Vector3(), k: 1, out: false };
+const course = { on: false, auto: false, p: new THREE.Vector3(), k: 1, out: false, legs: [], checkT: 0 }; // legs: the route round the islands (route.js), the buoy last
+// how far off the islands' shores a route keeps: the boat's own clearance, more for the bigger boats
+const routePad = () => 6 + ({ voyager: 16, woodtug: 8, yacht: 6 }[boatId] || 4);
+const planFrom = (x, z) => planRoute({ x: boat.position.x, z: boat.position.z }, { x, z }, terrain?.all() || [], routePad());
 const markG = new THREE.Group(); markG.name = 'course_buoy'; markG.visible = false; stage._scene.add(markG);
 const buoy = new THREE.Group(); buoy.scale.setScalar(1.5); markG.add(buoy);
 [[0.62, 0.8, 0.5, 0.25, mat.red], [0.5, 0.62, 0.45, 0.72, mat.white], [0.38, 0.5, 0.45, 1.17, mat.red], [0.26, 0.38, 0.3, 1.54, mat.white]].forEach(([rt, rb, h, y, m], i) => {
@@ -1018,7 +1023,7 @@ function setCourse(p, far = false) {
   const off = p.clone().sub(boat.position).setY(0); if (!far && off.length() > 150) off.setLength(150);
   if (off.length() < 5) return false;
   HELM.reset(); // the autopilot takes the helm
-  course.p.copy(boat.position).add(off).setY(WL); [course.p.x, course.p.z] = clampToWorld(course.p.x, course.p.z, 30); course.on = true; course.auto = true; course.k = 0; course.out = false;
+  course.p.copy(boat.position).add(off).setY(WL); [course.p.x, course.p.z] = clampToWorld(course.p.x, course.p.z, 30); course.on = true; course.auto = true; course.k = 0; course.out = false; course.legs = planFrom(course.p.x, course.p.z); course.checkT = 0;
   markG.visible = true; markG.position.copy(course.p);
   splash(course.p.x, course.p.z, 14, 0.7); document.body.classList.add('has-course');
   if (ACT.fish !== 'off') stopFishing();
@@ -1026,7 +1031,7 @@ function setCourse(p, far = false) {
 }
 function clearCourse(arrived) {
   if (!course.on) return;
-  course.on = false; course.auto = false; course.out = true; course.k = 0; dashes.count = 0; document.body.classList.remove('has-course');
+  course.on = false; course.auto = false; course.legs = []; course.out = true; course.k = 0; dashes.count = 0; document.body.classList.remove('has-course');
   if (arrived) floatText(course.p.clone().setY(5), 'Arrived', '#7ff0c8');
 }
 function stepCourse(t, dt) {
@@ -1039,8 +1044,8 @@ function stepCourse(t, dt) {
   markRings.forEach((r, i) => { const q = (t * 0.45 + i * 0.5) % 1; r.scale.setScalar((1.6 + q * 3.4) * Math.max(0.001, pop)); r.material.opacity = (1 - q) * 0.7; });
   if (course.out && e >= 1) { markG.visible = false; return; }
   if (!course.on) return;
-  // marching dashes from the bow to the buoy
-  const bx = boat.position.x, bz = boat.position.z, dx = course.p.x - bx, dz = course.p.z - bz, L = Math.hypot(dx, dz);
+  // marching dashes from the bow to the buoy (or to the route's next turn)
+  const nl = course.auto && course.legs.length > 1 ? course.legs[0] : course.p, bx = boat.position.x, bz = boat.position.z, dx = nl.x - bx, dz = nl.z - bz, L = Math.hypot(dx, dz);
   const ux = dx / L, uz = dz / L, a0 = 3, a1 = L - 2.2, step = 1.9, shift = (t * 2.2) % step;
   dashQ.setFromAxisAngle(yAxis, Math.atan2(-uz, ux)); let n = 0;
   for (let s = a0 + shift; s < a1 && n < DASHN; s += step, n++) { const x = bx + ux * s, z = bz + uz * s; dashP.set(x, WL + waveJS(x, z, t) + 0.18, z); dashM.compose(dashP, dashQ, dashS); dashes.setMatrixAt(n, dashM); }
@@ -1223,11 +1228,15 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   if (course.on && !course.auto && Math.hypot(course.p.x - boat.position.x, course.p.z - boat.position.z) < 12) clearCourse(true); // (sailed there by hand)
   if (course.on && course.auto && ACT.anchor === 'up') {
     // autopilot: turn toward the buoy, ease off the throttle in tight turns and on approach
-    const cx = course.p.x - boat.position.x, cz = course.p.z - boat.position.z, dist = Math.hypot(cx, cz);
+    // the route round the islands, leg by leg (route.js); planned again if an island loaded since lies across the next leg
+    if (course.legs.length > 1 && Math.hypot(course.legs[0].x - boat.position.x, course.legs[0].z - boat.position.z) < 12) course.legs.shift();
+    if ((course.checkT -= dt) <= 0) { course.checkT = 2; const nx = course.legs[0] || course.p; if (terrain && planRoute({ x: boat.position.x, z: boat.position.z }, nx, terrain.all(), routePad()).length > 1) course.legs = planFrom(course.p.x, course.p.z); }
+    const leg = course.legs.length > 1 ? course.legs[0] : course.p, toEnd = Math.hypot(course.p.x - boat.position.x, course.p.z - boat.position.z);
+    const cx = leg.x - boat.position.x, cz = leg.z - boat.position.z, dist = course.legs.length > 1 ? Math.max(14, Math.hypot(cx, cz)) : Math.hypot(cx, cz);
     const diff = Math.atan2(Math.sin(Math.atan2(-cz, cx) - yaw), Math.cos(Math.atan2(-cz, cx) - yaw));
     str = Math.max(-1, Math.min(1, -diff * 1.8));
     thr = Math.min(1, Math.max(0.3, dist / 14)) * (Math.abs(diff) > 1.2 ? 0.15 : Math.max(0.35, 1 - Math.abs(diff) / 1.6));
-    if (dist < 4.5) clearCourse(true);
+    if (toEnd < 4.5) clearCourse(true);
     stage._controls.autoRotate = false;
   }
   if (ACT.anchor !== 'up') thr = 0;

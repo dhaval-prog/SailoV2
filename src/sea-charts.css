@@ -51,7 +51,7 @@ body.is-night #map.sc, body.is-night .wm {
 .sc-tabs.w .sc-tabind { transform: translateX(100%); }
 
 /* scale bar, compass, zoom controls */
-.sc-scale { position: absolute; z-index: 3; left: 16px; top: 160px; display: flex; flex-direction: column; gap: 4px; font: 10.5px var(--sc-mono); color: var(--sc-pill-ink); pointer-events: none; }
+.sc-scale { position: absolute; z-index: 3; left: 16px; top: 200px; display: flex; flex-direction: column; gap: 4px; font: 10.5px var(--sc-mono); color: var(--sc-pill-ink); pointer-events: none; }
 .sc-scale div { height: 6px; border: 1.5px solid currentColor; border-top: 0; transition: width 0.3s; }
 .sc-compass { position: absolute; z-index: 3; right: 12px; top: 100px; width: 44px; height: 44px; border-radius: 50%; background: var(--sc-glass-bg); border: 1px solid var(--sc-line);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font: 9px var(--sc-mono); color: var(--sc-ink); pointer-events: none; }
@@ -174,7 +174,9 @@ body.is-night #map.sc, body.is-night .wm {
   .sc-coins { height: 32px; padding: 0 10px; font-size: 12px; } .sc-x { width: 32px; height: 32px; }
   .sc-tabs { top: calc(92px + var(--safe-t, 0px)); left: 10px; width: 190px; } .sc-tabs button { height: 32px; font-size: 12.5px; }
   .sc-compass { top: calc(92px + var(--safe-t, 0px)); right: 10px; width: 40px; height: 40px; }
-  .sc-scale { top: calc(146px + var(--safe-t, 0px)); left: 14px; }
+  .sc-scale { top: calc(184px + var(--safe-t, 0px)); left: 14px; }
+  .sc-layers { top: calc(134px + var(--safe-t, 0px)); left: 10px; right: 58px; }
+  .map-pop { left: 10px; right: 10px; bottom: calc(10px + var(--safe-b, 0px)); }
   #map.sc .sc-ctrls, .wm .sc-ctrls { right: 10px; }
   .sc-panel { left: 10px; right: 10px; bottom: calc(10px + var(--safe-b, 0px)); padding: 12px 14px; gap: 8px; font-size: 12.5px; }
   .wm .wm-search { top: calc(140px + var(--safe-t, 0px)); left: 10px; right: 10px; }
@@ -189,3 +191,46 @@ body.is-night #map.sc, body.is-night .wm {
 .map-shack-b { fill: #0b8f9e; stroke: #fff; stroke-width: 2; }
 .map-shack-i { fill: #fff; stroke: none; fill-rule: evenodd; }
 .map-shack-t { font-size: 10.5px; }
+
+/* layers: chips under the tabs; tap one to hide (or show) that kind of thing on the chart */
+.sc-layers { position: absolute; z-index: 5; top: 148px; left: 12px; right: 70px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.sc-layers::-webkit-scrollbar { display: none; }
+.sc-layers button { flex: none; height: 30px; padding: 0 11px 0 9px; display: flex; align-items: center; gap: 6px; border-radius: 99px; border: 1px solid var(--sc-line);
+  background: var(--sc-glass-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: var(--sc-muted); font: 500 12px var(--sc-sans); cursor: pointer; transition: color .2s, background .2s; }
+.sc-layers button i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; transition: background .2s; }
+.sc-layers button.on { color: var(--sc-ink); background: var(--sc-card); }
+.sc-layers button.on i { background: var(--sc-glass); border-color: var(--sc-glass); }
+#map-svg.no-names .map-geo > g:not(.map-shack) { display: none; }
+#map-svg.no-shacks .map-shack { display: none; }
+#map-svg.no-stations .map-station { display: none; }
+#map-svg.no-trips .map-trip { display: none; }
+#map-svg.no-captains .map-others { display: none; }
+/* the route round the islands, and its tag: distance · time · fuel (amber when tight, red when it won't make it) */
+#map.sc .map-route-pv { stroke: var(--sc-glass); stroke-dasharray: 3 6; animation: none; opacity: .9; }
+.map-route-tag { pointer-events: none; }
+.map-route-tag rect { fill: var(--sc-card); stroke: var(--sc-line); stroke-width: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,.18)); }
+.map-route-tag text { font: 600 11.5px var(--sc-sans); fill: var(--sc-ink); text-anchor: middle; }
+.map-route-tag.low rect { fill: #ffe7b3; stroke: #e0a21b; } .map-route-tag.low text { fill: #5a3d00; }
+.map-route-tag.out rect { fill: #ffd5d5; stroke: #d64545; } .map-route-tag.out text { fill: #6b1111; }
+.map-dest-pv .map-pin { fill: var(--sc-card); stroke: var(--sc-glass); stroke-width: 2.5; } .map-dest-pv .map-pin-dot { fill: var(--sc-glass); } .map-dest-pv .map-dest-ring { stroke: var(--sc-glass); }
+/* the tap card: what's there and the trip; it takes the info panel's place while it's open */
+.map-pop { position: absolute; z-index: 6; left: 12px; right: 12px; bottom: 12px; max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px;
+  border-radius: 20px; background: var(--sc-card); border: 1px solid var(--sc-line); box-shadow: 0 12px 34px rgba(0,0,0,.28); color: var(--sc-ink2); font: 400 13px/1.3 var(--sc-sans);
+  transform: translateY(16px); opacity: 0; transition: transform .25s cubic-bezier(.2,.8,.3,1.2), opacity .2s; }
+.map-pop.in { transform: none; opacity: 1; }
+#map.pop-open .sc-panel { opacity: 0; pointer-events: none; }
+.map-pop .mp-hd { display: flex; align-items: center; justify-content: space-between; }
+.map-pop .mp-kind { font: 600 11px var(--sc-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--sc-glass); }
+.map-pop .mp-x { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--sc-line); background: var(--sc-card2); color: var(--sc-ink); display: grid; place-items: center; cursor: pointer; }
+.map-pop .mp-x svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; }
+.map-pop .mp-name { font: 400 22px/1.15 var(--sc-serif); color: var(--sc-ink); }
+.map-pop .mp-sub { color: var(--sc-muted); font-size: 12.5px; }
+.map-pop .mp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.map-pop .mp-stats span { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; background: var(--sc-card2); color: var(--sc-ink); font: 600 13.5px var(--sc-sans); }
+.map-pop .mp-stats small { font: 500 10.5px var(--sc-sans); color: var(--sc-muted); }
+.map-pop .mp-stats .low { background: #ffe7b3; color: #5a3d00; } .map-pop .mp-stats .out { background: #ffd5d5; color: #6b1111; }
+.map-pop .mp-chips { display: flex; flex-wrap: wrap; gap: 5px; } .map-pop .mp-chips:empty { display: none; }
+.map-pop .mp-chips i { font-style: normal; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--sc-line); font: 500 11.5px var(--sc-sans); color: var(--sc-ink2); }
+.map-pop .mp-warn { margin: 2px 0 0; font-size: 12px; } .map-pop .mp-warn.low { color: #8a5a00; } .map-pop .mp-warn.out { color: #b42323; }
+.map-pop .mp-go { margin-top: 6px; height: 44px; border: 0; border-radius: 14px; background: var(--sc-accent); color: var(--sc-accent-ink); font: 600 15px var(--sc-sans); cursor: pointer; }
+.map-pop .mp-go:disabled { background: var(--sc-card2); color: var(--sc-muted); cursor: default; }
