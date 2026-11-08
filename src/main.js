@@ -997,6 +997,7 @@ function stepCourse(t, dt) {
   dashes.count = n; dashes.instanceMatrix.needsUpdate = true;
 }
 stage.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; }, true);
+let fishBusyAt = -1e9; // when the fishing mini-game (bite, fight, landing, the catch card) last ran
 // a mouse over another captain's boat brings their avatar up (checked at most ~12 times a second)
 { let hoverT = 0; stage.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse' || performance.now() < hoverT) return; hoverT = performance.now() + 80;
   const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera);
@@ -1007,6 +1008,8 @@ stage.addEventListener('pointerup', e => {
   if (seaLabels.cancelled) return; // that tap just put a place name back
   const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, stage._camera);
+  // (mid mini-game, and for a moment after, rapid taps are for the fish: they don't open the boat's menu)
+  if (ACT.fish !== 'off' && ACT.fish !== 'waiting' && ACT.fish !== 'aim' || performance.now() - fishBusyAt < 900) return;
   const hit = ray.intersectObject(boat, true).length > 0;
   if (!hit) { const cpu = cpuFleet.hit(ray); if (cpu) { harbour.openCaptain(cpu); return; } } // a local sailor's boat: their card
   const wasOpen = menu.style.display !== 'none';
@@ -1237,6 +1240,8 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     hud.update({ x: boat.position.x, z: boat.position.z, heading: yaw, dest: course.on ? course.p : null, edge: edgeDistance(boat.position.x, boat.position.z), az: Math.atan2(off.x, off.z), kn: vel * 1.944, maxKn: MAXV * 1.944, gearName: ACT.anchor !== 'up' ? 'Anchored' : course.on && course.auto ? 'Autopilot' : vel > 0.3 ? 'Ahead' : vel < -0.3 ? 'Astern' : 'Idle', catchN: ACT.catch, distNm: stats.dist / 1852, topKn: stats.top * 1.944 });
     if (state.view === 'top') { tmpV.set(boat.position.x, boat.position.y + 9.5, boat.position.z); const [x, y] = toScreen(tmpV); youTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; } }
   hug.scale.setScalar(1 + Math.sin(t * 2.2) * 0.015);
+  { const k = Math.max(0, 1 - Math.abs(vel) / 1.5); hug.material.opacity = 0.85 * k; hug.visible = k > 0.02; } // the hull's foam outline: only while it sits still (under way, the wake takes over)
+  if (ACT.fish !== 'off' && ACT.fish !== 'waiting' && ACT.fish !== 'aim') fishBusyAt = performance.now();
   { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
   theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
