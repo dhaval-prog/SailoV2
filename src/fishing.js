@@ -174,7 +174,7 @@ export function createFishing(ctx) {
     if (e.target.closest && e.target.closest('button, .fg-card-wrap, #boatmenu, .sheet, .map-modal')) return false;
     audio();
     if (ACT.fish === 'aim') { const p = ctx.seaPoint(e); if (!p || ctx.hitsBoat(e)) return false; pend = { p, x: e.clientX, y: e.clientY, t: performance.now(), kind: 'cast' }; return false; }
-    if (ACT.fish === 'waiting' || ACT.fish === 'bite') { if (ctx.hitsBoat(e)) return false; pend = { x: e.clientX, y: e.clientY, t: performance.now(), kind: 'strike' }; return false; } // the boat still opens its menu
+    if (ACT.fish === 'waiting' || ACT.fish === 'bite') { if (ACT.fish === 'waiting' && ctx.hitsBoat(e)) return false; pend = { x: e.clientX, y: e.clientY, t: performance.now(), kind: 'strike' }; return false; } // (waiting, the boat still opens its menu; at a bite, a tap anywhere hooks the fish)
     if (ACT.fish === 'fight') { G.reel = true; G.swipe = { x: e.clientX, t: performance.now() }; return true; }
     if (G.jump && G.jump.window) { tapJump(); return true; }
     return false;
