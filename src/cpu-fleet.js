@@ -24,6 +24,7 @@ const PAINT = {
   dinghy: { sail: ['mainsail_cloth', 'sail_cloth'], hull: ['hull_sage'] },
   woodtug: { hull: ['wood_orange'] },
   voyager: { sail: ['mat_f4efe6_t'] },
+  drydock: { hull: ['hull_bluegrey'] },
 };
 
 export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, playerPos, splash, emit, onOpen, cpu = true }) {
@@ -32,7 +33,7 @@ export function createCpuFleet({ THREE, scene, templates, waveJS, WL, toScreen, 
 
   // a captain's boat: a clone of the game's model with their colours on their own materials
   function build(m) {
-    let src = templates[m.c.boat] || templates.tug; if ((m.c.boat === 'woodtug' || m.c.boat === 'voyager') && !src.children[0]?.children.length) src = templates.tug; // (its model still loading: the tug for now)
+    let src = templates[m.c.boat] || templates.tug; if ((m.c.boat === 'woodtug' || m.c.boat === 'voyager' || m.c.boat === 'drydock') && !src.children[0]?.children.length) src = templates.tug; // (its model still loading: the tug for now)
     const g = src.clone(true); g.visible = true; g.rotation.order = 'YXZ';
     const want = PAINT[m.c.boat] || {}, colourOf = {}; Object.entries(want).forEach(([k, names]) => { const col = m.c.colours[k]; if (col) names.forEach(n => { colourOf[n] = col; }); });
     const made = new Map();

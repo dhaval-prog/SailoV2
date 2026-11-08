@@ -63,8 +63,8 @@ export const MARKET = {
 // which sets the real fare and deadline: these only preview them on the board
 export const RIDES = {
   perMile: 30, minFare: 20, groupBonus: 0.5, tip: 0.2, lateFloor: 0.5,
-  seats: { dinghy: 1, tug: 2, sail: 3, yacht: 6, woodtug: 3, voyager: 8 },
-  kn: { dinghy: 15.75, tug: 21, sail: 26.25, yacht: 38.5, woodtug: 22.75, voyager: 42 }, // (the boats' top speeds as you sail them)
+  seats: { dinghy: 1, tug: 2, sail: 3, yacht: 6, woodtug: 3, voyager: 8, drydock: 4 },
+  kn: { dinghy: 15.75, tug: 21, sail: 26.25, yacht: 38.5, woodtug: 22.75, voyager: 42, drydock: 24.5 }, // (the boats' top speeds as you sail them)
   deadlineSlack: 1.8, deadlineExtra: 90,
   // kinds: fare multiplier, deadline slack; a tourist's sight seen adds this share of the fare
   kinds: { commuter: { fare: 1, slack: 1.8 }, tourist: { fare: 1.15, slack: 2.4, sight: 0.15 }, vip: { fare: 2, slack: 1.3 }, night: { fare: 1.5, slack: 1.8 } },

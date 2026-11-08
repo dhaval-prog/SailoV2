@@ -110,7 +110,7 @@ export function createPassengers(ctx) {
           <span class="px-kind k-${o.kind}"><em>${K.label}</em>${esc(note)}</span>
           <span class="px-seats" aria-label="${o.seats} seat${o.seats === 1 ? '' : 's'}">${'<i></i>'.repeat(Math.min(o.seats, 6))}${tooBig ? `<em>Needs ${o.seats} seats</em>` : ''}</span></div>
         <div class="px-side"><span class="px-fare">${o.fare}c</span><button type="button" class="px-gold" data-i="${o.i}" ${blocked ? 'disabled' : ''}>Take</button></div></div>`; }).join('') || '<p class="px-none">Nobody’s waiting here right now.</p>';
-    board.innerHTML = `<div class="px-card"><header><div><h2>Passengers</h2><p>${esc(stName(st))} · your ${({ sail: 'sail boat', woodtug: 'wooden tug', voyager: 'Voyager', yacht: 'yacht', dinghy: 'dinghy', tug: 'tug' })[ctx.boatId()] || 'boat'} seats ${cap}</p></div>
+    board.innerHTML = `<div class="px-card"><header><div><h2>Passengers</h2><p>${esc(stName(st))} · your ${({ sail: 'sail boat', woodtug: 'wooden tug', voyager: 'Voyager', drydock: 'dry dock tug', yacht: 'yacht', dinghy: 'dinghy', tug: 'tug' })[ctx.boatId()] || 'boat'} seats ${cap}</p></div>
       <button type="button" class="px-x" data-act="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></header>
       ${tripHtml}<div class="px-list">${rows}</div>
       <p class="px-hint">${trip ? 'Drop off your passengers first.' : 'On time and smooth: a bigger tip. Rocks and racing through rough seas cost stars.'}</p></div>`;

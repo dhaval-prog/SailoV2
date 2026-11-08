@@ -19,6 +19,7 @@ const BOATS = {
   dinghy: { ico: 'boat-sail', sub: 'Daysailer with tall mast and genoa · heels under sail', edit: 'dinghy' },
   voyager: { ico: 'boat-sail', sub: 'The biggest ship: a glasshouse on deck, screw-driven outrigger floats, lateen sails that come down at anchor · custom sails', edit: 'voyager' },
   woodtug: { ico: 'boat-tug', sub: 'Big planked wooden tug with tyre fenders, a wheelhouse and chain rails · custom hull', edit: 'woodtug' },
+  drydock: { ico: 'boat-tug', sub: 'Patched-up old harbour tug: rusty hull, a searchlight, a bent funnel and washing on the line' },
 };
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const stars = n => `<span class="gf-stars" aria-label="${n} of 5 stars">${'<i class="on">★</i>'.repeat(n)}${'<i>★</i>'.repeat(5 - n)}</span>`;

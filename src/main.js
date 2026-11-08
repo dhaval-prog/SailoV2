@@ -21,6 +21,7 @@ import { buildMotorYacht } from './boats/motoryacht.js';
 import { buildDinghy } from './boats/dinghy.js';
 import { buildWoodTug } from './boats/woodtug.js';
 import { buildVoyager } from './boats/voyager.js';
+import { buildDryDock } from './boats/drydock.js';
 import { createBoatSounds } from './boat-sounds.js';
 import { initBoatActions } from './boat-actions.js';
 import './naked-hud.css'; // HUD design: loaded after every other stylesheet
@@ -237,6 +238,7 @@ const motorYacht = buildMotorYacht({ THREE }); motorYacht.group.visible = false;
 const dinghy = buildDinghy({ THREE, emit: (...a) => emit(...a) }); dinghy.group.visible = false; boat.add(dinghy.group); outlines.push(...dinghy.outlines);
 const woodTug = buildWoodTug({ THREE, scene: stage._scene }); woodTug.group.visible = false; boat.add(woodTug.group); // (the Wooden Tug: a model file, loaded as the game starts)
 const voyager = buildVoyager({ THREE, scene: stage._scene, emit: (...a) => emit(...a) }); voyager.group.visible = false; boat.add(voyager.group); // (the Voyager: a model file, loaded as the game starts)
+const dryDock = buildDryDock({ THREE, scene: stage._scene, emit: (...a) => emit(...a) }); dryDock.group.visible = false; boat.add(dryDock.group); // (the Dry Dock Tug: likewise)
 const BOATS = {
   tug: { name: 'Lighthouse Tug', outline, fit: { anchor: { x: 2.7, z: 2.5, y0: 1.75, s: 1.5 }, hawseY: 2.45, rod: [-3.9, 2.35, -1.35], land: [-3.0, 2.3, -0.4], menuY: 10.6 } },
   sail: { name: 'Sail Boat', outline: sailBoat.outline, fit: sailBoat.fit },
@@ -244,8 +246,9 @@ const BOATS = {
   dinghy: { name: 'Dinghy Sailing Boat', outline: dinghy.outline, fit: dinghy.fit },
   woodtug: { name: 'Wooden Tug', outline: woodTug.outline, fit: woodTug.fit },
   voyager: { name: 'Voyager', outline: voyager.outline, fit: voyager.fit },
+  drydock: { name: 'Dry Dock Tug', outline: dryDock.outline, fit: dryDock.fit },
 };
-let boatId = 'tug'; try { const b = localStorage.getItem('sailo:boat'); if (b === 'sail' || b === 'yacht' || b === 'dinghy' || b === 'woodtug' || b === 'voyager') boatId = b; } catch { /* storage blocked */ }
+let boatId = 'tug'; try { const b = localStorage.getItem('sailo:boat'); if (b === 'sail' || b === 'yacht' || b === 'dinghy' || b === 'woodtug' || b === 'voyager' || b === 'drydock') boatId = b; } catch { /* storage blocked */ }
 let FIT = BOATS[boatId].fit;
 
 // lighting: warm key, cool sky/ground wash, cyan back light
@@ -756,7 +759,7 @@ let onBoatApplied = null; // set once the station (which owns fuel and holds) ex
 // switch the active boat: swap the model and move the shared fittings (anchor, hawse pipe, fishing rod, hull foam)
 function applyBoat(id) {
   boatId = BOATS[id] ? id : 'tug'; FIT = BOATS[boatId].fit; MAXV = BOAT_SPECS[boatId].kn * SPEED_UP / 1.944; onBoatApplied?.(boatId);
-  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy'; woodTug.group.visible = boatId === 'woodtug'; voyager.group.visible = boatId === 'voyager';
+  tugModel.visible = boatId === 'tug'; sailBoat.group.visible = boatId === 'sail'; motorYacht.group.visible = boatId === 'yacht'; dinghy.group.visible = boatId === 'dinghy'; woodTug.group.visible = boatId === 'woodtug'; voyager.group.visible = boatId === 'voyager'; dryDock.group.visible = boatId === 'drydock';
   Object.assign(ANC, FIT.anchor); anchorG.position.set(ANC.x, ANC.y0, ANC.z); anchorG.scale.setScalar(ANC.s);
   hawsePipe.position.set(ANC.x, FIT.hawseY + 0.03, ANC.z - 0.25 * ANC.s / 1.5);
   rodPivot.position.set(...FIT.rod);
@@ -765,7 +768,7 @@ function applyBoat(id) {
 }
 applyBoat(boatId);
 // a newly chosen boat drops into the water: falls, splashes, bobs a couple of times and settles
-const modelOf = id => ({ tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.group, voyager: voyager.group })[id];
+const modelOf = id => ({ tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.group, voyager: voyager.group, drydock: dryDock.group })[id];
 let dropIn = null, sinkOut = null;
 // the old boat shrinks and sinks into the water (with bubbles and a ripple), then the new one drops in
 const swapBoat = id => { const m = modelOf(boatId); sinkOut = { m, k: 0, id, bub: 0 }; ripple(boat.position.x, boat.position.z, 1.2, 1.6); splash(boat.position.x, boat.position.z, 14, 0.6); };
@@ -1072,7 +1075,7 @@ const voyage = initFirstVoyage({ isNew: firstVisit, addCoins: (n, step) => stati
 // local sailors: 20 computer captains on their daily routines, the same for every account (Pune Paradise)
 // the local sailors (Pune Paradise) and real captains online (every chart) share one fleet on the water
 const isPuneChart = CHART.id === 'pune';
-const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.template, voyager: voyager.template }, waveJS, WL, toScreen, cpu: isPuneChart,
+const cpuFleet = createCpuFleet({ THREE, scene: stage._scene, templates: { tug: tugModel, sail: sailBoat.group, yacht: motorYacht.group, dinghy: dinghy.group, woodtug: woodTug.template, voyager: voyager.template, drydock: dryDock.template }, waveJS, WL, toScreen, cpu: isPuneChart,
   playerPos: () => boat.position, splash, emit, onOpen: c => harbour.openCaptain(c) });
 // the living ocean: dolphins, gulls, whales, and fish jumping at fishing spots (wildlife.js; settings in world-config.js)
 const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, splash, edge: edgeDistance, chartId: CHART.id,
@@ -1208,6 +1211,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
     if (boatId === 'yacht') motorYacht.tick(t, dt, { steer: steerS, vel, night: E.night, amp: E.amp, maxV: MAXV });
     if (boatId === 'woodtug') woodTug.tick(t, dt, { vel, night: E.night, maxV: MAXV }); else woodTug.smokeTick(dt, E.night); // (its smoke drifts off after a switch)
     if (boatId === 'voyager') voyager.tick(t, dt, { vel, maxV: MAXV, anchor: ACT.anchor, night: E.night }); else voyager.smokeTick(dt, E.night); // (its smoke drifts off after a switch)
+    if (boatId === 'drydock') dryDock.tick(t, dt, { vel, maxV: MAXV, night: E.night }); else dryDock.smokeTick(dt, E.night);
     wakeT += dt;
     vT += Math.abs(vel) * dt; if (Math.abs(vel) > 0.8 && vT > 1.1) { vT = 0; dropVWake(fx, fz, sv, Math.abs(vel)); } // (a pair every metre or so: an unbroken V at any frame rate)
     if (Math.abs(vel) > 0.6 && wakeT > 0.07) { wakeT = 0; const w = wake[wakeI++ % wake.length]; const side = (Math.random() - 0.5) * 2.2; w.position.x = boat.position.x - fx * 5.6 * Math.sign(vel) - fz * side; w.position.z = boat.position.z - fz * 5.6 * Math.sign(vel) + fx * side; w.userData.age = 0; w.userData.s = 0.4 + Math.abs(sv) * 0.6; w.visible = true; }
@@ -1287,4 +1291,4 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
 
 // dev-only hook for testing far corners of Pune Paradise
-if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), passengers: () => passengers, woodTug: () => woodTug, voyager: () => voyager, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
+if (import.meta.env.DEV) window.__sailo = { WORLD, ACT, fishing, seaLabels, geo,  sea: (dx, dz) => { const [x, y] = toScreen(new THREE.Vector3(boat.position.x + dx, WL, boat.position.z + dz)); return [x, y]; }, probe: () => ({ vel, yaw, x: boat.position.x }), cpu: () => cpuFleet, harbour: () => harbour, online: () => online, radio: () => radio, wildlife: () => wildlife, radioHelp: () => radioHelp, berths: () => berths, station: () => station, terrain: () => terrain, fishShadows: () => fishShadows, state: () => state, swapBoat: id => swapBoat(id), passengers: () => passengers, woodTug: () => woodTug, voyager: () => voyager, dryDock: () => dryDock, me: () => [boat.position.x, boat.position.z], teleport: (x, z) => { const dx = x - boat.position.x, dz = z - boat.position.z; [boat.position, stage._camera.position, stage._controls.target].forEach(v => { v.x += dx; v.z += dz; }); } };
