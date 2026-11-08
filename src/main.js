@@ -375,7 +375,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
       float spec = pow(max(dot(reflect(-sunD, n), vdir), 0.0), 60.0);
       float tw = step(0.72, noise(p * 2.6 + vec2(time * 1.7, -time * 1.3)));
       col *= uTint;
-      col += uGlint * 0.8 * step(0.35 - 0.12 * (1.0 - uAft) * (1.0 - uGold), spec * tw) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec * wf;
+      { float th = 0.35 - 0.12 * (1.0 - uAft) * (1.0 - uGold); col += uGlint * 0.22 * smoothstep(th, th + 0.4, spec * (0.6 + 0.4 * tw)) * (1.0 - smoothstep(20.0, 70.0, d)) * uSpec * wf; } // (the sun's glitter: a soft shimmer, not white specks)
       #else
       col *= uTint;
       #endif
@@ -522,7 +522,8 @@ const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
 // top: 80 units from the boat, tilted 30° from straight down (80·cos30 ≈ 69 up, 80·sin30 = 40 across, from the same side as before)
-const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: 40 * 53 / Math.hypot(53, 79), side: 40 * 79 / Math.hypot(53, 79), up: 80 * Math.cos(Math.PI / 6) } };
+const TOPK = 1.6; // the top view starts this much farther out than it used to (same angle)
+const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: TOPK * 40 * 53 / Math.hypot(53, 79), side: TOPK * 40 * 79 / Math.hypot(53, 79), up: TOPK * 80 * Math.cos(Math.PI / 6) } };
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
 stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
 stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
@@ -538,7 +539,7 @@ const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), animOff = new 
 const lerpOff = (a, b, e, out) => { sphA.setFromVector3(a); sphB.setFromVector3(b); const dth = Math.atan2(Math.sin(sphB.theta - sphA.theta), Math.cos(sphB.theta - sphA.theta)); return out.setFromSphericalCoords(sphA.radius + (sphB.radius - sphA.radius) * e, sphA.phi + (sphB.phi - sphA.phi) * e, sphA.theta + dth * e); };
 const animCam = (to, ty1, dur = 1.3, focus = null) => { const tg = stage._controls.target; stage._controls.autoRotate = false; zoomAnim = null; camAnim = { from: stage._camera.position.clone().sub(tg), to, rel: new THREE.Vector3(tg.x - boat.position.x, tg.y, tg.z - boat.position.z), ty1, dur, k: 0, fo: focus || new THREE.Vector3() }; };
 const setView = v => { state.view = v; const top = v === 'top', d = VIEWS.top.up / Math.cos(Math.PI / 6);
-  stage._controls.minDistance = top ? d * 0.38 : 8; stage._controls.maxDistance = top ? d * 3 : 260; // the top view zooms too (pinch, wheel, the buttons), from close over the boat to well out
+  stage._controls.minDistance = top ? 30 : 8; stage._controls.maxDistance = top ? 320 : 260; // the top view zooms too (pinch, wheel, the buttons), from close over the boat to well out
   animCam(viewOffset(v), top ? WL : 2.5); };
 const recenter = () => setView(state.view);
 const faceNorth = () => { const off = stage._camera.position.clone().sub(stage._controls.target); sphA.setFromVector3(off); animCam(new THREE.Vector3().setFromSphericalCoords(sphA.radius, sphA.phi, 0), stage._controls.target.y, 0.8); };

@@ -397,7 +397,8 @@ body.view-top #helm { opacity: 0; visibility: hidden; transform: translateY(24px
   transform: translate(-50%, 16px);
   transition: opacity 0.3s, transform 0.4s var(--spring);
 }
-body.view-top #course-hint { opacity: 1; transform: translate(-50%, 0); }
+body.view-top.hint-on #course-hint { opacity: 1; transform: translate(-50%, 0); }
+body.view-top #course-hint { transition: opacity 0.8s, transform 0.8s var(--spring); } /* (a slow fade as it goes) */
 body.view-top.has-course #course-hint { opacity: 0; transform: translate(-50%, 16px); }
 
 /* "You" tag above the boat in top view */
@@ -415,7 +416,7 @@ body.view-top.has-course #course-hint { opacity: 0; transform: translate(-50%, 1
   transform: translate(-50%, -100%);
   transition: opacity 0.3s;
 }
-body.view-top #you-tag { opacity: 1; }
+/* (hidden in the top view too: no badge over the boat) */
 /* top view: only the level number shows over the boat */
 .you-chip { display: none; padding: 6px 11px; border-radius: 10px; background: rgba(21, 32, 66, 0.9); color: #fff; font: 700 13px/1 system-ui, sans-serif; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }
 .you-ring { position: relative; }
@@ -768,7 +769,7 @@ body.view-top #you-tag { opacity: 1; }
   #helm { left: calc(16px + var(--safe-l)); bottom: calc(18px + var(--safe-b)); gap: 8px; }
   #hint { font-size: 12px; max-width: 200px; }
   #joy { width: 136px; height: 136px; }
-  #course-hint { bottom: calc(18px + var(--safe-b)); left: calc(50% - 30px); font-size: 12px; }
+  #course-hint { bottom: calc(18px + var(--safe-b)); left: 50%; font-size: 12px; } /* (centred at the bottom) */
   #boatmenu .actions { gap: 6px; padding: 6px; }
   #boatmenu .actions { max-width: calc(100vw - 24px); }
   #boatmenu .action { flex-basis: min(26vw, 92px); padding: 6px 8px; }
