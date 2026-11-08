@@ -7,6 +7,7 @@
 // warm windows and a deck lamp, and smoke from the funnel while it runs (more the faster it goes).
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import tugUrl from '../assets/tugboat2/tugboat.glb?url';
+import { WIND } from '../wind.js'; // (the smoke drifts on it)
 
 const SIZE = 1.3, K = 1.9 * SIZE; // (1.9: the Lighthouse Tug's length; SIZE: how much bigger this one is)
 const LIFT = 0.85 - 0.38 * K; // how far the model's origin sits above the boat's: the sea (0.85) meets the model at y≈0.38,
@@ -87,7 +88,7 @@ export function buildWoodTug({ THREE, scene }) {
   function puff(back, speed) {
     const m = puffs[puffI++ % puffs.length], u = m.userData; group.localToWorld(wp.copy(FUNNEL)); m.position.copy(wp);
     u.life = 0; u.max = 2.6 + Math.random() * 1.2; u.s0 = 0.55 + Math.random() * 0.35;
-    u.v.set(back.x * (0.4 + speed * 0.5) + (Math.random() - 0.5) * 0.4, 1.5 + Math.random() * 0.7, back.z * (0.4 + speed * 0.5) + (Math.random() - 0.5) * 0.4);
+    u.v.set(back.x * (0.4 + speed * 0.5) + (Math.random() - 0.5) * 0.4 + WIND.x * 1.4, 1.5 + Math.random() * 0.7, back.z * (0.4 + speed * 0.5) + (Math.random() - 0.5) * 0.4 + WIND.z * 1.4);
     m.rotation.set(Math.random() * 6, Math.random() * 6, 0); m.visible = true;
   }
   const back = new THREE.Vector3(), q = new THREE.Quaternion(), WARM = new THREE.Color('#ffc46b');
