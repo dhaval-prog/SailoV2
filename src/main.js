@@ -271,28 +271,41 @@ const NOISE = `
 const SK = 1 / 0.6, stW = (x, z) => new THREE.Vector2(STATION.x + x * SK, STATION.z + z * SK);
 const CALM = { c: stW(2, 2), r: new THREE.Vector2(27 * SK, 22 * SK) }, SHORE = { c: stW(-6, -3), r: new THREE.Vector2(22 * SK, 19.5 * SK) };
 addEventListener('sailo:station', () => { CALM.c.copy(stW(2, 2)); SHORE.c.copy(stW(-6, -3)); }); // (the calm water and shallows go with the nearest station)
-const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 2) return 1; const k = Math.max(0, u - 1); return 0.12 + 0.88 * k * k * (3 - 2 * k); };
+const calmJS = (x, z) => { const u = Math.hypot((x - CALM.c.x) / CALM.r.x, (z - CALM.c.y) / CALM.r.y); if (u >= 1.5) return 1; const k = Math.max(0, (u - 1) / 0.5); return 0.12 + 0.88 * k * k * (3 - 2 * k); }; // (calm in the harbour, open swell soon after it)
 const seaU = { time: { value: 0 }, bp: { value: new THREE.Vector2() }, yaw: { value: 0 }, uAmp: { value: 1 }, uTint: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.92, 0.99, 1) }, uFog: { value: new THREE.Vector2(170, 390) }, uSun: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }, uSpec: { value: 1 }, uFlash: { value: 0 }, uNight: { value: 0 }, uAft: { value: 0 }, uGold: { value: 0 }, uGlint: { value: new THREE.Color(1, 0.97, 0.86) }, calmC: { value: CALM.c }, calmR: { value: CALM.r }, shoreC: { value: SHORE.c }, shoreR: { value: SHORE.r } };
 const nz = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
-const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.34, 0.2, 0.11, 0.05], WK = [0.18, 0.29, 0.52, 0.95], WS = [1.1, 1.5, 2.1, 2.9];
+// the swell: four wave trains (direction, height, wavenumber, speed: deep water, so longer waves run faster), each with
+// peaked crests and wide troughs (shp). The same numbers drive the sea's shader (WAVE_GLSL) and the boats riding it (waveJS).
+const WD = [nz(1, 0.3), nz(-0.4, 1), nz(0.7, -0.7), nz(0.2, 1)], WA = [0.6, 0.36, 0.2, 0.09], WK = [0.1, 0.16, 0.3, 0.6], WS = WK.map(k => +(Math.sqrt(9.8 * k) * 0.95).toFixed(4));
+const shp = s => { const u = 0.5 + 0.5 * s; return (u * u - 0.375) * 2; };
 const ENV = { amp: 1 };
-const waveJS = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i]); return s * calmJS(x, z) * ENV.amp; };
+const waveJS = (x, z, t) => { let s = 0; for (let i = 0; i < 4; i++) s += WA[i] * shp(Math.sin((WD[i][0] * x + WD[i][1] * z) * WK[i] + t * WS[i])); return s * calmJS(x, z) * ENV.amp; };
+const SWELL_MAX = WA.reduce((a, b) => a + b, 0) * 1.25; // (the highest a crest gets, in a clear sea)
+const f4 = v => v.toFixed(4);
 const WAVE_GLSL = `
+  float shp(float s){ float u = 0.5 + 0.5 * s; return (u * u - 0.375) * 2.0; }
   float waveH(vec2 p, float t){
-    return 0.34 * sin(dot(normalize(vec2(1.0, 0.3)), p) * 0.18 + t * 1.1)
-         + 0.2 * sin(dot(normalize(vec2(-0.4, 1.0)), p) * 0.29 + t * 1.5)
-         + 0.11 * sin(dot(normalize(vec2(0.7, -0.7)), p) * 0.52 + t * 2.1)
-         + 0.05 * sin(dot(normalize(vec2(0.2, 1.0)), p) * 0.95 + t * 2.9); }`;
+    return ${WA.map((A, i) => `${f4(A)} * shp(sin(dot(vec2(${f4(WD[i][0])}, ${f4(WD[i][1])}), p) * ${f4(WK[i])} + t * ${f4(WS[i])}))`).join('\n         + ')}; }`;
 const makeSea = waves => new THREE.ShaderMaterial({
   name: 'sea', uniforms: seaU, defines: waves ? { WAVES: 1 } : {}, extensions: { derivatives: true },
   vertexShader: `uniform float time; uniform vec2 bp; uniform float uAmp; uniform vec2 calmC; uniform vec2 calmR; varying vec3 wp; varying float vh; ${WAVE_GLSL}
     void main(){ wp = (modelMatrix * vec4(position, 1.0)).xyz; vh = 0.0;
       #ifdef WAVES
-      float calm = 0.12 + 0.88 * smoothstep(1.0, 2.0, length((wp.xz - calmC) / calmR));
-      float f = 1.0 - smoothstep(45.0, 72.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
+      float calm = 0.12 + 0.88 * smoothstep(1.0, 1.5, length((wp.xz - calmC) / calmR));
+      float f = 1.0 - smoothstep(105.0, 145.0, length(wp.xz - bp)); vh = waveH(wp.xz, time) * f * uAmp * calm; wp.y += vh; vh /= max(calm, 0.3);
       #endif
       gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); }`,
-  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform float uAft; uniform float uGold; uniform vec3 uGlint; uniform vec2 shoreC; uniform vec2 shoreR; varying vec3 wp; varying float vh; ${NOISE}
+  fragmentShader: `uniform float time; uniform vec2 bp; uniform float yaw; uniform vec3 uTint; uniform vec3 uHaze; uniform vec2 uFog; uniform vec3 uSun; uniform float uSpec; uniform float uFlash; uniform float uNight; uniform float uAft; uniform float uGold; uniform vec3 uGlint; uniform vec2 shoreC; uniform vec2 shoreR; uniform float uAmp; varying vec3 wp; varying float vh; ${NOISE}
+    // ripples: two layers of small waves drifting across each other (wind-driven, so the whole sea moves even when calm)
+    // (smooth wave trains, their phases bent by a slow noise so they never line up into a pattern; slopes worked out exactly)
+    vec3 rippleN(vec2 p, float t, float k){
+      float w = noise(p * 0.045) * 6.283, w2 = noise(p * 0.07 + 5.0) * 6.283; vec2 g = vec2(0.0);
+      vec2 d1 = vec2(0.96, 0.28), d2 = vec2(-0.45, 0.89), d3 = vec2(0.6, -0.8), d4 = vec2(-0.9, -0.43);
+      g += d1 * 0.9 * cos(dot(d1, p) * 0.9 + t * 1.9 + w);
+      g += d2 * 0.75 * cos(dot(d2, p) * 1.35 + t * 2.4 + w2);
+      g += d3 * 0.55 * cos(dot(d3, p) * 2.1 + t * 3.1 + w);
+      g += d4 * 0.4 * cos(dot(d4, p) * 3.2 + t * 3.8 + w2);
+      return normalize(vec3(-g.x * 0.09 * k, 1.0, -g.y * 0.09 * k)); }
     void main(){
       vec2 p = wp.xz; float d = length(p - cameraPosition.xz);
       vec3 deep = vec3(0.12, 0.45, 0.37), mid = vec3(0.15, 0.5, 0.41), far = vec3(0.22, 0.58, 0.48), lite = vec3(0.6, 0.88, 0.76); // emerald out in the deep // jade #3FA88A -> #5CC4A0, minty lights
@@ -318,16 +331,28 @@ const makeSea = waves => new THREE.ShaderMaterial({
       col = mix(col, vec3(0.9, 0.98, 0.93), step(0.96, cr) * 0.5 * (1.0 - smoothstep(25.0, 110.0, d)));
       vec2 dd = p - bp - vec2(-0.6, 0.9); vec2 lc = vec2(dot(dd, vec2(cos(yaw), -sin(yaw))), dot(dd, vec2(sin(yaw), cos(yaw)))); float sh = length(lc / vec2(6.8, 3.4));
       col *= mix(0.72, 1.0, smoothstep(0.55, 1.15, sh));
+      // ripples everywhere, catching the light: strong close by, fading into the distance (where they'd only shimmer)
+      float rk = 1.0 - smoothstep(25.0, 200.0, d);
+      vec3 rn = rippleN(p, time, rk);
+      float rl = dot(rn, uSun) - dot(vec3(0.0, 1.0, 0.0), uSun) * rn.y;
+      col *= 1.0 + rl * 1.6 * rk;
+      col = mix(col, lite, smoothstep(0.03, 0.08, rl) * 0.28 * rk); // (the faces turned to the sun catch it)
+      // whitecaps: streaks of foam blown along the wind, a few on a clear day, many in a storm (uAmp)
+      vec2 wq = vec2(dot(p, vec2(0.958, 0.287)), dot(p, vec2(-0.287, 0.958)));
+      float capF = noise(vec2(wq.x * 0.22 - time * 0.25, wq.y * 0.9)) * noise(vec2(wq.x * 0.07 + 3.0, wq.y * 0.19 - time * 0.03)), capD = 0.62 - 0.12 * clamp(uAmp - 0.8, 0.0, 1.6);
+      float caps = smoothstep(capD, capD + 0.06, capF) * (1.0 - smoothstep(80.0, 280.0, d) * 0.5);
+      col = mix(col, vec3(0.92, 0.98, 0.95), caps * 0.55);
       #ifdef WAVES
       vec3 n = normalize(cross(dFdx(wp), dFdy(wp))); if (n.y < 0.0) n = -n;
       vec3 sunD = uSun;
       float lamb = dot(n, sunD);
       // wave shading fades out with the waves, so the near patch blends into the open sea instead of showing as a square
-      float wf = 1.0 - smoothstep(40.0, 66.0, length(p - bp));
+      float wf = 1.0 - smoothstep(95.0, 140.0, length(p - bp));
       col *= mix(1.0, 0.86 + 0.24 * smoothstep(0.62, 0.8, lamb), wf);
-      col = mix(col, lite, smoothstep(0.25, 0.55, vh) * 0.45);
+      float crest = vh / (max(uAmp, 0.3) * ${f4(SWELL_MAX)});
+      col = mix(col, lite, smoothstep(0.25, 0.6, crest) * 0.45 * wf);
       float capN = noise(p * 1.3 + vec2(time * 0.6, 0.0));
-      col = mix(col, vec3(0.9, 0.98, 0.93), smoothstep(0.42, 0.5, vh + (capN - 0.5) * 0.35) * 0.6);
+      col = mix(col, vec3(0.92, 0.98, 0.95), smoothstep(0.62 - 0.08 * clamp(uAmp - 1.0, 0.0, 1.5), 0.72, crest + (capN - 0.5) * 0.3) * 0.8 * wf); // (foam on the tallest crests)
       vec3 vdir = normalize(cameraPosition - wp);
       float spec = pow(max(dot(reflect(-sunD, n), vdir), 0.0), 60.0);
       float tw = step(0.72, noise(p * 2.6 + vec2(time * 1.7, -time * 1.3)));
@@ -351,7 +376,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
     }`,
 });
 const seaMesh = new THREE.Mesh(new THREE.CircleGeometry(420, 128), makeSea(false)); seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = WL - 0.02; seaGroup.add(seaMesh);
-const nearGeo = new THREE.PlaneGeometry(150, 150, 240, 240); nearGeo.rotateX(-Math.PI / 2);
+const nearGeo = new THREE.PlaneGeometry(300, 300, 256, 256); nearGeo.rotateX(-Math.PI / 2);
 const seaNear = new THREE.Mesh(nearGeo, makeSea(true)); seaNear.position.y = WL; seaNear.frustumCulled = false; seaGroup.add(seaNear);
 // spray particles (bow spray when moving, hull splashes when idle)
 const SPN = 260, sprayPos = new Float32Array(SPN * 3).fill(-999), sprayVel = new Float32Array(SPN * 3), sprayLife = new Float32Array(SPN);
@@ -524,7 +549,9 @@ function stepEnv(t, dt) {
   E.cfade = L(E.cfade, P.cfade); E.rain = L(E.rain, P.rain); E.snow = L(E.snow, P.snow); E.sun = L(E.sun, P.sun); E.night = L(E.night, n);
   if (P.storm) { nextBolt -= dt; if (nextBolt <= 0) { flash = 1; nextBolt = 2.5 + Math.random() * 6; setTimeout(() => { flash = 0.8; }, 140); } }
   flash = Math.max(0, flash - dt * 4.5);
-  ENV.amp = E.amp * 0.32; seaU.uAmp.value = E.amp * 0.32; // a gentle swell: calm, but alive seaU.uTint.value.copy(E.tint); // a flat, calm surface: the diorama look has no waves (E.amp is kept for the clouds / weather). // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
+  ENV.amp = E.amp * 0.8; seaU.uAmp.value = E.amp * 0.8; // the swell for the weather: rolling on a clear day, heavy in a storm
+  seaU.uTint.value.copy(E.tint); // (the sea darkens with the sky)
+  // fog: in foggy weather the mist starts before the boat (not only beyond it) and at night it reads as a pale moonlit haze
   const foggy = Math.min(1, (1 - E.cfade) / 0.88), camD = stage._camera.position.distanceTo(stage._controls.target);
   { const g = (E.gold || 0) * clearish * (1 - E.night); E.fogN = THREE.MathUtils.lerp(E.fogN, Math.min(E.fogN, 70), g * k * 2); E.fogF = THREE.MathUtils.lerp(E.fogF, Math.min(E.fogF, 270), g * k * 2); } // (golden haze: distant things fade to silhouettes)
   let fogNear = THREE.MathUtils.lerp(Math.max(E.fogN, camD * 1.05), camD * 0.7 + E.fogN, foggy); let fogFar = THREE.MathUtils.lerp(Math.max(E.fogF, camD * 1.05 + 60), camD + E.fogF, foggy);
