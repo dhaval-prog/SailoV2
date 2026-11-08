@@ -18,6 +18,7 @@ import { priceOf, trendOf, headline, ticker } from './market.js';
 import { econ, econBeacon, serverEconomy } from './econ.js';
 import { ECONOMY } from './world-config.js';
 import { PLACE } from './live.js';
+import { SHACK_NAME } from './geo.js';
 
 const MILE = 1609.344;
 // Where the station sits: Pune Paradise keeps its original spot (3.7 mi W, 1.1 mi S of the harbour);
@@ -171,7 +172,8 @@ export function initStation(ctx) {
     || rects.some(([a, b, c, d]) => x > a - BOAT_R && x < c + BOAT_R && z > b - BOAT_R && z < d + BOAT_R)
     || stacks.some(([sx, sz, r]) => Math.hypot(x - sx, z - sz) < r + BOAT_R);
   /** Would a boat at this world position hit the island, pier or rocks? */
-  const blocked = (x, z) => { if (Math.abs(x - O.x) > 140 || Math.abs(z - O.z) > 140) return false; const [lx, lz] = toL(x, z); return blockedL(lx, lz); };
+  const blockedIsland = (x, z) => { if (Math.abs(x - O.x) > 140 || Math.abs(z - O.z) > 140) return false; const [lx, lz] = toL(x, z); return blockedL(lx, lz); };
+  const blocked = (x, z) => blockedIsland(x, z) || !!ctx.shacks?.blocked(x, z); // (and the Fisher's Shacks: shacks.js)
 
   // ---------- berths (from the station file, in local units) ----------
   const { SEA0 } = PORT.local, BERTHS = PORT.local.BERTHS.map(b => ({ ...b }));
@@ -237,18 +239,23 @@ export function initStation(ctx) {
   const frame = (focus, dist, up, dur = 1.4) => ctx.camTo?.(focus, seaSide(focus, dist, up), dur);
   // ---------- docking ----------
   let mode = 'sea', berth = BERTHS[0], route = null, prog = 0, dur = 1, near = false, lastWarn = 0;
+  // a Fisher's Shack (shacks.js): the one in reach while at sea, and the one you're tied up at (with its berth and shops)
+  let shackHere = null, atShack = null, shackPort = null, shackT = 0, endAt = null, endYaw = 0;
+  const shackStop = () => atShack && { id: atShack.serverId || atShack.id, name: SHACK_NAME, at: SHACK_NAME, x: atShack.x, z: atShack.z, shack: true };
   const shops = [{ id: 'market', at: [-2, 3.5 + 1.57, -10] }, { id: 'boathouse', at: [(hx0 + hx1) / 2, 1.85 + 4.4, (PZ - 1.5 + hzN + 0.25) / 2] }, { id: 'passengers', at: [xa1 - 1, 3.2, PZ + 5] }]; // (passengers wait on the pier)
   const worldAt = ([x, y, z]) => new V3(O.x + x * K, WL + y * K, O.z + z * K);
   const ropes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), M('rope', '#e6cf9a')); m.visible = false; stage._scene.add(m); return m; });
   const renderBar = () => {
-    const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || near && !dismissed;
-    bar.querySelector('.dc-title').textContent = STATION.id === 'home' ? 'Paradise Station' : `Paradise Station · ${STATION.at}`; // (which neighbourhood's)
+    const shackBar = mode === 'sea' ? !near && !!shackHere : !!atShack;
+    const bar = $('stn-bar'), b = $('sailBtn'), sub = $('dockSub'), show = mode !== 'sea' || (near || shackBar) && !dismissed;
+    bar.querySelector('.dc-title').textContent = shackBar ? SHACK_NAME : STATION.id === 'home' ? 'Paradise Station' : `Paradise Station · ${STATION.at}`; // (which neighbourhood's)
     bar.hidden = !show; document.body.classList.toggle('stn-bar-on', show); document.body.classList.toggle('stn-docked', mode !== 'sea' && mode !== 'picking');
-    if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = headline(LOCAL_FISH) || 'Moor at the pier to open the shops'; }
+    if (mode === 'sea' && shackBar) { b.textContent = 'Tie up'; b.disabled = booking; sub.textContent = 'Fuel · fish market · passengers'; }
+    else if (mode === 'sea') { b.textContent = 'Sail into port'; b.disabled = false; sub.textContent = headline(LOCAL_FISH) || 'Moor at the pier to open the shops'; }
     else if (mode === 'picking') { b.textContent = 'Cancel'; b.disabled = false; sub.textContent = 'Pick a berth along the pier'; }
     else if (mode === 'docking') { b.textContent = 'Mooring…'; b.disabled = true; sub.textContent = `Approaching ${berth.name}`; }
-    else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = `Moored at ${berth.name} · shops open`; }
-    else { b.textContent = 'Heading out…'; b.disabled = true; sub.textContent = 'Leaving the harbour'; }
+    else if (mode === 'docked') { b.textContent = 'Cast off'; b.disabled = false; sub.textContent = atShack ? 'Tied up · fuel, fish and passengers' : `Moored at ${berth.name} · shops open`; }
+    else { b.textContent = 'Heading out…'; b.disabled = true; sub.textContent = atShack ? 'Pushing off' : 'Leaving the harbour'; }
     BERTHS.forEach(x => { x.el.hidden = mode !== 'picking'; }); if (mode === 'picking') paintBerths();
     ['market', 'boathouse', 'passengers'].forEach(id => { $('mk-' + id).hidden = mode !== 'docked'; $('mk-' + id).classList.toggle('locked', mode !== 'docked'); });
   };
@@ -285,12 +292,23 @@ export function initStation(ctx) {
     booking = true; paintBerths(); const r = ctx.bookBerth ? await ctx.bookBerth(i) : { ok: true }; booking = false;
     if (mode !== 'picking') return;
     if (!r.ok) { toast(r.msg || 'That berth is taken. Pick another?'); paintBerths(); return; }
-    berth = BERTHS[i]; route = routeTo(i, ctx.boatPos()); dur = THREE.MathUtils.clamp(route.getLength() / 5, 6, 30); prog = 0; mode = 'docking';
+    berth = BERTHS[i]; route = routeTo(i, ctx.boatPos()); dur = THREE.MathUtils.clamp(route.getLength() / 5, 6, 30); prog = 0; mode = 'docking'; atShack = null; endAt = toW(...berth.pos); endYaw = berth.yaw;
     ctx.onDockStart?.(); renderBar(); frame(ctx.boatPos().clone(), 40, 22, 1.6);
   }
-  const castOff = () => { ctx.berthState?.('releasing'); closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); const pts = [...berth.via].reverse(); route = new THREE.CatmullRomCurve3([berth.pos, ...pts, SEA0].map(([x, z]) => toW(x, z))); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 20); prog = 0; mode = 'leaving'; renderBar(); };
+  // a Fisher's Shack: book its landing (the server learns the shack), then sail in alongside it
+  async function tieUp(sh) {
+    if (booking || (ctx.canDock && !ctx.canDock())) return;
+    booking = true; renderBar(); const r = ctx.bookShack ? await ctx.bookShack(sh) : { ok: true }; booking = false;
+    if (mode !== 'sea') return; if (!r.ok) { toast(r.msg || 'The landing is busy. Try again in a moment?'); renderBar(); return; }
+    atShack = sh; shackPort = ctx.shacks.port(sh); route = new THREE.CatmullRomCurve3(shackPort.inPath(ctx.boatPos())); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 24); prog = 0;
+    endAt = shackPort.berth.pos.clone(); endYaw = shackPort.berth.yaw; berth = { name: 'the landing', yaw: endYaw }; mode = 'docking';
+    ctx.onDockStart?.(); renderBar(); frame(ctx.boatPos().clone(), 40, 22, 1.6);
+  }
+  const castOff = () => { if (atShack) { ctx.berthState?.('releasing'); closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); route = new THREE.CatmullRomCurve3(shackPort.outPath()); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 14); prog = 0; mode = 'leaving'; renderBar(); return; }
+    ctx.berthState?.('releasing'); closePanel(); frame(ctx.boatPos().clone(), 40, 22, 1.4); const pts = [...berth.via].reverse(); route = new THREE.CatmullRomCurve3([berth.pos, ...pts, SEA0].map(([x, z]) => toW(x, z))); dur = THREE.MathUtils.clamp(route.getLength() / 5, 5, 20); prog = 0; mode = 'leaving'; renderBar(); };
   $('sailBtn').onclick = () => {
-    if (mode === 'sea') { if (!ctx.canDock || ctx.canDock()) { mode = 'picking'; renderBar(); const pier = toW(xa1 - 4, PZ + 6); frame(new V3(pier.x, WL + 2, pier.z), 75, 55); } }
+    if (mode === 'sea' && !near && shackHere) { dismissed = false; tieUp(shackHere); }
+    else if (mode === 'sea') { if (!ctx.canDock || ctx.canDock()) { mode = 'picking'; renderBar(); const pier = toW(xa1 - 4, PZ + 6); frame(new V3(pier.x, WL + 2, pier.z), 75, 55); } }
     else if (mode === 'picking') { mode = 'sea'; renderBar(); ctx.onDockEnd?.(); }
     else if (mode === 'docked') castOff();
   };
@@ -554,6 +572,14 @@ export function initStation(ctx) {
   const pv = new V3();
   const place = (el, at) => { const cam = stage._camera, r = stage._rect(); pv.copy(at).project(cam); const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05; el.style.display = vis ? '' : 'none';
     if (vis) el.style.transform = `translate(${(pv.x + 1) / 2 * r.width + r.left}px, ${(1 - pv.y) / 2 * r.height + r.top}px) translate(-50%, -100%)`; };
+  // markers close together: placed at their spots, then pushed apart sideways so none covers another
+  const spread = list => { const cam = stage._camera, r = stage._rect(), pts = [];
+    list.forEach(([el, at]) => { pv.copy(at).project(cam); const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05; el.style.display = vis ? '' : 'none';
+      if (vis) pts.push({ el, x: (pv.x + 1) / 2 * r.width + r.left, y: (1 - pv.y) / 2 * r.height + r.top, w: el.offsetWidth || 130, h: el.offsetHeight || 44 }); });
+    pts.sort((a, b) => a.x - b.x);
+    for (let k = 0; k < 4; k++) for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], need = (a.w + b.w) / 2 + 6 - (b.x - a.x);
+      if (need > 0 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) { a.x -= need / 2; b.x += need / 2; } }
+    pts.forEach(q => { q.el.style.transform = `translate(${q.x}px, ${q.y}px) translate(-50%, -100%)`; }); };
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function tick(t, dt) {
     const bp = ctx.boatPos(), dist = Math.hypot(bp.x - O.x, bp.z - O.z);
@@ -561,7 +587,9 @@ export function initStation(ctx) {
     if (!island && STATIONS.some(st => Math.hypot(bp.x - st.x, bp.z - st.z) < 3500)) build();
     if (mode === 'sea' && (stnT -= dt) < 0) { stnT = 0.5; nearest(bp); }
     root.visible = ready && dist < SHOW;
-    const wasNear = near; near = dist < NEAR; if (!near) dismissed = false; if (near !== wasNear && mode === 'sea') renderBar();
+    const wasNear = near; near = dist < NEAR;
+    if (mode === 'sea' && (shackT -= dt) < 0) { shackT = 0.25; const was = shackHere; shackHere = near ? null : ctx.shacks?.nearest(bp) || null; if (was !== shackHere) { if (!shackHere) dismissed = false; renderBar(); } }
+    if (!near && !shackHere) dismissed = false; if (near !== wasNear && mode === 'sea') renderBar();
     if (root.visible) {
       island.tick(t, dt, ctx.night ? ctx.night() : 0, stage._camera);
     }
@@ -569,24 +597,27 @@ export function initStation(ctx) {
     if (mode === 'docking' || mode === 'leaving') {
       prog = Math.min(1, prog + dt / dur); const e = prog < 0.5 ? 2 * prog * prog : 1 - Math.pow(-2 * prog + 2, 2) / 2;
       const u = Math.min(0.999, Math.max(0.001, e)), P = route.getPointAt(u), tan = route.getTangentAt(u), yawT = Math.atan2(-tan.z, tan.x);
-      const targetYaw = mode === 'docking' ? yawT + wrapA(berth.yaw - yawT) * ss(0.6, 0.97, e) : yawT;
+      const targetYaw = mode === 'docking' ? yawT + wrapA(endYaw - yawT) * ss(0.6, 0.97, e) : yawT;
       ctx.moveBoat(P.x, P.z, ctx.boatYaw() + wrapA(targetYaw - ctx.boatYaw()) * Math.min(1, dt * 4), Math.sin(prog * Math.PI));
       if (prog >= 1) {
-        if (mode === 'docking') { mode = 'docked'; ctx.berthState?.('occupied'); const end = toW(...berth.pos); ctx.moveBoat(end.x, end.z, berth.yaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`); ctx.onMoored?.(STATION);
+        if (mode === 'docking' && atShack) { mode = 'docked'; ctx.berthState?.('occupied'); ctx.moveBoat(endAt.x, endAt.z, endYaw, 0); toast(`Tied up at the ${SHACK_NAME}. Fuel, the fish market and passengers are here.`); ctx.onMoored?.(shackStop());
+          frame(shackPort.look.clone().setY(WL + 2), 58, 34, 1.6); }
+        else if (mode === 'docking') { mode = 'docked'; ctx.berthState?.('occupied'); const end = endAt; ctx.moveBoat(end.x, end.z, endYaw, 0); toast(`Moored at ${berth.name}. The Fish Market and Boathouse are open.`); ctx.onMoored?.(STATION);
           const mid = toW(xa0 + 4, PZ - 4); frame(new V3((end.x + mid.x) / 2, WL + 2, (end.z + mid.z) / 2), 62, 40, 1.6);
           const b = ctx.boat; b.updateMatrixWorld(true);
           berth.tie = [new V3(3.7, 2.25, 2.1 * berth.side), new V3(-3.9, 2.4, 2.1 * berth.side)].map(local => { const w = b.localToWorld(local.clone()); let best = null, bd = 1e9;
             (island ? island.posts : []).forEach(p => { const pw = new V3(O.x + p.x * K, WL + (p.top - 0.25) * K, O.z + p.z * K), d = pw.distanceTo(w); if (d < bd) { bd = d; best = pw; } }); return { local, post: best }; });
-        } else { mode = 'sea'; ctx.berthState?.('free'); ctx.onDockEnd?.(); }
+        } else { mode = 'sea'; atShack = null; shackPort = null; ctx.berthState?.('free'); ctx.onDockEnd?.(); }
         renderBar();
       }
     }
     // mooring lines while docked
-    const tied = mode === 'docked' && berth.tie && berth.tie.every(x => x.post);
+    const tied = mode === 'docked' && !atShack && berth.tie && berth.tie.every(x => x.post);
     ropes.forEach((m, i) => { m.visible = tied; if (!tied) return; const a = ctx.boat.localToWorld(berth.tie[i].local.clone()), b = berth.tie[i].post, d = b.clone().sub(a);
       m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(UP, d.normalize()); });
     // markers over the shops / berths
-    if (mode === 'docked') shops.forEach(s => place($('mk-' + s.id), worldAt(s.at)));
+    if (mode === 'docked' && !atShack) shops.forEach(s => place($('mk-' + s.id), worldAt(s.at)));
+    if (mode === 'docked' && atShack) spread(shops.map(s => [$('mk-' + s.id), shackPort.spots[s.id]])); // (a shack is small: its markers are kept apart on screen)
     if (mode === 'picking') BERTHS.forEach(b => { const w = toW(...b.pos); place(b.el, new V3(w.x, WL + 3, w.z)); });
     // shop window renderer
     if (panel === 'boathouse') pumpTick(dt);
@@ -605,9 +636,11 @@ export function initStation(ctx) {
     harbourPoints: () => [...BERTHS.map(b => toW(...b.pos)), toW(SEA0[0], SEA0[1])].map(p => ({ x: p.x, z: p.z })),
     ...(import.meta.env.DEV ? { _openShop: id => { mode = 'docked'; openPanel(id); }, _sea: () => { closePanel(); mode = 'sea'; renderBar(); }, _island: () => island } : {}), // (tests: open a shop without sailing in)
     get mode() { return mode; },
+    /** Where you're moored: a Fisher's Shack as a stop ({ id, name, x, z, shack }), else the nearest station. */
+    here: () => (mode === 'docked' || mode === 'docking') && atShack ? shackStop() : STATION,
     /** Burn fuel for metres travelled at a given throttle (0..1). Returns the speed factor (reserve when empty). */
     burn(metres, thr) { if (metres <= 0) return S.fuel > 0 ? 1 : 0.3; const before = S.fuel; S.fuel = Math.max(0, S.fuel - burnFor(S.active, metres, thr)); reportBurn();
-      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at Paradise Station.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast(`Fuel is low. Refuel at Paradise Station (${STATION.where}).`); }
+      if (Math.floor(before) !== Math.floor(S.fuel)) { renderWallet(); if (S.fuel <= 0 && before > 0) toast('Out of fuel: running on the reserve. Switch boats in the Garage, or refuel at a Paradise Station or a Fisher’s Shack.'); else if (S.fuel < S.cap * 0.2 && before >= S.cap * 0.2) toast(`Fuel is low. Refuel at a Fisher’s Shack, or Paradise Station (${STATION.where}).`); }
       if (Math.floor(before / 5) !== Math.floor(S.fuel / 5)) save();
       return S.fuel > 0 ? 1 : 0.3; },
     /** A fish was landed: pick a species by its odds and put it in the hold. Returns the fish, or null if the hold is full. */

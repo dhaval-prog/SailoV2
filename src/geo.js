@@ -63,8 +63,16 @@ const addPlace = (name, lat, lng, kind, group, src) => {
   }
   places.set(k, { name, key: k, lat, lng, x, z, kind, group: group || groupAt(x, z), src }); notify();
 };
+// every petrol pump and hospital / clinic is a Fisher's Shack on the water (shacks.js): fuel, a fish market and
+// passengers. Two within SHACK_GAP of each other are one shack (the map sources overlap, and a hospital has its clinics).
+export const SHACK_NAME = 'Fisher\u2019s Shack';
+const SHACK_GAP = 220, shackGrid = new Map(), sgk = (x, z) => `${Math.floor(x / SHACK_GAP)},${Math.floor(z / SHACK_GAP)}`;
+const shackNear = (x, z) => { const gx = Math.floor(x / SHACK_GAP), gz = Math.floor(z / SHACK_GAP);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const p of shackGrid.get(`${gx + i},${gz + j}`) || []) if (Math.hypot(p.x - x, p.z - z) < SHACK_GAP) return p; return null; };
 const addPoi = (id, name, lat, lng, kind, cat) => {
   if (pois.has(id) || !latin(name)) return; const [x, z] = project(lat, lng); if (!inWorld(x, z)) return;
+  if (cat === 'fuel' || cat === 'health') { if (shackNear(x, z)) return;
+    const p = { id, name: SHACK_NAME, was: name, x, z, kind: 'poi', cat: 'shack' }; pois.set(id, p); const k = sgk(x, z); (shackGrid.get(k) || shackGrid.set(k, []).get(k)).push(p); notify(); return; }
   pois.set(id, { id, name, x, z, kind, cat }); notify();
 };
 const ringArea = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return Math.abs(a / 2); };
@@ -238,6 +246,10 @@ export function ensure(x0, z0, x1, z1, detail = false) {
 export const regionList = () => regions;
 export const placeList = () => [...places.values()];
 export const poiList = () => [...pois.values()];
+/** (tests) a place on the map at a world point, as if a map tile had it */
+export const _testPoi = import.meta.env.DEV ? (id, name, x, z, cat) => { const [lat, lng] = unproject(x, z); addPoi(id, name, lat, lng, 'poi', cat); } : null;
+/** Every Fisher's Shack met so far (petrol pumps and hospitals): [{ id, name, was, x, z }]. */
+export const shackList = () => [...shackGrid.values()].flat();
 export const poisNear = (x, z, r) => { const out = []; for (const p of pois.values()) if (Math.abs(p.x - x) < r && Math.abs(p.z - z) < r) out.push(p); return out; };
 const inside = (ring, x, z) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, zi] = ring[i], [xj, zj] = ring[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
 /** The locality at a point: the smallest boundary polygon containing it, else (fallback) the

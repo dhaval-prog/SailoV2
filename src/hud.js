@@ -7,7 +7,7 @@ import { PLACE, clock, fetchWeather, isNight } from './live.js';
 import { STATION, STATIONS, S as ECON, FISH, REGION, localOdds, fishWhere } from './station.js';
 import { currentSession, signOut } from './auth.js';
 import { beforeSignOut, lastSaved } from './cloud.js';
-import { regionList, placeList, poiList, ensure, zoneAt, onChange, groupLabel } from './geo.js';
+import { regionList, placeList, poiList, shackList, SHACK_NAME, ensure, zoneAt, onChange, groupLabel } from './geo.js';
 import { nameIslands } from './island-names.js';
 import { CHART, setChart } from './chart.js';
 import { createGarageFriends } from './garage-friends.js';
@@ -281,7 +281,7 @@ export function initHud(api) {
     scaleT.textContent = len < 500 ? `${len} m` : len === WORLD.mile / 2 ? '½ mi' : len === 500 ? '500 m' : `${+(len / WORLD.mile).toFixed(1)} mi`;
     $('map-zoom-l').textContent = ['', WORLD.city, 'Neighbourhoods', 'Localities', 'Streets & places'][mapLevel()];
     placeIsles(); placeMarks(); geoDirty = true;
-    ensure(x0, y0, x0 + view.w, y0 + vh, mapLevel() === 4);
+    ensure(x0, y0, x0 + view.w, y0 + vh, mapLevel() >= 3); // (landmarks too when close in: the Fisher's Shacks are among them)
     clearTimeout(isleAsk); isleAsk = setTimeout(() => api.loadIslands?.(x0, y0, x0 + view.w, y0 + vh, view.cx, view.cz), 300);
   };
   const zoomAt = (f, wx = view.cx, wz = view.cz) => { const w0 = view.w; view.w = Math.min(V0, Math.max(VMIN, view.w * f)); const r = view.w / w0; view.cx = wx + (view.cx - wx) * r; view.cz = wz + (view.cz - wz) * r; applyView(); };
@@ -315,7 +315,7 @@ export function initHud(api) {
     // it or right beside it (a landmark, a society, a locality), and that place isn't labelled again on its own
     // every island in view is named (island-names.js: the same names as its signboard at sea); a place that names the
     // island it sits on isn't labelled again on its own
-    const real = L === 1 ? [] : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList() : [])], onIsle = new Map();
+    const real = L === 1 ? [] : [...placeList().filter(p => p.kind === 'major' || L >= 3), ...(L === 4 ? poiList().filter(p => p.cat !== 'shack') : [])], onIsle = new Map();
     if (L >= 3) { const m = Math.max(view.w, vh) * 0.05, inView = isles.filter(it => it.x > x0 - m && it.x < x0 + view.w + m && it.z > y0 - m && it.z < y0 + vh + m);
       if (inView.length) nameIslands(inView, isles).forEach((n, it) => onIsle.set(it, n)); }
     const used = new Set([...onIsle.values()].filter(v => v.on).map(v => v.p));
@@ -336,6 +336,16 @@ export function initHud(api) {
       if (r >= 3) el('circle', { cy: fs * 0.25, r: 2.4, fill: CATC[p.cat] || '#fff' }, g);
       el('text', { y: r >= 3 ? -3 : 0, 'font-size': fs, class: 'map-geo-t', ...(up ? { 'letter-spacing': SPACING[p.kind] } : {}) }, g).textContent = text;
     }
+    // Fisher's Shacks (every petrol pump and hospital): a hut badge, named when there's room
+    if (L >= 2) { let k = 0;
+      for (const p of shackList()) {
+        if (p.off || p.x < x0 || p.x > x0 + view.w || p.z < y0 || p.z > y0 + vh || k++ > 120) continue;
+        const g = el('g', { class: 'map-shack', transform: `translate(${p.x} ${p.z}) scale(${pxW})` }, geoG), sx = (p.x - x0) * px, sy = (p.z - y0) * px;
+        el('circle', { r: 9, class: 'map-shack-b' }, g); el('path', { d: 'M-4.6 4V-.6L0-4.4 4.6-.6V4ZM-1.4 4V1h2.8v3', class: 'map-shack-i' }, g);
+        const w = SHACK_NAME.length * 6.2 + 16, rc = [sx - w / 2, sy + 11, sx + w / 2, sy + 31];
+        if (L >= 3 && !taken.some(b => rc[0] < b[2] && rc[2] > b[0] && rc[1] < b[3] && rc[3] > b[1])) { taken.push(rc);
+          el('rect', { x: -w / 2, y: 12, width: w, height: 19, rx: 9.5, class: 'sc-pill map-shack-pill' }, g); el('text', { y: 25.5, class: 'sc-pill-t map-shack-t' }, g).textContent = SHACK_NAME; }
+      } }
   };
   const geoG = el('g', { class: 'map-geo' }); mapSvg.insertBefore(geoG, isleG.nextSibling); // (names above the islands, under the markers)
   onChange(() => { geoDirty = true; });
