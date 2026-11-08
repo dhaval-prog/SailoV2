@@ -68,6 +68,9 @@ export function createBoatSounds() {
     dinghy() { const g = gain(0), bp = filt('bandpass', 1300, 0.9, g); loopNoise(bp, 1.3); let slap = 1, t = 0;
       return { g, tick(k, dt) { t += dt; set(g.gain, (0.025 + 0.12 * k) * (0.7 + 0.3 * Math.sin(t * 1.3)), 0.25); set(bp.frequency, 1000 + 900 * k, 0.3);
         if ((slap -= dt) <= 0) { slap = (0.35 + Math.random() * 0.6) / (0.4 + k); burst(700 + Math.random() * 600, 1.2, 0.05 + 0.1 * k, 0.18, 'bandpass', out); if (Math.random() < 0.08) ping(1900 + Math.random() * 500, 0.02, 0.6, g); } } }; },
+    drydock() { const g = gain(0), lp = filt('lowpass', 210, 1.1, g), o = osc('sawtooth', 30, gain(0.35, lp)), o2 = osc('square', 15, gain(0.12, lp)); let ph = 0;
+      return { g, tick(k, dt) { set(o.frequency, 30 + 22 * k); set(o2.frequency, 15 + 11 * k); set(lp.frequency, 190 + 300 * k); set(g.gain, 0.24 + 0.22 * k);
+        ph += dt * (2.4 + 6 * k); while (ph > 1) { ph -= 1; burst(120 + 70 * k, 1.2, 0.3 + 0.25 * k, 0.14, 'lowpass', g); if (Math.random() < 0.12) burst(1800 + Math.random() * 600, 9, 0.03, 0.08, 'bandpass', g); } } }; }, // (an old diesel's knock, and a rattle now and then)
     voyager() { const g = gain(0), hum = osc('sine', 38, gain(0.5, g)), hum2 = osc('triangle', 57, gain(0.12, g));
       const churnG = gain(0, g), churn = filt('lowpass', 260, 1, churnG); loopNoise(churn, 0.6); let ph = 0, rev = 0;
       return { g, tick(k, dt) { set(hum.frequency, 38 + 16 * k); set(hum2.frequency, 57 + 24 * k); set(g.gain, 0.22 + 0.2 * k); set(churn.frequency, 220 + 380 * k);
