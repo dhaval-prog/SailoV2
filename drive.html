@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#a9dcf2">
+  <meta name="description" content="Sailo · Drive: the city's real streets, by car.">
+  <title>Sailo · Drive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+</head>
+<body>
+  <canvas id="dv-canvas"></canvas>
+  <div class="dv-top">
+    <div class="dv-where"><b id="dv-place">…</b><span id="dv-road"></span></div>
+    <button id="dv-sail" class="dv-chip" type="button" aria-label="Back to sailing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v13M12 4.5c3.4 2.9 5.4 6.6 5.9 10.5H12M11 7c-2.2 2.4-3.4 5-3.8 8H11M4 18.5c2.6 1.6 5.3 1.6 8 0s5.4-1.6 8 0"/></svg>Sail</button>
+  </div>
+  <div class="dv-zoom"><button id="dv-zin" type="button" aria-label="Zoom in">+</button><button id="dv-zout" type="button" aria-label="Zoom out">−</button></div>
+  <div id="dv-wheel" class="dv-wheel" aria-label="Steering wheel: drag left or right" role="slider" aria-valuemin="-1" aria-valuemax="1"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42"/><circle cx="50" cy="50" r="10"/><path d="M8 50h32M60 50h32M50 60v32"/></svg></div>
+  <div class="dv-pedals"><button id="dv-brake" type="button" aria-label="Brake / reverse">Brake</button><button id="dv-gas" type="button" aria-label="Accelerate">Go</button></div>
+  <div class="dv-speed"><b id="dv-speed">0</b><small>km/h</small></div>
+  <div id="dv-toast" role="status"></div>
+  <div id="dv-loading">Loading the city’s streets…</div>
+  <script type="module" src="./src/drive/drive.js"></script>
+</body>
+</html>

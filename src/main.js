@@ -58,6 +58,8 @@ import './sea-charts.css'; // the map and world map (Sea Charts design; loaded l
 const firstVisit = (() => { try { return !localStorage.getItem('sailo:pos') && !localStorage.getItem('sailo:fishlog'); } catch { return false; } })();
 
 const stage = document.querySelector('three-d-stage');
+// Drive: the same city on land, by car (drive.html; the sea keeps its own spot)
+document.getElementById('tb-drive')?.addEventListener('click', () => { dispatchEvent(new Event('pagehide')); location.href = './drive.html'; });
 const { THREE } = await stage.ready;
 const ramp = new THREE.DataTexture(new Uint8Array([118, 134, 205, 255, 198, 210, 242, 255, 255, 255, 255, 255]), 3, 1);
 ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;

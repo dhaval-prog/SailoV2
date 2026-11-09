@@ -37,6 +37,7 @@
 <!-- quick actions, left of the account button: fleet, search, inbox -->
 <div class="topbar" id="topbar">
   <button class="tb-chip" id="tb-fleet" type="button" aria-label="My fleet"><img class="hi" src="./hud/white/fleet.svg" alt="" draggable="false"><span class="dk-n" id="tb-fleet-n">1</span><i class="tb-dot" id="tb-fleet-dot" aria-hidden="true"></i></button>
+  <button class="tb-btn" id="tb-drive" type="button" aria-label="Drive the city&rsquo;s roads"><svg class="hi tb-car" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15.5V12l1.8-4.2A2 2 0 0 1 7.6 6.6h8.8a2 2 0 0 1 1.8 1.2L20 12v3.5M4 12h16M3.5 15.5h17v2.2h-17zM7 17.7v1.6M17 17.7v1.6"/><circle cx="7.5" cy="14" r=".6"/><circle cx="16.5" cy="14" r=".6"/></svg></button>
   <button class="tb-btn" id="tb-search" type="button" aria-label="Search places"><img class="hi" src="./hud/white/search.svg" alt="" draggable="false"></button>
   <button class="tb-btn" id="tb-board" type="button" aria-label="Harbour board" hidden><img class="hi" src="./hud/white/board.svg" alt="" draggable="false"></button>
   <button class="tb-btn" id="tb-inbox" type="button" aria-label="Inbox"><img class="hi" src="./hud/white/inbox.svg" alt="" draggable="false"><b class="tb-n" id="tb-inbox-n" hidden></b></button>
@@ -45,6 +46,7 @@
 <button id="hud-menu-btn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="hud-menu"><img class="hi" src="./hud/white/menu.svg" alt="" draggable="false"><b id="hud-menu-n" hidden>0</b></button>
 <div id="hud-menu" role="menu" aria-label="More" hidden>
   <button role="menuitem" data-proxy="tb-fleet"><img class="hi" src="./hud/navy/fleet.svg" alt="" draggable="false"><span>My fleet</span><em id="hm-fleet-n"></em></button>
+  <button role="menuitem" data-proxy="tb-drive"><svg class="hi tb-car navy" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15.5V12l1.8-4.2A2 2 0 0 1 7.6 6.6h8.8a2 2 0 0 1 1.8 1.2L20 12v3.5M4 12h16M3.5 15.5h17v2.2h-17zM7 17.7v1.6M17 17.7v1.6"/></svg><span>Drive</span></button>
   <button role="menuitem" data-proxy="tb-search"><img class="hi" src="./hud/navy/search.svg" alt="" draggable="false"><span>Search places</span></button>
   <button role="menuitem" data-proxy="tb-board" id="hm-board" hidden><img class="hi" src="./hud/navy/board.svg" alt="" draggable="false"><span>Harbour board</span></button>
   <button role="menuitem" data-proxy="tb-inbox"><img class="hi" src="./hud/navy/inbox.svg" alt="" draggable="false"><span>Inbox</span><em id="hm-inbox-n" hidden></em></button>
