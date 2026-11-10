@@ -75,10 +75,6 @@ body.tablet.steering :is(#dock, #radio-fab, #helm-anchor, #topbar) { pointer-eve
 #tb-inbox .tb-n { position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center; border-radius: 9px;
   background: #FF5A4E; color: #fff; font: 900 11px/1 var(--nh-font); text-shadow: none; box-shadow: 0 0 0 2px rgba(10, 30, 70, 0.45); }
 #tb-inbox .tb-n[hidden] { display: none; }
-/* the harbour's notes, under the captains' messages in the radio's inbox */
-#radio .rd-notes { margin: 14px 0 6px; font: 500 10.5px/1 var(--nh-mono); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
-#radio .rd-note { margin-bottom: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); font: 600 13.5px/1.4 var(--nh-font); color: rgba(255, 255, 255, 0.85); }
-#radio .rd-note b { color: #fff; } #radio .rd-note time { float: right; font: 500 10.5px/1.6 var(--nh-mono); color: rgba(255, 255, 255, 0.5); }
 
 /* ---------- upright tablets: the wheel a little higher, the compass tucked under the top bar ---------- */
 @media (orientation: portrait) {

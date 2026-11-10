@@ -1,6 +1,6 @@
 // The radio's saved side (migration ..._sailov2_radio_phase2.sql), over Supabase REST like cloud.js:
-// SOS requests, saved messages (voice clips, texts, invites to sail together), blocks and reports.
-// Limits (messages an hour, one SOS every 10 minutes, reports a day) are enforced by the database.
+// SOS requests, blocks and reports.
+// Limits (one SOS every 10 minutes, reports a day) are enforced by the database.
 import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 import { currentSession } from './auth.js';
 
@@ -24,15 +24,6 @@ export const resolveSOS = id => rest(`radio_sos?id=eq.${id}`, { method: 'PATCH',
 /** Active SOS calls on a chart (newest first, without their voice clips). */
 export const activeSOS = chart => rest(`radio_sos?select=id,sender,sender_name,chart,x,z,place,dur,created_at,expires_at,resolved_at&chart=eq.${encodeURIComponent(chart)}&resolved_at=is.null&expires_at=gt.${new Date().toISOString()}&order=created_at.desc&limit=20`);
 export const sosClip = id => rest(`radio_sos?select=clip,mime&id=eq.${id}`).then(r => r[0] || null);
-
-// ---------- messages ----------
-export const sendMessage = m => rest('radio_messages?select=id,created_at', { method: 'POST', body: m, prefer: 'return=representation' }).then(r => r[0]);
-/** My messages: received (newest first, without clips). */
-export const inbox = async () => { const id = await me(); if (!id) return [];
-  return rest(`radio_messages?select=id,sender,sender_name,kind,body,dur,chart,x,z,created_at,heard_at&recipient=eq.${id}&expires_at=gt.${new Date().toISOString()}&order=created_at.desc&limit=50`); };
-export const messageClip = id => rest(`radio_messages?select=clip,mime&id=eq.${id}`).then(r => r[0] || null);
-export const markHeard = id => rest(`radio_messages?id=eq.${id}`, { method: 'PATCH', body: { heard_at: new Date().toISOString() } });
-export const deleteMessage = id => rest(`radio_messages?id=eq.${id}`, { method: 'DELETE' });
 
 // ---------- blocks and reports ----------
 export const blocks = () => rest('radio_blocks?select=blocked').then(r => r.map(b => b.blocked));
