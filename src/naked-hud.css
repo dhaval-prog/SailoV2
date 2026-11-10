@@ -343,7 +343,3 @@ body #compass-strip .cs-m.cs-rock { pointer-events: none; }
 body #compass-strip .cs-m.cs-rock i { width: 8px; height: 8px; left: -4px; top: 20px; background: #FF5A4E; opacity: 1; box-shadow: 0 0 0 2px rgba(255, 90, 78, 0.35), 0 0 8px rgba(255, 90, 78, 0.8); animation: cs-rock 1s ease-in-out infinite; }
 body #compass-strip .cs-m.cs-rock b { display: none; }
 @keyframes cs-rock { 50% { transform: scale(1.35); } }
-
-/* the Drive mode's button (a car), beside search */
-.tb-car { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.tb-car.navy { stroke: #0d2347; }

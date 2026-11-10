@@ -206,38 +206,6 @@ export async function mapShapes(layer, x, y, z, keep = () => true) {
     polys.forEach(poly => { const ring = poly[0]?.map(([lng, lat]) => project(lat, lng)); if (ring && ring.length > 2) out.push({ cls, ring }); }); }
   return out;
 }
-// ---------- the city on land, for the Drive mode (drive/city.js): streets, buildings, water and green per map tile ----------
-const DRIVE_ROAD = /^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|street|street_limited|residential|unclassified|living_street|service)$/;
-const OSM_ROAD = { motorway: 'motorway', motorway_link: 'motorway', trunk: 'trunk', trunk_link: 'trunk', primary: 'primary', primary_link: 'primary', secondary: 'secondary', secondary_link: 'secondary',
-  tertiary: 'tertiary', tertiary_link: 'tertiary', residential: 'street', unclassified: 'street', living_street: 'street', service: 'service' };
-/** One map tile's city, in world metres: { roads: [{ cls, name, pts: [[x, z], …] }], buildings: [{ ring, h }], water: [ring], green: [ring] },
- *  or null if it can't load. Roads' classes: motorway, trunk, primary, secondary, tertiary, street, service. */
-export async function cityTile(x, y, z) {
-  const out = { roads: [], buildings: [], water: [], green: [] }, P = c => c.map(([lng, lat]) => project(lat, lng));
-  if (provider === 'mapbox') {
-    if (!mbLib) { const [vt, pbf] = await Promise.all([import('@mapbox/vector-tile'), import('pbf')]); mbLib = { VectorTile: vt.VectorTile, Pbf: pbf.default }; }
-    let r; try { r = await fetch(`https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${z}/${x}/${y}.vector.pbf?access_token=${TOKEN}`); } catch { return null; } if (!r.ok) return null;
-    const tile = new mbLib.VectorTile(new mbLib.Pbf(new Uint8Array(await r.arrayBuffer())));
-    const each = (layer, f) => { const L = tile.layers[layer]; if (!L) return; for (let i = 0; i < L.length; i++) { const ft = L.feature(i); f(ft.properties, ft.toGeoJSON(x, y, z).geometry); } };
-    const polys = g => g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
-    each('road', (p, g) => { const c = String(p.class || '').replace(/_link$/, ''); if (!DRIVE_ROAD.test(p.class || '')) return;
-      const lines = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : []; lines.forEach(l => { if (l.length > 1) out.roads.push({ cls: c === 'street_limited' ? 'street' : c, name: p.name_en || p.name || '', pts: P(l) }); }); });
-    each('building', (p, g) => polys(g).forEach(poly => { const ring = P(poly[0] || []); if (ring.length > 2) out.buildings.push({ ring, h: Math.max(4, Math.min(90, +p.height || 0)) || 0 }); }));
-    each('water', (p, g) => polys(g).forEach(poly => { const ring = P(poly[0] || []); if (ring.length > 2) out.water.push(ring); }));
-    each('landuse', (p, g) => { if (!GREEN_USE.test(p.class || '')) return; polys(g).forEach(poly => { const ring = P(poly[0] || []); if (ring.length > 2) out.green.push(ring); }); });
-    return out;
-  }
-  const b = tileBox(x, y, z), bb = `${b.s},${b.w},${b.n},${b.e}`;
-  const j = await overpass(`[out:json][timeout:40];(way["highway"~"^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street|service)$"](${bb});
-    way["natural"="water"](${bb});way["landuse"="reservoir"](${bb});way["leisure"="park"](${bb});way["landuse"~"^(grass|forest|recreation_ground)$"](${bb}););out geom;`);
-  if (!j) return null;
-  for (const e of j.elements || []) { const t = e.tags || {}, pts = (e.geometry || []).map(q => project(q.lat, q.lon)); if (pts.length < 2) continue;
-    if (t.highway) out.roads.push({ cls: OSM_ROAD[t.highway] || 'street', name: osmName(t) || '', pts });
-    else if (pts.length > 3 && (t.natural === 'water' || t.landuse === 'reservoir')) out.water.push(pts);
-    else if (pts.length > 3) out.green.push(pts); }
-  return out;
-}
-const GREEN_USE = /^(park|grass|wood|scrub|pitch|cemetery|golf_course|garden|forest|meadow|national_park|nature_reserve|recreation_ground)$/;
 /** The tiles at zoom z covering a world rectangle: [[x, y], …], and a tile's own rectangle in world metres. */
 export function tilesIn(x0, z0, x1, z1, z) { const [n, w] = unproject(x0, z0), [s, e] = unproject(x1, z1), out = [];
   for (let x = lng2t(w, z); x <= lng2t(e, z); x++) for (let y = lat2t(n, z); y <= lat2t(s, z); y++) out.push([x, y]); return out; }
