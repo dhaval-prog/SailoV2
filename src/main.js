@@ -397,7 +397,7 @@ const makeSea = waves => new THREE.ShaderMaterial({
 });
 // the open sea round the near water, out to the horizon: a ring that rolls with the long swell (the same waves as the near
 // water at their meeting, so there's no seam; the near water draws over it where they overlap)
-const seaMesh = new THREE.Mesh(new THREE.RingGeometry(128, 430, 256, 40), makeSea(true)); seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = WL - 0.02; seaGroup.add(seaMesh);
+const seaMesh = new THREE.Mesh(new THREE.RingGeometry(128, 900, 256, 56), makeSea(true)); seaMesh.rotation.x = -Math.PI / 2; seaMesh.position.y = WL - 0.02; seaGroup.add(seaMesh);
 const nearGeo = new THREE.PlaneGeometry(300, 300, 256, 256); nearGeo.rotateX(-Math.PI / 2);
 const seaNear = new THREE.Mesh(nearGeo, makeSea(true)); seaNear.position.y = WL; seaNear.frustumCulled = false; seaGroup.add(seaNear);
 // spray particles (bow spray when moving, hull splashes when idle)
@@ -524,7 +524,7 @@ const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C
 const state = { w: 'clear', night: false, view: 'chase' };
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
 // top: 80 units from the boat, tilted 30° from straight down (80·cos30 ≈ 69 up, 80·sin30 = 40 across, from the same side as before)
-const TOPK = 1.6; // the top view starts this much farther out than it used to (same angle)
+const TOPK = 4; // the top view opens fully zoomed out (pinch to come in closer); same angle as ever
 const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: TOPK * 40 * 53 / Math.hypot(53, 79), side: TOPK * 40 * 79 / Math.hypot(53, 79), up: TOPK * 80 * Math.cos(Math.PI / 6) } };
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
 stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
@@ -583,6 +583,7 @@ function stepEnv(t, dt) {
   // golden hour: a heavy pink-orange haze closes in, so distant islands, palms and boats fade to flat silhouettes
   const gh = (E.gold || 0) * clearish * (1 - E.night);
   if (gh > 0.001) { fogNear = THREE.MathUtils.lerp(fogNear, Math.max(30, camD * 0.55), gh); fogFar = THREE.MathUtils.lerp(fogFar, camD + 170, gh); fogCol.lerp(GOLD_HAZE, gh * 0.9); shaderHaze.lerp(GOLD_HAZE_RAW, gh * 0.9); }
+  if (state.view === 'top') { fogNear = Math.max(fogNear, camD * 1.35); fogFar = Math.max(fogFar, camD * 2.2 + 80); } // (looking down from high up, the haze keeps to the far edge of the screen)
   seaU.uHaze.value.copy(shaderHaze); seaU.uFog.value.set(fogNear, fogFar); seaU.uFlash.value = flash;
   // the sun: overhead at midday, from the side in the afternoon, low behind the scene at golden hour
   sunDir.copy(SUN_NOON).lerp(SUN_AFT, E.aft || 0).lerp(SUN_GOLD, E.gold || 0).normalize();
