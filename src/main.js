@@ -1264,12 +1264,13 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   }
   if (ACT.anchor !== 'up') thr = 0;
   const busy = stationBusy(); if (busy) { thr = 0; str = 0; HELM.reset(); } // the station steers while mooring / moored
-  steerS += (str - steerS) * Math.min(1, dt * 4);
+  const joy = TOPJOY.on && state.view === 'top'; // (driving with the top view's joystick: quicker to answer, quicker to turn)
+  steerS += (str - steerS) * Math.min(1, dt * (joy ? 9 : 4));
   wheelUI.style.transform = `rotate(${HELM.mode === 'wheel' ? HELM.deg : steerS * HELM.TURNS}deg)`; // on-screen wheel: follows the hand, or the autopilot
   if (!stage._exporting) {
-    vel += (thr * MAXV * fuelK - vel) * Math.min(1, dt * 0.95);
+    vel += (thr * MAXV * fuelK - vel) * Math.min(1, dt * (joy ? 2.2 : 0.95));
     const sv = vel / MAXV;
-    const yaw0 = yaw; yaw -= steerS * dt * 0.7 * (0.25 + 0.75 * Math.abs(sv)) * (sv < -0.02 ? -1 : 1);
+    const yaw0 = yaw; yaw -= steerS * dt * (joy ? 2.2 * (0.55 + 0.45 * Math.abs(sv)) : 0.7 * (0.25 + 0.75 * Math.abs(sv))) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
     // Pune Paradise has edges: hold the tug at the border and bleed off speed while it pushes outward
     let [nx, nz] = clampToWorld(boat.position.x + fx * vel * dt, boat.position.z + fz * vel * dt);
