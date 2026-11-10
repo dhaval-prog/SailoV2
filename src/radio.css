@@ -71,7 +71,7 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #radio .rd-people button b { font: 900 14px/1 'Nunito', sans-serif; }
 #radio .rd-people button span { font: 500 10.5px/1 'JetBrains Mono', monospace; opacity: 0.8; }
 #radio .rd-people button.on { background: #fff; border-color: #fff; color: #172443; text-shadow: none; }
-#radio .rd-music, #radio .rd-empty { margin: 0; font: 700 14px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); text-wrap: pretty; }
+#radio .rd-empty { margin: 0; font: 700 14px/1.45 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); text-wrap: pretty; }
 
 #radio .rd-gate { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
 #radio .rd-gate[hidden] { display: none; }
@@ -125,9 +125,6 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #radio .rd-sos { width: auto !important; padding: 0 13px !important; border-color: #ff5a4f !important; color: #ff8a80; font: 900 12.5px/1 'Nunito', sans-serif !important; letter-spacing: 0.08em; }
 #radio .rd-sos:hover { background: #ff3b30; border-color: #ff3b30 !important; color: #fff; }
 #radio .rd-modes button em { margin-left: 6px; padding: 2px 6px; border-radius: 999px; background: #FFC531; color: #172443; text-shadow: none; font: 900 10px/1 'Nunito', sans-serif; font-style: normal; }
-#radio .rd-modes button em[hidden] { display: none; }
-#radio[data-mode="inbox"] .rd-ctrl, #radio[data-mode="inbox"] .rd-wave, #radio[data-mode="inbox"] .rd-dial, #radio[data-mode="music"] .rd-ctrl { display: none; }
-#radio[data-mode="inbox"] .rd-feed { max-height: 300px; }
 
 /* a view over the set: the SOS screen, writing a message */
 #radio .rd-view { display: flex; flex-direction: column; gap: 14px; animation: rd-rise 0.35s ease-out both; }
@@ -141,11 +138,6 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #radio .rd-err[hidden] { display: none; }
 #radio .rd-rec { display: flex; align-items: center; gap: 16px; }
 #radio .rd-rec .rd-ptt { width: 64px; height: 64px; }
-#radio .rd-text { display: flex; flex-direction: column; gap: 6px; }
-#radio .rd-text textarea { width: 100%; box-sizing: border-box; padding: 10px 0; border: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.7); background: none; color: #fff; resize: none; outline: none; font: 800 16px/1.4 'Nunito', sans-serif; text-shadow: inherit; }
-#radio .rd-text textarea:focus { border-color: #6EE7C5; }
-#radio .rd-text textarea::placeholder { color: rgba(255, 255, 255, 0.5); }
-#radio .rd-text small { align-self: flex-end; font: 500 10.5px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.65); }
 #radio .rd-acts { display: flex; flex-wrap: wrap; gap: 10px; }
 #radio .rd-acts button { height: 42px; padding: 0 20px; border-radius: 999px; font: 900 14px/1 'Nunito', sans-serif !important; }
 #radio .rd-primary { border: 0; background: #fff; color: #172443 !important; text-shadow: none !important; }
@@ -154,25 +146,10 @@ body.radio-open #dock, body.radio-open #helm-orbit, body.radio-open #helm, body.
 #radio .rd-ghost[hidden] { display: none; }
 #radio .rd-acts button:disabled { opacity: 0.45; animation: none; }
 
-/* the Messages tab */
-#radio .rd-msg { border-bottom: 1px solid rgba(255, 255, 255, 0.14); animation: rd-rise 0.35s ease-out both; }
-#radio .rd-msg-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 0; border: 0; background: none; text-align: left; }
-#radio .rd-msg-row > i { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.7); }
-#radio .rd-msg.new .rd-msg-row > i { border-color: #FFC531; background: #FFC531; }
-#radio .rd-msg-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-#radio .rd-msg-row b { font: 900 14px/1.2 'Nunito', sans-serif; }
-#radio .rd-msg-row b em { font: 500 9.5px/1 'JetBrains Mono', monospace; font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.65); }
-#radio .rd-msg-row span { font: 700 13.5px/1.35 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.9); }
-#radio .rd-msg-row time { flex: none; font: 500 10px/1 'JetBrains Mono', monospace; color: rgba(255, 255, 255, 0.6); }
-#radio .rd-msg-acts { display: none; flex-wrap: wrap; gap: 8px; padding: 0 0 12px 19px; }
-#radio .rd-msg.open .rd-msg-acts, #radio .rd-msg.new .rd-msg-acts { display: flex; }
-#radio .rd-msg-acts button, #radio .rd-why button { height: 30px; padding: 0 12px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 999px; background: none; font: 800 12px/1 'Nunito', sans-serif !important; }
-#radio .rd-msg-acts button[data-a="play"], #radio .rd-msg-acts button[data-a="sail"] { background: #fff; border-color: #fff; color: #172443 !important; text-shadow: none !important; }
+#radio .rd-why button { height: 30px; padding: 0 12px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 999px; background: none; color: #fff; font: 800 12.5px/1 'Nunito', sans-serif; cursor: pointer; }
 .rd-why { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 0 12px 19px; }
 .rd-why span { font: 700 12.5px/1 'Nunito', sans-serif; color: rgba(255, 255, 255, 0.8); }
 
-/* a voice message flying to their boat */
-.rd-fly { position: fixed; left: -7px; top: -7px; z-index: 30; width: 14px; height: 14px; border-radius: 50%; background: #FFC531; box-shadow: 0 0 14px 4px rgba(255, 197, 49, 0.7); pointer-events: none; }
 
 /* an SOS from another captain: a Naked alert card under the top bar */
 @keyframes sos-in { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }

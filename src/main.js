@@ -47,7 +47,7 @@ import { createBerths } from './berths.js';
 import { isTablet } from './tablet.js';
 import { createWildlife } from './wildlife.js';
 import { ROSTER, stateAt } from './cpu-captains.js';
-import { clock as liveClock } from './live.js';
+import { clock as liveClock, SUNSET_END } from './live.js';
 const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
 import './radio.css';
 import './cpu.css';
@@ -562,9 +562,10 @@ function stepEnv(t, dt) {
   if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / camAnim.dur); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); const tg = stage._controls.target, r = camAnim.rel;
     tg.set(boat.position.x + r.x * (1 - e) + camAnim.fo.x * e, r.y + (camAnim.ty1 - r.y) * e, boat.position.z + r.z * (1 - e) + camAnim.fo.z * e); stage._camera.position.copy(tg).add(lerpOff(camAnim.from, camAnim.to, e, animOff)); if (camAnim.k >= 1) camAnim = null; }
   const P = PRESET[state.w], n = state.night ? 1 : 0, k = Math.min(1, dt * 1.2);
-  // time of day (live mode follows the clock; manual "day" is midday): afternoon 2-4:30 pm, golden hour before sunset
+  // time of day (live mode follows the clock, the city's own time: IST for Pune; manual "day" is midday): the sunset look
+  // from 1 pm (blending in from 12:30) until 6:45 pm, when night takes over (live.js: SUNSET_END)
   { const ds = state.day, sm = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
-    const aft = ds ? sm(840, 990, ds.mins) : 0, gold = ds ? sm(ds.set - 100, ds.set - 15, ds.mins) * (ds.mins < ds.set + 60 ? 1 : 0) : 0;
+    const aft = ds ? sm(690, 780, ds.mins) : 0, gold = ds ? sm(750, 780, ds.mins) * (ds.mins < SUNSET_END ? 1 : 0) : 0;
     E.aft = (E.aft ?? 0) + (aft - (E.aft ?? 0)) * k; E.gold = (E.gold ?? 0) + (gold - (E.gold ?? 0)) * k; }
   const clearish = 1 - Math.min(1, P.dark * 1.3); // (time-of-day colours show in fair weather; grey skies stay grey)
   const dim = 1 - 0.45 * P.dark;
@@ -692,6 +693,22 @@ addEventListener('keyup', e => drive.keys.delete(e.key.toLowerCase()));
 // Tablets (tablet.js) drive with both thumbs: the throttle is a lever of its own on the other side of the screen,
 // and the whole wheel steers.
 const HELM = { lever: 0, deg: 0, mode: null, TURNS: 720 };
+// ===== the top view's joystick: where the wheel is in the other view (the wheel hides in the top view) =====
+const TOPJOY = { on: false, x: 0, y: 0 };
+{ const el = document.createElement('div'); el.id = 'topjoy'; el.setAttribute('role', 'application'); el.setAttribute('aria-label', 'Joystick: drag to steer');
+  el.innerHTML = '<i class="tj-ring"></i><i class="tj-knob"></i>'; document.body.appendChild(el);
+  const knob = el.querySelector('.tj-knob'), wheel = document.getElementById('joy'); let pid = null;
+  const fit = () => { const r = wheel.getBoundingClientRect(); if (!r.width) return; const sz = Math.max(96, Math.min(124, r.width * 0.66)); // (the wheel's spot; small enough to sit inside the buttons round it)
+    el.style.width = el.style.height = sz + 'px'; el.style.left = (r.left + r.width / 2 - sz / 2) + 'px'; el.style.top = (r.top + r.height / 2 - sz / 2) + 'px'; };
+  const setKnob = (x, y) => { const R = el.clientWidth * 0.32; knob.style.transform = `translate(${x * R}px, ${y * R}px)`; };
+  const move = e => { const r = el.getBoundingClientRect(), R = r.width * 0.32; let x = (e.clientX - (r.left + r.width / 2)) / R, y = (e.clientY - (r.top + r.height / 2)) / R; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+    TOPJOY.x = x; TOPJOY.y = y; setKnob(x, y); };
+  el.addEventListener('pointerdown', e => { e.stopPropagation(); pid = e.pointerId; el.setPointerCapture(pid); TOPJOY.on = true; el.classList.add('active'); move(e); });
+  el.addEventListener('pointermove', e => { if (e.pointerId === pid) move(e); });
+  const end = e => { if (e.pointerId !== pid) return; pid = null; TOPJOY.on = false; TOPJOY.x = TOPJOY.y = 0; setKnob(0, 0); el.classList.remove('active'); };
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
+  new ResizeObserver(() => requestAnimationFrame(fit)).observe(document.body); addEventListener('resize', () => setTimeout(fit, 100)); addEventListener('sailo:controls', () => setTimeout(fit, 50));
+  new MutationObserver(() => { if (document.body.classList.contains('view-top')) setTimeout(fit, 30); }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); fit(); }
 { const base = document.getElementById('joy'), knob = document.getElementById('knob'); let id = null, lastA = 0;
   const thr = document.createElement('div'); thr.id = 'throttle'; thr.setAttribute('role', 'slider'); thr.setAttribute('aria-label', 'Throttle'); thr.setAttribute('aria-orientation', 'vertical');
   thr.setAttribute('aria-valuemin', '-100'); thr.setAttribute('aria-valuemax', '100'); thr.tabIndex = 0;
@@ -1163,7 +1180,7 @@ const online = createOnline({ chartId: CHART.id, me: () => ({ x: boat.position.x
   kind: station.mode !== 'sea' && station.mode !== 'picking' ? 'dock' : ACT.fish !== 'off' ? 'fish' : ACT.anchor !== 'up' ? 'anchor' : 'sail' }),
   on: { wave: p => harbour.waved(p), caught: (p, d) => harbour.caughtBy(p, d), radio: (k, p, d) => { if (k === 'berth') { berths?.heard(); return; } radioHelp.heard(k, p, d); radio.heard(k, p, d); } } });
 hud.setOthers(() => cpuFleet.everyone(), c => harbour.openCaptain(c)); // every boat on the map
-const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c), onCompose: (c, kind) => radioHelp.compose?.(kind, { uid: c.uid, name: c.name }) });
+const harbour = createHarbour({ hud, fleet: cpuFleet, online, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName, onRadio: c => radio.openDirect(c) });
 // the boat's marine radio; the worldwide channel is joined only when someone tunes to it
 const helmOrbit = initHelmOrbit();
 const radio = createRadio({ online, fleet: cpuFleet, orbit: helmOrbit, cpu: isPuneChart, playerPos: () => boat.position, playerName: hud.captainName,
@@ -1197,7 +1214,6 @@ const radioHelp = createRadioHelp({ radio, online, chartId: CHART.id, chartName:
   pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), cpu: isPuneChart, myScreen: () => toScreen(boat.position) });
 document.getElementById('act-radio').addEventListener('click', () => { boatActions.setOpen(false); radio.open(); });
 // tablets: one inbox, the radio's: the top bar's inbox opens it, and the harbour's notes sit under the captains' messages
-hud.routeInbox(() => radio.openInbox()); radio.ui.hooks.notes = () => isTablet() ? hud.harbourNotes() : '';
 if (firstVisit && !madeYours) setTimeout(() => hud.openWelcome(() => { try { localStorage.setItem('sailo:made-yours', '1'); } catch { /* storage blocked */ } voyage.start(); }), 2600);
 // Pune place names floating over the sea (geo-labels.js); they keep clear of the boat, its menu and the fishing game
 const rectOf = el => { if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return null; const r = el.getBoundingClientRect(); return r.width ? [r.left - 6, r.top - 6, r.right + 6, r.bottom + 6] : null; };
@@ -1225,8 +1241,12 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   // let go of the wheel and it spins back to centre on its own (fast at first, settling gently)
   if (HELM.mode !== 'wheel' && HELM.deg) { HELM.deg *= Math.exp(-dt * 6); if (Math.abs(HELM.deg) < 3) HELM.deg = 0; }
   let str = Math.max(-1, Math.min(1, HELM.deg / HELM.TURNS + kStr));
+  // the top view's joystick: push the way you want to go on screen; the boat turns to face it, faster the further you push
+  if (TOPJOY.on && state.view === 'top') { const c = stage._camera.position, tg = stage._controls.target; let ux = tg.x - c.x, uz = tg.z - c.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul; // (screen up, on the sea)
+    const dx = -uz * TOPJOY.x + ux * -TOPJOY.y, dz = ux * TOPJOY.x + uz * -TOPJOY.y, want = Math.atan2(-dz, dx), diff = Math.atan2(Math.sin(want - yaw), Math.cos(want - yaw)), m = Math.min(1, Math.hypot(TOPJOY.x, TOPJOY.y));
+    str = Math.max(-1, Math.min(1, -diff * 1.8)) * (m > 0.15 ? 1 : 0); thr = m < 0.15 ? 0 : m * (Math.abs(diff) > 1.4 ? 0.35 : 1); }
   if (ACT.fish === 'fight') { thr = 0; str = 0; } // arrow keys are swipes while fighting a fish
-  const manual = !!HELM.mode || kThr !== 0 || kStr !== 0; // hands on the helm (the lever and wheel stay set, so a set course isn't dropped by them)
+  const manual = !!HELM.mode || kThr !== 0 || kStr !== 0 || (TOPJOY.on && state.view === 'top'); // hands on the helm (the lever and wheel stay set, so a set course isn't dropped by them)
   if (manual) { stage._controls.autoRotate = false; course.auto = false; } // (the pin stays: see `course`)
   if (course.on && !course.auto && Math.hypot(course.p.x - boat.position.x, course.p.z - boat.position.z) < 12) clearCourse(true); // (sailed there by hand)
   if (course.on && course.auto && ACT.anchor === 'up') {
@@ -1323,7 +1343,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   if (ACT.fish !== 'off' && ACT.fish !== 'waiting' && ACT.fish !== 'aim') fishBusyAt = performance.now();
   { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
-  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, crest: waveJS(boat.position.x, boat.position.z, t) / Math.max(0.1, SWELL_MAX * ENV.amp), quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); hud.inboxUnread(radio.ui.hooks.unread || 0); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, crest: waveJS(boat.position.x, boat.position.z, t) / Math.max(0.1, SWELL_MAX * ENV.amp), quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 

@@ -42,8 +42,11 @@ export async function fetchWeather() {
   } catch { return null; } finally { clearTimeout(t); }
 }
 
-/** Is it night in the city right now? Uses today's sunrise/sunset when known, else 6:30 am – 6:30 pm. */
+/** When the sunset look ends and night begins, at the latest: 6:45 pm (city time). */
+export const SUNSET_END = 18 * 60 + 45;
+/** Is it night in the city right now? Uses today's sunrise when known (else 6:30 am); night starts at the real sunset,
+ *  but not before 6:45 pm, so the sunset look (1 pm – 6:45 pm) always has its full time. */
 export const isNight = (mins, wx) => {
-  const rise = wx?.sunrise ?? 390, set = wx?.sunset ?? 1110;
+  const rise = wx?.sunrise ?? 390, set = Math.max(wx?.sunset ?? 1110, SUNSET_END);
   return mins < rise || mins >= set;
 };

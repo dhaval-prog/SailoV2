@@ -1,10 +1,9 @@
 // The boat's marine radio (Naked HUD): it powers on when you start sailing and lives behind a small
-// floating button (and "Radio" in the boat menu). Three modes, switched like a real set's channels:
+// floating button (and "Radio" in the boat menu). Two modes, switched like a real set's channels:
 // - MARINE: push-to-talk with captains in range on four channels (Local 5 km, Regional 25 km,
 //   Long range 100 km, Global). The local sailors chatter on it too, and sometimes answer you.
 // - DIRECT: talk to one captain (a real one online, or a local sailor, who answers in text).
-// - MUSIC: Spotify, still to come (it needs Sailo's own Spotify app).
-// - MESSAGES, SOS, voice/text messages and invites live in radio-help.js, on the hooks returned as `ui`.
+// - SOS lives in radio-help.js, on the hooks returned as `ui`.
 // Voices travel as short clips over the live channel (online.js): hold the mic, let go, and the clip
 // goes out; nothing is stored. Hearing and sending voices is opt-in, the mic is asked for only on the
 // first press, and any captain can be muted. Radio-style sound (band-pass, grit, static, clicks and
@@ -30,11 +29,11 @@ const fromB64 = s => { const bin = atob(s), b = new Uint8Array(bin.length); for 
 export function createRadio({ online, global: makeGlobal, fleet, playerPos, playerName, cpu, orbit }) {
   const $ = s => root.querySelector(s);
   const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
-  const st = { power: false, auto: saved.auto !== false, mode: saved.mode || 'marine', ch: Math.min(CH.length - 1, saved.ch ?? 0), vol: saved.vol ?? 0.8, voices: !!saved.voices,
+  const st = { power: false, auto: saved.auto !== false, mode: saved.mode === 'direct' ? 'direct' : 'marine', /* (a saved Music or Inbox tab, from before they went, comes back as Marine) */ ch: Math.min(CH.length - 1, saved.ch ?? 0), vol: saved.vol ?? 0.8, voices: !!saved.voices,
     muted: new Set(saved.muted || []), target: null, open: false, tx: null, busy: null, feed: [], queue: [], playing: null, lastTx: 0, heardBy: new Map() };
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ auto: st.auto, mode: st.mode, ch: st.ch, vol: st.vol, voices: st.voices, muted: [...st.muted] })); } catch { /* storage blocked */ } };
   let glob = null; // the worldwide channel, joined only while tuned to Global
-  const hooks = {}; // radio-help.js: inboxTop() -> [name, sub], inbox(el), sos(), unread; main.js: notes() (the harbour's, under the messages)
+  const hooks = {}; // radio-help.js: sos()
   const chan = () => CH[st.ch];
   const live = () => (st.mode === 'direct' ? null : chan().global ? glob : online);
 
@@ -49,7 +48,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     <div class="rd-scrim" aria-hidden="true"></div>
     <section class="rd-body">
       <header class="rd-top">
-        <div class="rd-modes" role="tablist"><button type="button" data-mode="music">Music</button><button type="button" data-mode="marine">Marine</button><button type="button" data-mode="direct">Direct</button><button type="button" data-mode="inbox">Inbox<em class="rd-n" hidden></em></button></div>
+        <div class="rd-modes" role="tablist"><button type="button" data-mode="marine">Marine</button><button type="button" data-mode="direct">Direct</button></div>
         <div class="rd-tools"><button type="button" class="rd-sos" aria-label="SOS: ask nearby captains for help">SOS</button><button type="button" class="rd-power" aria-label="Radio power"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.4 6.6a8 8 0 1 0 11.2 0"/></svg></button>
           <button type="button" class="rd-close" aria-label="Close radio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
       </header>
@@ -128,16 +127,13 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     root.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
     const c = chan(), me = playerPos();
     root.dataset.mode = st.mode;
-    if (st.mode === 'inbox') { const [nm, sb] = hooks.inboxTop?.() || ['Messages', '']; $('.rd-ch small').textContent = 'MSG'; $('.rd-ch b').textContent = String(hooks.unread || 0); $('.rd-name').textContent = nm; $('.rd-sub').textContent = sb; }
-    else if (st.mode === 'music') { $('.rd-ch small').textContent = 'FM'; $('.rd-ch b').textContent = '♪'; $('.rd-name').textContent = 'Music'; $('.rd-sub').textContent = 'Spotify · coming soon'; }
-    else if (st.mode === 'direct') { $('.rd-ch small').textContent = 'DM'; $('.rd-ch b').textContent = '1:1';
+    if (st.mode === 'direct') { $('.rd-ch small').textContent = 'DM'; $('.rd-ch b').textContent = '1:1';
       $('.rd-name').textContent = st.target ? st.target.name : 'Pick a captain'; $('.rd-sub').textContent = st.target ? (st.target.live ? 'Captain · online now' : 'Local sailor · answers in text') : 'Talk to one captain'; }
     else { $('.rd-ch small').textContent = 'CH'; $('.rd-ch b').textContent = String(c.n).padStart(2, '0'); $('.rd-name').textContent = c.name;
       const n = inRange(), k = cpuInRange().length; $('.rd-sub').textContent = `${c.label} · ${n ? `${n} captain${n === 1 ? '' : 's'}` : 'no captains'}${k ? ` · ${k} local sailor${k === 1 ? '' : 's'}` : ''} in range`; }
-    const n = $('.rd-n'); n.hidden = !hooks.unread; n.textContent = hooks.unread || ''; fab.classList.toggle('ping', !!hooks.unread && !st.open);
-    const sig = !st.power ? 0 : st.mode === 'music' || st.mode === 'inbox' ? 0 : st.mode === 'direct' ? (st.target ? 4 : 1) : Math.min(4, 1 + inRange() + Math.min(2, cpuInRange().length));
+    const sig = !st.power ? 0 : st.mode === 'direct' ? (st.target ? 4 : 1) : Math.min(4, 1 + inRange() + Math.min(2, cpuInRange().length));
     root.querySelectorAll('.rd-sig i').forEach((e, i) => e.classList.toggle('on', i < sig));
-    fab.querySelector('.rf-ch').textContent = st.mode === 'marine' ? `CH ${String(c.n).padStart(2, '0')}` : st.mode === 'direct' ? 'DM' : st.mode === 'inbox' ? 'MSG' : 'FM';
+    fab.querySelector('.rf-ch').textContent = st.mode === 'direct' ? 'DM' : `CH ${String(c.n).padStart(2, '0')}`;
     void me;
   }
   function paintDial() {
@@ -150,29 +146,27 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
       d.innerHTML = list.length ? `<div class="rd-people">${list.map(p => `<button type="button" data-to="${esc(p.id)}" class="${st.target?.id === p.id ? 'on' : ''}${p.live ? ' live' : ''}"><i style="background:${colourOf(p)}"></i><b>${esc(first(p.name))}</b><span>${p.d < 950 ? Math.round(p.d) + ' m' : (p.d / 1000).toFixed(1) + ' km'}</span></button>`).join('')}</div>`
         : '<p class="rd-empty">No one is out on the water right now.</p>';
       d._list = list;
-    } else if (st.mode === 'inbox') d.innerHTML = '';
-    else d.innerHTML = `<p class="rd-music">Play your own Spotify while you sail. Sailo’s Spotify connection is on its way: until then, keep your music playing in the Spotify app and the radio will sit quietly alongside it.</p>`;
+    }
   }
   function paintGate() {
-    const gate = $('.rd-gate'), need = st.mode !== 'music' && st.mode !== 'inbox' && !st.voices;
+    const gate = $('.rd-gate'), need = !st.voices;
     gate.hidden = !need; root.classList.toggle('gated', need);
     if (need) gate.innerHTML = `<p><b>Talk with other captains?</b> Turn on radio voices to hear captains in range and talk back. Voices go out live and aren’t kept.</p><button type="button" class="rd-optin">Turn on radio voices</button>`;
   }
   const ago = t => { const s = Math.round((Date.now() - t) / 1000); return s < 50 ? 'now' : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h`; };
   function paintFeed() {
-    if (st.mode === 'inbox') { const f = $('.rd-feed'); if (hooks.inbox) hooks.inbox(f); else f.innerHTML = ''; const n = hooks.notes?.(); if (n) f.insertAdjacentHTML('beforeend', `<h4 class="rd-notes">From the harbour</h4>${n}`); return; }
     const f = $('.rd-feed'), rows = st.feed.filter(e => st.mode === 'direct' ? e.direct : !e.direct && e.ch === chan().n).slice(-24).reverse();
-    f.innerHTML = st.mode === 'music' ? '' : rows.length ? rows.map(e => `<div class="rd-row${e.me ? ' me' : ''}${e.sos ? ' sos' : ''}" data-k="${e.k}"><i style="background:${e.colour}"></i>
+    f.innerHTML = rows.length ? rows.map(e => `<div class="rd-row${e.me ? ' me' : ''}${e.sos ? ' sos' : ''}" data-k="${e.k}"><i style="background:${e.colour}"></i>
       <div><b>${esc(e.who)}${e.tag ? ` <em>${e.tag}</em>` : ''}</b><span>${e.text ? '“' + esc(e.text) + '”' : `Voice · ${e.dur.toFixed(1)} s`}</span></div>
       <time>${ago(e.t)}</time>${e.clip ? `<button type="button" class="rd-replay" data-play="${e.k}" aria-label="Play again">▶</button>` : ''}${e.uid && !e.me ? `<button type="button" class="rd-mute" data-mute="${esc(e.uid)}">${st.muted.has(e.uid) ? 'Unmute' : 'Mute'}</button>` : ''}</div>`).join('')
       : `<p class="rd-empty">${st.mode === 'direct' ? 'Pick a captain, then hold the mic to talk.' : 'Quiet on this channel. Hold the mic to call out.'}</p>`;
   }
   function paintCtrl() {
-    const b = $('.rd-ctrl .rd-ptt'), s = $('.rd-ctrl .rd-state'), off = !st.power || st.mode === 'music' || st.mode === 'inbox' || !st.voices || (st.mode === 'direct' && !st.target);
+    const b = $('.rd-ctrl .rd-ptt'), s = $('.rd-ctrl .rd-state'), off = !st.power || !st.voices || (st.mode === 'direct' && !st.target);
     b.disabled = off; b.classList.toggle('tx', !!st.tx);
     const busy = st.busy && Date.now() < st.busy.until && st.mode === 'marine';
-    s.querySelector('b').textContent = st.tx ? `On air · ${Math.min(MAX_TX, (performance.now() - st.tx.t0) / 1000).toFixed(1)} s` : busy ? `${first(st.busy.name)} is talking` : st.playing ? `Receiving · ${first(st.playing.who)}` : !st.power ? 'Radio off' : st.mode === 'music' ? 'Music' : 'Hold to talk';
-    s.querySelector('small').textContent = st.tx ? 'Release to send' : busy ? 'Wait for the channel to clear' : !st.power ? 'Tap power to switch on' : st.mode === 'direct' && !st.target ? 'Pick a captain first' : st.mode === 'music' ? '' : `Up to ${MAX_TX} s`;
+    s.querySelector('b').textContent = st.tx ? `On air · ${Math.min(MAX_TX, (performance.now() - st.tx.t0) / 1000).toFixed(1)} s` : busy ? `${first(st.busy.name)} is talking` : st.playing ? `Receiving · ${first(st.playing.who)}` : !st.power ? 'Radio off' : 'Hold to talk';
+    s.querySelector('small').textContent = st.tx ? 'Release to send' : busy ? 'Wait for the channel to clear' : !st.power ? 'Tap power to switch on' : st.mode === 'direct' && !st.target ? 'Pick a captain first' : `Up to ${MAX_TX} s`;
     $('.rd-vol input').value = st.vol;
   }
 
@@ -223,7 +217,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   }
   // ---------- push to talk ----------
   async function txStart() {
-    if (st.tx || !st.power || !st.voices || st.mode === 'music' || st.mode === 'inbox' || (st.mode === 'direct' && !st.target)) return;
+    if (st.tx || !st.power || !st.voices || (st.mode === 'direct' && !st.target)) return;
     if (st.mode === 'marine' && st.busy && Date.now() < st.busy.until) { sfx.static(0.2); return; } // half-duplex: one voice at a time
     if (Date.now() - st.lastTx < GAP_TX) return;
     st.tx = { t0: performance.now(), pending: true }; paintCtrl();
@@ -288,10 +282,8 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
     audio(); if (mode) setMode(mode); if (!st.power) setPower(true);
     st.open = true; root.hidden = false; document.body.classList.add('radio-open'); fab.hidden = true; fab.classList.remove('ping'); requestAnimationFrame(() => root.classList.add('open')); paint();
   }
-  function close() { if (!st.open) return; txEnd(); st.open = false; if (st.back) { st.mode = st.back; st.back = null; keep(); tuneGlobal(); paint(); } // (back to the channel the inbox was opened over, quietly)
+  function close() { if (!st.open) return; txEnd(); st.open = false;
     root.classList.remove('open'); document.body.classList.remove('radio-open'); setTimeout(() => { if (!st.open) root.hidden = true; }, 320); fab.hidden = false; }
-  /** The inbox (the top bar's, on tablets); closing goes back to whatever the radio was tuned to. */
-  function openInbox() { const was = st.mode; open('inbox'); st.back = was === 'inbox' ? null : was; }
   /** Talk to one captain: { id, name, live, uid?, colours, c? } (from their card). */
   function openDirect(p) { st.target = p.live ? { id: p.id, uid: p.uid, name: p.name, live: true, colours: p.colours } : { id: p.id, name: p.name, live: false, colours: p.colours, c: p };
     open('direct'); }
@@ -300,7 +292,7 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   fab.addEventListener('click', () => open());
   $('.rd-close').addEventListener('click', close);
   $('.rd-power').addEventListener('click', () => setPower(!st.power));
-  $('.rd-modes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { st.back = null; setMode(b.dataset.mode); } });
+  $('.rd-modes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
   $('.rd-dial').addEventListener('click', e => { const s = e.target.closest('[data-step]'), c = e.target.closest('[data-ch]'), t = e.target.closest('[data-to]');
     if (s) setCh(st.ch + +s.dataset.step); else if (c) setCh(+c.dataset.ch);
     else if (t) { const p = $('.rd-dial')._list.find(q => q.id === t.dataset.to); if (p) { st.target = p; if (st.power) sfx.static(0.2); paint(); } } });
@@ -350,5 +342,5 @@ export function createRadio({ online, global: makeGlobal, fleet, playerPos, play
   paintTop(); // (the button shows its channel, dimmed, before the radio comes on)
   const ui = { hooks, root, view, sfx, micStart, playClip: (buf, who, direct = true) => play({ who, buf, direct }), post, note, paint, paintFeed, paintTop, setMode,
     b64: { toB64, fromB64 }, get mode() { return st.mode; }, get isOpen() { return st.open; }, get power() { return st.power; }, muted: st.muted, keep };
-  return { update, open, openInbox, close, openDirect, heard, setPower, ui, get power() { return st.power; } };
+  return { update, open, close, openDirect, heard, setPower, ui, get power() { return st.power; } };
 }

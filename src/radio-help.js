@@ -3,9 +3,7 @@
 //   (play, respond, navigate, dismiss, report), a pulsing red marker on the map and a red ring round the boat.
 //   It lasts 15 minutes; the database allows one every 10 minutes and five a day. It is clearly not a real
 //   distress call and says so.
-// - Messages: voice messages (record, preview, send), texts and invites to sail together, kept for the
-//   recipient for 7 days, so they reach captains who've gone ashore. The radio's Messages tab lists them.
-// - Blocking (enforced by the database: a captain who blocks you can't message you) and reports.
+// - Blocking (enforced by the database) and reports.
 import * as net from './radio-net.js';
 import { placeNear, ROSTER, stateAt } from './cpu-captains.js';
 
@@ -16,7 +14,7 @@ const dist = d => d < 950 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`
 const MAX_REC = 15;
 const REASONS = { spam: 'Spam', abuse: 'Abuse', fake_sos: 'Fake SOS', other: 'Something else' };
 
-export function createRadioHelp({ radio, online, chartId, chartName, playerPos, playerName, fleet, hud, pinCourse, cpu, myScreen }) {
+export function createRadioHelp({ radio, online, chartId, chartName, playerPos, playerName, fleet, hud, pinCourse, cpu }) {
   const ui = radio.ui, H = ui.hooks;
   if (!online) return { heard() {}, update() {} }; // (signed-in captains only)
   const meId = online.me, blocked = new Set();
@@ -39,76 +37,6 @@ export function createRadioHelp({ radio, online, chartId, chartName, playerPos, 
   }
   const recBox = label => `<div class="rd-rec"><button type="button" class="rd-ptt" aria-label="${esc(label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button><div class="rd-state"><b></b><small></small></div></div>`;
   const err = (v, e) => { const p = v.querySelector('.rd-err'); p.textContent = e?.message || 'The harbour didn’t answer. Try again?'; p.hidden = false; };
-
-  // a glowing signal from your boat to theirs, when they're in view
-  function fly(toId) {
-    const tag = document.querySelector(`.cpu-tag[data-id="${CSS.escape(toId)}"]:not([hidden])`), from = myScreen?.(); if (!tag || !from) return;
-    const r = tag.getBoundingClientRect(), dot = document.createElement('i'); dot.className = 'rd-fly'; document.body.appendChild(dot);
-    dot.animate([{ transform: `translate(${from[0]}px, ${from[1]}px) scale(0.6)`, opacity: 0 }, { opacity: 1, offset: 0.15 }, { transform: `translate(${r.left + r.width / 2}px, ${r.top + r.height / 2}px) scale(1.2)`, opacity: 0 }],
-      { duration: 1300, easing: 'cubic-bezier(0.3, 0.6, 0.2, 1)' }).onfinish = () => dot.remove();
-  }
-
-  // ---------- writing a message: voice, text or an invite ----------
-  /** to: { uid, name } (a real captain). kind: 'voice' | 'text' | 'invite' */
-  function compose(kind, to) {
-    radio.open('inbox'); const who = first(to.name), me = playerPos(), at = placeOf(me.x, me.z);
-    const head = { voice: `Voice message to ${esc(who)}`, text: `Message ${esc(who)}`, invite: `Invite ${esc(who)} to sail together` }[kind];
-    const body = kind === 'voice' ? `<p class="rd-v-sub">Hold the mic to record, up to ${MAX_REC} seconds. ${esc(who)} can listen any time in the next 7 days.</p>${recBox('Hold to record')}`
-      : kind === 'text' ? `<label class="rd-text"><textarea maxlength="200" rows="3" placeholder="Ahoy ${esc(who)}!"></textarea><small><span>0</span> / 200</small></label>`
-      : `<p class="rd-v-sub">${esc(who)} gets your spot near <b>${esc(at)}</b> and can pin a course straight to you.</p>`;
-    const v = ui.view(`<h3>${head}</h3>${body}<p class="rd-err" hidden></p>
-      <div class="rd-acts"><button type="button" class="rd-primary" ${kind === 'voice' ? 'disabled' : ''}>${kind === 'invite' ? 'Send invite' : 'Send'}</button>${kind === 'voice' ? '<button type="button" class="rd-ghost rd-prev" hidden>▶ Preview</button>' : ''}<button type="button" class="rd-ghost rd-cancel">Cancel</button></div>`);
-    const send = v.querySelector('.rd-primary'), prev = v.querySelector('.rd-prev');
-    const rec = kind === 'voice' ? recorder(v.querySelector('.rd-rec'), c => { send.disabled = !c; prev.hidden = !c; }) : null;
-    const ta = v.querySelector('textarea'); if (ta) { ta.addEventListener('input', () => { v.querySelector('.rd-text span').textContent = ta.value.length; }); setTimeout(() => ta.focus(), 300); }
-    prev?.addEventListener('click', () => rec.preview());
-    v.querySelector('.rd-cancel').addEventListener('click', () => ui.view(null));
-    send.addEventListener('click', async () => {
-      const text = ta?.value.trim(); if (kind === 'text' && !text) return;
-      send.disabled = true; send.textContent = 'Sending…';
-      const m = { sender_name: String(playerName() || 'Captain').slice(0, 18), recipient: to.uid, kind, chart: chartId, x: Math.round(me.x), z: Math.round(me.z),
-        ...(kind === 'text' ? { body: text } : {}), ...(kind === 'invite' ? { body: at } : {}),
-        ...(kind === 'voice' ? { clip: ui.b64.toB64(rec.clip.buf), mime: rec.clip.mime, dur: +rec.clip.dur.toFixed(1) } : {}) };
-      try { await net.sendMessage(m); online.radio('msg', { to: to.uid }); fly('u:' + to.uid); ui.sfx.beep(); ui.view(null);
-        ui.note(kind === 'invite' ? `Invite sent to ${who}.` : `Sent to ${who}. They’ll get it even if they’ve gone ashore.`); }
-      catch (e) { send.disabled = false; send.textContent = 'Send'; err(v, e); }
-    });
-  }
-
-  // ---------- the Messages tab ----------
-  let msgs = [], seen = null, open = null, reporting = null;
-  async function refresh() {
-    try { msgs = (await net.inbox()).filter(m => !blocked.has(m.sender)); } catch { return; }
-    const ids = new Set(msgs.map(m => m.id));
-    if (seen) { const fresh = msgs.filter(m => !seen.has(m.id) && !m.heard_at);
-      if (fresh.length) { const m = fresh[0]; ui.sfx.alert(); ui.note(`${first(m.sender_name)} sent you ${m.kind === 'voice' ? 'a voice message' : m.kind === 'invite' ? 'an invite to sail together' : 'a message'}. Open the radio to see it.`); } }
-    seen = ids; H.unread = msgs.filter(m => !m.heard_at).length; ui.paintTop(); if (ui.isOpen && ui.mode === 'inbox') ui.paintFeed();
-  }
-  H.inboxTop = () => ['Messages', msgs.length ? `${H.unread ? `${H.unread} new · ` : ''}${msgs.length} kept for 7 days` : 'Voice messages, texts and invites'];
-  H.inbox = el => {
-    el.innerHTML = msgs.length ? msgs.map(m => `<div class="rd-msg${m.heard_at ? '' : ' new'}${open === m.id ? ' open' : ''}" data-id="${m.id}">
-      <button type="button" class="rd-msg-row"><i></i><div><b>${esc(m.sender_name)} <em>${m.kind === 'voice' ? `Voice · ${(+m.dur || 0).toFixed(1)} s` : m.kind === 'invite' ? 'Invite' : 'Text'}</em></b>
-        <span>${m.kind === 'text' ? '“' + esc(m.body) + '”' : m.kind === 'invite' ? `Invites you to sail together${m.body ? ` near ${esc(m.body)}` : ''}` : 'Voice message'}</span></div><time>${ago(m.created_at)}</time></button>
-      <div class="rd-msg-acts">${m.kind === 'voice' ? '<button type="button" data-a="play">▶ Play</button>' : ''}${m.kind === 'invite' ? '<button type="button" data-a="sail">⛵ Sail there</button>' : ''}<button type="button" data-a="reply">Reply</button><button type="button" data-a="del">Delete</button><button type="button" data-a="block">Block</button><button type="button" data-a="report">Report</button></div>
-      ${reporting === m.id ? `<div class="rd-why"><span>Report ${esc(first(m.sender_name))} for</span>${['spam', 'abuse', 'other'].map(r => `<button type="button" data-r="${r}">${REASONS[r]}</button>`).join('')}</div>` : ''}</div>`).join('')
-      : '<p class="rd-empty">No messages yet. Tap a captain’s boat to send them a voice message, a text or an invite.</p>';
-  };
-  const heard = async m => { if (m.heard_at) return; m.heard_at = new Date().toISOString(); H.unread = msgs.filter(q => !q.heard_at).length; ui.paintTop(); net.markHeard(m.id).catch(() => {}); };
-  ui.root.querySelector('.rd-feed').addEventListener('click', async e => {
-    if (ui.mode !== 'inbox') return;
-    const box = e.target.closest('.rd-msg'); if (!box) return; const m = msgs.find(q => q.id === box.dataset.id); if (!m) return;
-    const a = e.target.closest('[data-a]')?.dataset.a, r = e.target.closest('[data-r]')?.dataset.r;
-    if (r) { reporting = null; try { await net.report({ reported: m.sender, reason: r, message_id: m.id, context: m.kind === 'text' ? m.body : m.kind }); ui.note('Thanks. The report is in, and Sailo will look at it.'); } catch (x) { ui.note(x.message); } ui.paintFeed(); return; }
-    if (!a) { open = open === m.id ? null : m.id; if (m.kind !== 'voice') heard(m); ui.paintFeed(); return; }
-    if (a === 'play') { try { const c = await net.messageClip(m.id); if (c?.clip) { ui.playClip(ui.b64.fromB64(c.clip), m.sender_name); heard(m); } } catch (x) { ui.note(x.message); } }
-    else if (a === 'sail') { heard(m); if (m.chart === chartId && Number.isFinite(m.x)) { pinCourse(m.x, m.z); radio.close(); ui.note(`Course set for ${first(m.sender_name)}${m.body ? ` near ${m.body}` : ''}.`); }
-      else ui.note(`${first(m.sender_name)} was sailing another city's waters. Open the world map to fly there.`); }
-    else if (a === 'reply') compose('voice', { uid: m.sender, name: m.sender_name });
-    else if (a === 'del') { msgs = msgs.filter(q => q !== m); H.unread = msgs.filter(q => !q.heard_at).length; ui.paint(); net.deleteMessage(m.id).catch(() => {}); }
-    else if (a === 'block') { try { await net.block(m.sender); blocked.add(m.sender); ui.muted.add(m.sender); ui.keep(); msgs = msgs.filter(q => q.sender !== m.sender); H.unread = msgs.filter(q => !q.heard_at).length; ui.paint();
-      ui.note(`${first(m.sender_name)} is blocked: they can’t message you, and your radio won’t play them.`); } catch (x) { ui.note(x.message); } }
-    else if (a === 'report') { reporting = reporting === m.id ? null : m.id; ui.paintFeed(); }
-  });
 
   // ---------- SOS ----------
   let sos = [], mine = null, shown = new Set(), dismissed = new Set();
@@ -193,15 +121,14 @@ export function createRadioHelp({ radio, online, chartId, chartName, playerPos, 
   // ---------- live pings from the channel (online.js) ----------
   function heardLive(kind, p, d) {
     if (blocked.has(p?.id)) return;
-    if (kind === 'msg' && d.to === meId) refresh();
-    else if (kind === 'sos') refreshSOS();
+    if (kind === 'sos') refreshSOS();
   }
 
-  refresh(); refreshSOS();
+  refreshSOS();
   let tickT = Date.now() + 45000;
   function update() {
-    if (Date.now() < tickT) return; tickT = Date.now() + 45000; refresh(); refreshSOS();
+    if (Date.now() < tickT) return; tickT = Date.now() + 45000; refreshSOS();
     if (!card.hidden) { const s = sos.find(q => q.id === card.dataset.id); if (s) card.querySelector('time').textContent = ago(s.created_at); }
   }
-  return { heard: heardLive, update, compose };
+  return { heard: heardLive, update };
 }

@@ -548,11 +548,9 @@ export function initHud(api) {
     <div class="${cls}"><time>Today</time><b>Welcome aboard, ${esc(prefs.name)}!</b><br>Steer with the wheel, tap the water to set a course, and tap your tug to fish or drop anchor.</div>
     <div class="${cls}"><time>Today</time><b>Paradise Station is open</b><br>Sell your catch at the Fish Market and refuel at the Boathouse, ${STATION.where}${STATION.at ? ` (at ${esc(STATION.at)})` : ''}. Use Search to sail there.</div>`;
   const markInboxSeen = () => { if (inboxSeen) return; inboxSeen = true; try { localStorage.setItem(INBOX_SEEN, '1'); } catch { /* storage blocked */ } paintMenu(); paintInboxN(); };
-  // tablets: one inbox, the radio's (captains' messages, then these notes from the harbour), with one badge on the top bar
-  let radioInbox = null, radioUnread = 0;
-  const paintInboxN = () => { const n = isTablet() ? radioUnread + (inboxSeen ? 0 : 2) : 0, b = $('tb-inbox-n'); b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); };
-  const openInbox = () => { if (radioInbox && isTablet()) { radioInbox(); return; }
-    markInboxSeen(); openSheet('Inbox', 'Messages from the harbour', harbourNotes('sh-msg')); };
+  // the inbox: the harbour's notes (tablets: on the top bar, with a badge until they're read)
+  const paintInboxN = () => { const n = isTablet() ? (inboxSeen ? 0 : 2) : 0, b = $('tb-inbox-n'); b.hidden = !n; b.textContent = String(n); };
+  const openInbox = () => { markInboxSeen(); openSheet('Inbox', 'Messages from the harbour', harbourNotes('sh-msg')); };
   paintInboxN(); addEventListener('sailo:controls', paintInboxN);
   $('tb-inbox').addEventListener('click', openInbox);
   // phones: the grid button under the avatar holds fleet, search, inbox, map, photo and zoom;
@@ -606,10 +604,7 @@ export function initHud(api) {
   return {
     paint,
     /** Tablets: the top bar's inbox opens the radio's (open()); its badge counts the radio's unread messages too. */
-    routeInbox: open => { radioInbox = open; },
-    inboxUnread: n => { if (n !== radioUnread) { radioUnread = n; paintInboxN(); } },
     /** The harbour's notes, for the radio's inbox (seen once shown). */
-    harbourNotes: () => { markInboxSeen(); return harbourNotes('rd-note'); },
     openGarage, openFriends, openProfile: () => setOpen(true), openWelcome, note,
     /** Any full-screen Naked sheet (a local sailor's card, ...). */
     openPanel: (title, sub, html, kind = 'panel') => openSheet(title, sub, html, kind),
