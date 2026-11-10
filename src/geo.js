@@ -145,12 +145,13 @@ async function osmPlaces(b) {
 }
 const OSM_POI = t => t.amenity === 'fuel' ? 'fuel' : /^(restaurant|cafe|fast_food|food_court)$/.test(t.amenity) ? 'food' : /^(hospital|clinic)$/.test(t.amenity) ? 'health'
   : /^(school|college|university)$/.test(t.amenity) ? 'school' : /^(hotel|guest_house)$/.test(t.tourism) ? 'hotel' : t.shop === 'mall' ? 'mall' : t.leisure === 'park' ? 'park'
-  : (t.landuse === 'residential' || t.building === 'apartments') ? 'society' : t.highway ? 'road' : null;
+  : t.amenity === 'place_of_worship' ? 'worship' : t.shop ? 'shop' : (t.landuse === 'residential' || t.building === 'apartments') ? 'society' : t.highway ? 'road' : null;
 async function osmPois(b, societiesOnly) {
   const bb = `${b.s},${b.w},${b.n},${b.e}`;
   const q = societiesOnly ? `nwr["landuse"="residential"]["name"](${bb});nwr["building"="apartments"]["name"](${bb});` : `
     nwr["amenity"~"^(restaurant|cafe|fast_food|food_court|fuel|hospital|clinic|school|college|university)$"]["name"](${bb});
-    nwr["tourism"~"^(hotel|guest_house)$"]["name"](${bb}); nwr["shop"="mall"]["name"](${bb}); nwr["leisure"="park"]["name"](${bb});
+    nwr["tourism"~"^(hotel|guest_house)$"]["name"](${bb}); nwr["shop"~"^(mall|supermarket|department_store|clothes|bakery|convenience|electronics|jewelry|books)$"]["name"](${bb}); nwr["leisure"="park"]["name"](${bb});
+    nwr["amenity"="place_of_worship"]["name"](${bb});
     nwr["landuse"="residential"]["name"](${bb}); nwr["building"="apartments"]["name"](${bb});
     way["highway"~"^(trunk|primary|secondary|tertiary)$"]["name"](${bb});`;
   const j = await overpass(`[out:json][timeout:30];(${q});out center tags;`);
@@ -183,7 +184,8 @@ async function mapbox(x, y, z) {
     out.places.push([p.name_en || p.name, g.coordinates[1], g.coordinates[0], p.type === 'city' ? 'region' : /^(suburb|town|village)$/.test(p.type) ? 'major' : 'minor']); });
   each('poi_label', (p, g, ft) => { if (g.type !== 'Point') return; const m = p.maki || '', c = p.class || '';
     const cat = m === 'fuel' ? 'fuel' : /^(restaurant|cafe|fast-food|bar|restaurant-pizza|restaurant-noodle|bakery)$/.test(m) || c === 'food_and_drink' ? 'food' : /^(hospital|doctor)$/.test(m) ? 'health'
-      : /^(school|college)$/.test(m) || c === 'education' ? 'school' : m === 'lodging' || c === 'lodging' ? 'hotel' : /mall/i.test(p.type || '') || /mall/i.test(p.name || '') ? 'mall' : m === 'park' || c === 'park_like' ? 'park' : null;
+      : /^(school|college)$/.test(m) || c === 'education' ? 'school' : m === 'lodging' || c === 'lodging' ? 'hotel' : /mall/i.test(p.type || '') || /mall/i.test(p.name || '') ? 'mall' : m === 'park' || c === 'park_like' ? 'park'
+      : /^(place-of-worship|religious-)/.test(m) || c === 'religion' ? 'worship' : c === 'store_like' || /^(shop|grocery|clothing-store|convenience|jewelry-store|shoe|furniture|hardware|mobile-phone|bicycle)$/.test(m) ? 'shop' : null; // (temples and shops: island-kinds.js)
     if (!cat) return; out.pois.push([`mb${ft.id ?? p.name}`, p.name_en || p.name, g.coordinates[1], g.coordinates[0], 'poi', cat]); });
   const roads = new Set();
   each('road', (p, g) => { if (!p.name || roads.has(p.name) || !/^(motorway|trunk|primary|secondary|tertiary|street)$/.test(p.class)) return;
@@ -216,7 +218,7 @@ export { cacheGet as geoCacheGet, cachePut as geoCachePut };
 const requested = new Set();
 // each source loads on its own (Mapbox tiles come back fast; Overpass requests are queued)
 function loadTile(src, layer, x, y, z) {
-  const id = `${src}:${layer}:${z}/${x}/${y}`; if (requested.has(id)) return; requested.add(id);
+  const id = `${src}:${layer === 'pois' ? 'pois2' : layer}:${z}/${x}/${y}`; if (requested.has(id)) return; requested.add(id); // (pois2: temples and shops joined the landmarks; older tiles cached without them are skipped)
   (async () => {
     let d = await cacheGet(id);
     if (!d) {

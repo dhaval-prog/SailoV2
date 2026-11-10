@@ -10,7 +10,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './supabase.js';
 import { currentSession, captainName } from './auth.js';
 
 const META = 'sailo:sync'; // { owner: user id, syncedAt: server time of the last pull / push, localT: last local change }
-const FIXED = ['sailo:economy', 'sailo:fishlog', 'sailo:boat', 'sailo:chart', 'sailo:charts', 'sailo:home', 'sailo:pos', 'sailo:settings',
+const FIXED = ['sailo:economy', 'sailo:fishlog', 'sailo:stamps', 'sailo:orders', 'sailo:boat', 'sailo:chart', 'sailo:charts', 'sailo:home', 'sailo:pos', 'sailo:settings',
   'sailo:garage-seen', 'sailo:inbox-seen', 'sailo:voyage', 'sailo:made-yours', 'sailo:followed-seen', 'sailo-hint-seen', 'sailboat.sail', 'daysailer.sail', 'motoryacht.flag'];
 const isProgress = k => FIXED.includes(k) || k.startsWith('sailo:pos@'); // (positions per city)
 
