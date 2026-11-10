@@ -523,14 +523,14 @@ const fogCol = new THREE.Color(), shaderHaze = new THREE.Color(), NIGHT_MIST = n
 const AFT = { top: C('#6fb3d6'), mid: C('#b8d8e4'), hor: C('#f6efd8') }, GOLD = { top: C('#ec7a3c'), mid: C('#f7ae7e'), hor: C('#fbe0a0') };
 const GOLD_HAZE = C('#f2b08e'), GOLD_HAZE_RAW = GOLD_HAZE.clone().convertLinearToSRGB(); // (pink-orange; the RAW copy is for the hand-written shaders, like NIGHT_MIST_RAW)
 const NIGHT = { top: C('#050d24'), mid: C('#0f2148'), hor: C('#24406b'), tint: C('#3f5680') };
-const state = { w: 'clear', night: false, view: 'chase' };
+const state = { w: 'clear', night: false, view: 'top' }; // (every start opens in the top view)
 // camera presets, set relative to the boat's heading: `back` metres astern, `side` to starboard, `up` above
 // top: 80 units from the boat, tilted 30° from straight down (80·cos30 ≈ 69 up, 80·sin30 = 40 across, from the same side as before)
 const TOPK = 4; // the top view opens fully zoomed out (pinch to come in closer); same angle as ever
 const VIEWS = { chase: { back: 58, side: 0, up: 12 }, top: { back: TOPK * 40 * 53 / Math.hypot(53, 79), side: TOPK * 40 * 79 / Math.hypot(53, 79), up: TOPK * 80 * Math.cos(Math.PI / 6) } };
 const viewOffset = v => { const p = VIEWS[v], h = boat.rotation.y, fx = Math.cos(h), fz = -Math.sin(h); return new THREE.Vector3(-fx * p.back - fz * p.side, p.up, -fz * p.back + fx * p.side); };
-stage._camera.position.copy(stage._controls.target).add(viewOffset('chase')); stage._controls.update(); // open in the chase view
-stage._controls.minDistance = 8; stage._controls.maxDistance = 260; stage._controls.zoomSpeed = 1.4;
+stage._controls.target.y = WL; stage._camera.position.copy(stage._controls.target).add(viewOffset('top')); stage._controls.update(); // open in the top view (setView below sets its zoom range)
+stage._controls.minDistance = state.view === 'top' ? 30 : 8; stage._controls.maxDistance = state.view === 'top' ? 320 : 260; stage._controls.enablePan = state.view !== 'top'; stage._controls.zoomSpeed = 1.4; // (the view it opens in: top)
 // the camera never goes under the water: at most a low look along the surface, and always a little above the swell
 stage._controls.maxPolarAngle = Math.PI / 2 - 0.1; stage._minY = () => WL + 1.6 + Math.max(0, waveJS(stage._camera.position.x, stage._camera.position.z, seaU.time.value));
 let zoomAnim = null;
@@ -1232,14 +1232,14 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   if (course.on && course.auto && ACT.anchor === 'up') {
     // autopilot: turn toward the buoy, ease off the throttle in tight turns and on approach
     // the route round the islands, leg by leg (route.js); planned again if an island loaded since lies across the next leg
-    if (course.legs.length > 1 && Math.hypot(course.legs[0].x - boat.position.x, course.legs[0].z - boat.position.z) < 12) course.legs.shift();
+    if (course.legs.length > 1 && Math.hypot(course.legs[0].x - boat.position.x, course.legs[0].z - boat.position.z) < Math.max(12, Math.abs(vel) * 0.8)) course.legs.shift(); // (turning for the next leg sooner the faster it goes)
     if ((course.checkT -= dt) <= 0) { course.checkT = 2; const nx = course.legs[0] || course.p; if (terrain && planRoute({ x: boat.position.x, z: boat.position.z }, nx, terrain.all(), routePad()).length > 1) course.legs = planFrom(course.p.x, course.p.z); }
     const leg = course.legs.length > 1 ? course.legs[0] : course.p, toEnd = Math.hypot(course.p.x - boat.position.x, course.p.z - boat.position.z);
     const cx = leg.x - boat.position.x, cz = leg.z - boat.position.z, dist = course.legs.length > 1 ? Math.max(14, Math.hypot(cx, cz)) : Math.hypot(cx, cz);
     const diff = Math.atan2(Math.sin(Math.atan2(-cz, cx) - yaw), Math.cos(Math.atan2(-cz, cx) - yaw));
     str = Math.max(-1, Math.min(1, -diff * 1.8));
     thr = Math.min(1, Math.max(0.3, dist / 14)) * (Math.abs(diff) > 1.2 ? 0.15 : Math.max(0.35, 1 - Math.abs(diff) / 1.6));
-    if (toEnd < 4.5) clearCourse(true);
+    if (toEnd < Math.max(4.5, Math.abs(vel) * 0.35)) clearCourse(true); // (a fast boat counts as there a little sooner, rather than circling the buoy)
     stage._controls.autoRotate = false;
   }
   if (ACT.anchor !== 'up') thr = 0;
