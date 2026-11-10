@@ -158,7 +158,10 @@ class ThreeDStage extends HTMLElement {
       alpha: true,
       preserveDrawingBuffer: true,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // the drawing resolution: the screen's own (at most 2x), stepped down while frames come slowly and back up when they
+    // don't, so the game stays smooth on any phone (see the loop below)
+    const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2); let dpr = DPR_MAX;
+    renderer.setPixelRatio(dpr);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this._renderer = renderer;
@@ -224,7 +227,15 @@ class ThreeDStage extends HTMLElement {
     // waits hidden at the top level (pooled gulls, dolphins and splashes, the island while it's far off); a hidden
     // thing is brought up to date the frame it's shown again
     scene.matrixWorldAutoUpdate = false;
+    let fpsT = 0, fpsN = 0, goodFor = 0, lastNow = 0;
+    const adapt = () => { const now = performance.now(), d = now - lastNow; lastNow = now; if (d > 1000) return; fpsT += d; fpsN++; // (a gap: the tab was hidden)
+      if (fpsT < 2000) return; const fps = fpsN * 1000 / fpsT; fpsT = fpsN = 0;
+      if (fps < 48 && dpr > 1) { dpr = Math.max(1, dpr - 0.25); renderer.setPixelRatio(dpr); fit(); goodFor = 0; }
+      else if (fps > 57) { if (++goodFor >= 3 && dpr < DPR_MAX) { dpr = Math.min(DPR_MAX, dpr + 0.25); renderer.setPixelRatio(dpr); fit(); goodFor = 0; } }
+      else goodFor = 0; };
+    this._dpr = () => dpr;
     this._loop = () => {
+      adapt();
       controls.update();
       { const y = this._minY?.(); if (y != null && camera.position.y < y) camera.position.y = y; } // (main.js: never under the water)
       const kids = scene.children;
