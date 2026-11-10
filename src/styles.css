@@ -1148,3 +1148,25 @@ body.view-top.has-course #course-hint { opacity: 0; transform: translate(-50%, 1
 .map-sos-dot { fill: #ff3b30; stroke: #fff; }
 .map-sos-x { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; pointer-events: none; }
 .map-sos-t { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; paint-order: stroke; stroke: rgba(120, 0, 0, 0.6); stroke-width: 0.35em; stroke-linejoin: round; pointer-events: none; }
+
+/* "Where shall we start?" (start-where.js): each time a captain comes back */
+#start-where { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: rgba(6, 20, 26, 0.45);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); opacity: 0; transition: opacity .25s; }
+#start-where.in { opacity: 1; }
+#start-where .sw-card { width: min(380px, 100%); padding: 22px 18px 18px; border-radius: 24px; background: #fffaf0; color: #1d2b3a; box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
+  font: 400 14px/1.35 system-ui, sans-serif; transform: translateY(14px) scale(.98); transition: transform .3s cubic-bezier(.2, .8, .3, 1.2); }
+#start-where.in .sw-card { transform: none; }
+#start-where h2 { margin: 0 4px 4px; font: 700 21px/1.2 system-ui, sans-serif; }
+#start-where .sw-sub { margin: 0 4px 14px; color: #6f7583; font-size: 13.5px; }
+#start-where .sw-opt { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(29, 43, 58, .12);
+  background: #fff; color: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+#start-where .sw-opt:hover, #start-where .sw-opt:focus-visible { border-color: #0b8f9e; background: #f2fbfb; outline: none; }
+#start-where .sw-opt:active { transform: scale(.985); }
+#start-where .sw-opt.wait { opacity: .7; cursor: progress; }
+#start-where .sw-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #ffe9cc; color: #c25a00; }
+#start-where .sw-ico.here { background: #d8f3f2; color: #0b8f9e; }
+#start-where .sw-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#start-where .sw-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#start-where .sw-txt b { font-size: 15px; font-weight: 650; }
+#start-where .sw-txt small { color: #6f7583; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#start-where .sw-msg { margin: 12px 4px 0; color: #b42323; font-size: 13px; }

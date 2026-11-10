@@ -1,7 +1,7 @@
 import './styles.css';
 import './three-d-stage.js';
 import { initHud } from './hud.js';
-import { WORLD, CHART, clampToWorld, edgeDistance } from './world.js';
+import { WORLD, CHART, clampToWorld, edgeDistance, project, formatPosition } from './world.js';
 import { loadPosition, localPosition, savePosition } from './persist.js';
 import { initStation, SPEED_UP, STATION, STATIONS, HOME, BOAT_SPECS, boatStatus, FISH, localOdds, PORT, LOCAL_FISH, harbourKey, addStations } from './station.js';
 import { watchMarket } from './market.js';
@@ -24,6 +24,8 @@ import { buildWoodTug } from './boats/woodtug.js';
 import { buildVoyager } from './boats/voyager.js';
 import { buildDryDock } from './boats/drydock.js';
 import { createBoatSounds } from './boat-sounds.js';
+import { askStartSpot } from './start-where.js';
+import { myLocation } from './geocode.js';
 import { planRoute } from './route.js';
 import { WIND, BASE as WIND_BASE, stepWind } from './wind.js';
 import { initBoatActions } from './boat-actions.js';
@@ -1353,12 +1355,31 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
     stage._controls.target.set(x, state.view === 'top' ? WL : 2.5, z); stage._camera.position.copy(stage._controls.target).add(viewOffset(state.view)); camAnim = zoomAnim = null; stage._controls.update();
   };
   const local = localPosition(); if (local) place(local);
-  loadPosition().then(p => { if (p && (!local || p.t > (local.t || 0)) && stats.dist < 2 && Math.hypot(p.x - boat.position.x, p.z - boat.position.z) > 1) place(p); });
+  let picked = null, lastSpot = local; // (picked: 'here' once the captain chose to start where they are: the cloud's copy mustn't move them back)
+  loadPosition().then(p => { if (p && (!lastSpot || p.t > (lastSpot.t || 0))) lastSpot = p;
+    if (picked !== 'here' && p && (!local || p.t > (local.t || 0)) && stats.dist < 2 && Math.hypot(p.x - boat.position.x, p.z - boat.position.z) > 1) place(p); });
   // save every few seconds while sailing, and once more when the page is hidden or closed
   let last = { x: boat.position.x, z: boat.position.z, h: yaw };
   const save = keepalive => { const h = Math.atan2(Math.sin(yaw), Math.cos(yaw)); last = { x: boat.position.x, z: boat.position.z, h: yaw }; savePosition({ x: boat.position.x, z: boat.position.z, heading: h }, { keepalive }); };
   const moved = () => Math.hypot(boat.position.x - last.x, boat.position.z - last.z) > 3 || Math.abs(yaw - last.h) > 0.15;
   setInterval(() => { if (moved()) save(false); }, 5000);
+  // each time the captain comes back: start where they last sailed, or where they really are now (start-where.js)
+  if (local && !firstVisit) setTimeout(() => {
+    const zn = geo.zoneAt(local.x, local.z);
+    askStartSpot({ lastLabel: zn ? `Near ${zn.name}` : formatPosition(local.x, local.z),
+      onLast: () => { picked = 'last'; if (lastSpot && Math.hypot(lastSpot.x - boat.position.x, lastSpot.z - boat.position.z) > 1) place(lastSpot); },
+      onHere: async () => {
+        let me; try { me = await myLocation(); } catch (e) { throw new Error(e?.code === 1 ? 'Location is turned off for Sailo. Allow it in your browser or device settings, or start where you last sailed.' : 'Couldn\u2019t find your location just now. Try again, or start where you last sailed.'); }
+        const [x, z] = project(me.lat, me.lng);
+        if (Math.abs(x) > WORLD.half - 60 || Math.abs(z) > WORLD.half - 60) throw new Error(`You\u2019re outside ${CHART.name || 'this city'}\u2019s waters. Start where you last sailed, or pick your city in Settings.`);
+        // the nearest open water to where you are (not on an island, a shack or the station's shore)
+        const clear = (px, pz) => !terrain?.blocked(px, pz, 10) && !station.blocked(px, pz);
+        let spot = clear(x, z) ? { x, z } : null;
+        for (let r = 15; !spot && r <= 600; r += 15) for (let a = 0; a < Math.PI * 2 && !spot; a += 0.3) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (clear(px, pz)) spot = { x: px, z: pz }; }
+        spot ||= { x, z }; picked = 'here'; place({ x: spot.x, z: spot.z, heading: yaw }); save(false);
+        floatText(boat.position.clone().setY(boat.position.y + 9), 'You\u2019re here', '#7ff0c8');
+      } });
+  }, 1600);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && moved()) save(true); });
   addEventListener('pagehide', () => { if (moved()) save(true); }); }
 requestAnimationFrame(() => requestAnimationFrame(() => { const s = document.getElementById('splash'); s.classList.add('gone'); setTimeout(() => s.remove(), 600); }));
