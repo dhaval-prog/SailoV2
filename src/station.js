@@ -122,7 +122,7 @@ const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ coins: S.
 const holdCount = () => FISH.reduce((a, f) => a + (S.hold[f.id] || 0), 0);
 /** Fuel and hold for any boat, for the Garage. */
 // your boat sails this much faster than its listed speed (the local sailors keep theirs: their day is planned on it)
-export const SPEED_UP = 1.75;
+export const SPEED_UP = 3.5; // every boat sails twice as fast as its spec (was 1.75)
 export const boatStatus = id => { const b = S.boats[id], sp = BOAT_SPECS[id]; return { fuel: b.fuel, cap: sp.fuel, fish: FISH.reduce((a, f) => a + (b.hold[f.id] || 0), 0), holdCap: sp.hold, kn: Math.round(sp.kn * SPEED_UP) }; };
 
 // the source island outline (same seed, same maths) for collisions
