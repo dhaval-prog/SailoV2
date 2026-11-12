@@ -661,6 +661,15 @@ export function initStation(ctx) {
       return bonus; },
     /** A one-off reward (the first voyage's steps: 'voyage1' …), of n coins. */
     reward(key, n) { S.coins += n; save(); renderWallet(); onServer(() => call('econ_reward', { p_key: key }).catch(() => {})); },
+    /** A restaurant's fish order (island-visits.js): the fish leave the hold, paid at today's price x the order's bonus.
+     *  Resolves with the coins paid; rejects with a message. */
+    async deliver({ shop, fish, n, mult }) {
+      const have = S.hold[fish] || 0; if (have < n) throw new Error(`You need ${n} in the hold (you have ${have}).`);
+      if (server) { const st = await call('econ_order', { p_boat: S.active, p_shop: shop, p_fish: fish, p_n: n, p_mult: mult, p_tz: PLACE.tz }); renderWallet(); return st.paid; }
+      const f = FISH.find(x => x.id === fish), paid = Math.ceil(n * priceOf(f) * mult); S.hold[fish] = have - n; S.coins += paid; save(); renderWallet(); return paid;
+    },
+    held: id => S.hold[id] || 0,
+    price: id => { const f = FISH.find(x => x.id === id); return f ? priceOf(f) : 0; },
     /** Coins from somewhere else (guests only: signed in, coins only ever come from the server). */
     addCoins(n) { if (server) return; S.coins += n; save(); renderWallet(); },
     /** Pay for something (a sea-plane fare): false when there aren't enough coins. Signed in, the server takes it (settled() waits for that). */

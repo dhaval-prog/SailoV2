@@ -292,17 +292,18 @@ export function createFishing(ctx) {
     const wy = WL + waveJS(bobber.position.x, bobber.position.z, t);
     // the wait: a shadow swims in, nibbles, then bites
     if (ACT.fish === 'waiting') {
-      G.t += dt; const f = fishOf();
+      const wdt = dt * (ctx.biteBoost?.() || 1); // (a restaurant meal can hurry the fish along: island-visits.js)
+      G.t += wdt; const f = fishOf();
       const to = tmp.copy(bobber.position).setY(WL); const d = shadow.position.distanceTo(to);
       if (G.phase === 'approach') {
         shadow.material.opacity = Math.min(0.5, shadow.material.opacity + dt * 0.4);
         const sp = G.shadowSpeed * (G.dart ? (0.5 + Math.abs(Math.sin(t * 6))) : 1); const v = to.clone().sub(shadow.position).setY(0);
-        if (d > 1.6) { v.setLength(Math.min(d - 1.4, sp * dt)); shadow.position.add(v); shadow.rotation.z = Math.atan2(-v.z, v.x); }
+        if (d > 1.6) { v.setLength(Math.min(d - 1.4, sp * wdt)); shadow.position.add(v); shadow.rotation.z = Math.atan2(-v.z, v.x); }
         else { G.phase = 'circle'; G.t = 0; G.nextNib = 0.8 + Math.random(); }
         bobber.position.y = wy + 0.02 + Math.sin(t * 3) * 0.02;
       } else if (G.phase === 'circle') {
         const a = t * 1.2; shadow.position.set(to.x + Math.cos(a) * 1.4, WL + 0.05, to.z + Math.sin(a) * 1.4); shadow.rotation.z = -a - Math.PI / 2;
-        G.nextNib -= dt; bobber.position.y = wy + 0.02 + Math.sin(t * 3) * 0.02;
+        G.nextNib -= wdt; bobber.position.y = wy + 0.02 + Math.sin(t * 3) * 0.02;
         if (G.nextNib <= 0) {
           if (G.nibbles-- > 0) { bobber.position.y = wy - 0.12; ctx.ripple(bobber.position.x, bobber.position.z, 0.35, 1); sfx.plop(); buzz(6); G.nextNib = 0.9 + Math.random() * 1.4; }
           else { // the bite

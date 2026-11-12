@@ -9,6 +9,7 @@ const NICE = {
   not_enough_coins: 'Not enough coins.', not_docked: 'Moor at the pier first.', hold_full: 'The hold is full.', tank_full: 'The tank is already full.',
   too_soon: 'One moment…', nothing_to_sell: 'The crate is empty.', not_in_hold: 'Those fish aren’t in the hold any more.',
   signed_out: 'Sign in to keep your coins and catch.',
+  order_done: 'You\u2019ve already filled this order today.', orders_done_today: 'That\u2019s all the orders for today. Come back tomorrow!', bad_order: 'That order doesn\u2019t look right.', no_such_fish: 'They don\u2019t buy that fish.',
 };
 export class EconError extends Error { constructor(code) { super(NICE[code] || 'The harbour didn’t answer. Try again?'); this.code = code; } }
 

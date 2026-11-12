@@ -24,6 +24,8 @@ import { buildWoodTug } from './boats/woodtug.js';
 import { buildVoyager } from './boats/voyager.js';
 import { buildDryDock } from './boats/drydock.js';
 import { createBoatSounds } from './boat-sounds.js';
+import { createIslandVisits } from './island-visits.js';
+import { isOpen as placeOpen } from './island-kinds.js';
 import { askStartSpot } from './start-where.js';
 import { myLocation } from './geocode.js';
 import { planRoute } from './route.js';
@@ -47,7 +49,7 @@ import { createBerths } from './berths.js';
 import { isTablet } from './tablet.js';
 import { createWildlife } from './wildlife.js';
 import { ROSTER, stateAt } from './cpu-captains.js';
-import { clock as liveClock, SUNSET_END } from './live.js';
+import { clock as liveClock, SUNSET_END, PLACE } from './live.js';
 const phoneQ = matchMedia('(max-width: 720px), (max-height: 520px), (pointer: coarse) and (orientation: portrait) and (max-width: 1100px)');
 import './radio.css';
 import './cpu.css';
@@ -1140,7 +1142,8 @@ passengers = createPassengers({ THREE, chartId: CHART.id, stations: () => STATIO
   boatYaw: () => yaw, scene: stage._scene, WL, openMap: () => document.getElementById('dk-compass')?.click(), pinCourse: (x, z) => setCourse(new THREE.Vector3(x, WL, z), true), clearCourse: () => clearCourse(false), station,
   celebrate: n => floatText(boat.position.clone().setY(9), `+${n}c`, '#ffd36b', true) });
 hud.setTripTarget?.(() => passengers?.target()); // (the trip's destination on the map)
-const fishing = createFishing({ THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
+let visits = null; // (island-visits.js: made once the station and terrain exist; its meal boosts reach fishing and the helm)
+const fishing = createFishing({ biteBoost: () => visits?.biteK() || 1, THREE, stage, WL, waveJS, boat, ACT, F, bobber, fishLine, rodRot, rodPivot, rodTip, station, CAST, scene: stage._scene,
   setStatus: setFishStatus, floatText, paintStatus, castAt, splash, ripple, emit, toScreen,
   seaPoint: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.ray.intersectPlane(seaPlane, new THREE.Vector3()); },
   hitsBoat: e => { const r = stage.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, stage._camera); return ray.intersectObject(boat, true).length > 0; },
@@ -1166,6 +1169,11 @@ const wildlife = createWildlife({ THREE, scene: stage._scene, WL, wave: waveJS, 
   captains: isPuneChart ? () => ROSTER.map(c => ({ c, s: stateAt(c) })).filter(q => q.s?.kind === 'fish').map(q => ({ id: q.c.id, x: q.s.x, z: q.s.z })) : null });
 // harbour ambience (gulls calling, the dock at work) and the Fish Market's news when a price moves a long way
 const boatSounds = createBoatSounds(); // (each boat's own engine or wind, and the sea)
+// visiting the islands: restaurants' fish orders and meals, stamps, shrine bells (island-visits.js); the islands' lights
+// follow each kind's hours (city time, worked out every few seconds)
+let cityMins = liveClock().mins; setInterval(() => { cityMins = liveClock().mins; }, 10000);
+visits = createIslandVisits({ islands: () => terrain?.islandsNear?.() || [], boat: () => ({ x: boat.position.x, z: boat.position.z }), mins: () => cityMins, tz: PLACE.tz,
+  city: CHART.city || WORLD.city || 'City', fish: LOCAL_FISH, station, note: text => hud.note(text, 5000) });
 const harbourSounds = createHarbourSounds({ nearStation: () => Math.max(0, 1 - Math.hypot(boat.position.x - STATION.x, boat.position.z - STATION.z) / 320), gullsNear: () => wildlife.nearGulls() });
 watchMarket(LOCAL_FISH, text => hud.note(`Fish Market · ${text}`, 6000));
 const myColours = () => { const get = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
@@ -1268,7 +1276,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   steerS += (str - steerS) * Math.min(1, dt * (joy ? 9 : 4));
   wheelUI.style.transform = `rotate(${HELM.mode === 'wheel' ? HELM.deg : steerS * HELM.TURNS}deg)`; // on-screen wheel: follows the hand, or the autopilot
   if (!stage._exporting) {
-    vel += (thr * MAXV * fuelK - vel) * Math.min(1, dt * (joy ? 2.2 : 0.95));
+    vel += (thr * MAXV * fuelK * (visits?.speedK() || 1) - vel) * Math.min(1, dt * (joy ? 2.2 : 0.95)); // (a restaurant meal can quicken it: island-visits.js)
     const sv = vel / MAXV;
     const yaw0 = yaw; yaw -= steerS * dt * (joy ? 2.2 * (0.55 + 0.45 * Math.abs(sv)) : 0.7 * (0.25 + 0.75 * Math.abs(sv))) * (sv < -0.02 ? -1 : 1);
     const fx = Math.cos(yaw), fz = -Math.sin(yaw);
@@ -1344,7 +1352,7 @@ const theme = createTheme(THREE, { scene: stage._scene, accents: [boat] }); let 
   if (ACT.fish !== 'off' && ACT.fish !== 'waiting' && ACT.fish !== 'aim') fishBusyAt = performance.now();
   { const still = Math.max(0, 1 - Math.abs(vel) / 1.2) * (ACT.fish === 'off' ? 1 : 0); // (none while fishing) // the hull's own ripples: they hug the boat and spread a little, only while it sits still (moving, the wake takes over)
     rings.forEach((r, i) => { if (r.userData.boat !== boatId) { r.geometry.dispose(); r.geometry = ringShape(); r.userData.boat = boatId; } const p = ((t * 0.18 + i / 3) % 1); r.scale.setScalar(1.08 + p * 0.9); r.material.opacity = (1 - p) * 0.45 * still; r.visible = still > 0.02; }); }
-  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, crest: waveJS(boat.position.x, boat.position.z, t) / Math.max(0.1, SWELL_MAX * ENV.amp), quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
+  theme.setGlow((1 - E.night) * E.sun * (1 - E.dark * 0.7)); { const g = ((E.gold || 0) * (1 - E.night)).toFixed(2); if (g !== lastGoldCss) { lastGoldCss = g; document.body.style.setProperty('--gold', g); } } seaLabels.update(t); boatQuick.update(t); if (online) { online.update(); cpuFleet.setLive(online.list()); } cpuFleet.update(t, dt); wildlife.update(t, dt); terrain?.update(stage._camera, t, dt); fishShadows?.update(t, dt); harbourSounds.update(dt); visits.update(dt); terrain?.islandLights?.(E.night, k => placeOpen(k, cityMins)); boatSounds.update(dt, { boat: boatId, k: Math.abs(vel) / MAXV, amp: E.amp, crest: waveJS(boat.position.x, boat.position.z, t) / Math.max(0.1, SWELL_MAX * ENV.amp), quiet: station.mode !== 'sea' }); harbour.update(); radio.update(t, { moving: Math.abs(vel) > 0.2 || course.on }); radioHelp.update(); berths.update(); voyage.update({ courseOn: course.on, dist: stats.dist, catchN: ACT.catch });
   requestAnimationFrame(tick);
 })();
 

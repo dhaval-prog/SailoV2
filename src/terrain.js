@@ -198,6 +198,8 @@ export function createTerrain({ THREE, scene, WL, sea, stations, getBoat, onHit,
   let warnT = 0, sprayT = 0;
   return {
     blocked,
+    /** The decorated islands near the boat (island-signs.js), and their lights for the hour. */
+    islandsNear: () => signs.near(), islandLights: (night, openKind) => signs.lights(night, openKind),
     /** The boat met a rock at this speed (m/s) and point. */
     hit(speed = 0, x, z) { const now = performance.now(), k = Math.min(1, Math.abs(speed) / 5); if (now - hitT < 1800 || Math.abs(speed) < 1) return; hitT = now; // (pressing on against it isn't another bump)
       thunk(0.3 + 0.7 * k); if (navigator.vibrate) navigator.vibrate(Math.round(15 + 35 * k));

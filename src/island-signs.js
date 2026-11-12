@@ -1,7 +1,11 @@
 // Signboards on the islands near the boat: a painted wooden board on two posts at the island's shore, its name on both
 // faces (island-names.js), turned to face the water the boat came from. Only the nearest few islands have one at a time;
 // a board appears as an island comes near and goes as it falls behind, and its name updates when the map's labels load.
+// Beside the board stands what the island is (island-kinds.js, island-decor.js): a restaurant's jetty, market stalls, a
+// campus, a garden, a shrine or homes.
 import { nameIslands } from './island-names.js';
+import { kindOf } from './island-kinds.js';
+import { createDecor } from './island-decor.js';
 import { ensure } from './geo.js';
 
 const RANGE = 420, MAX = 12; // metres; boards at once
@@ -10,7 +14,8 @@ export function createIslandSigns(THREE, { scene, WL }) {
   const root = new THREE.Group(); root.name = 'island_signs'; scene.add(root);
   const wood = new THREE.MeshStandardMaterial({ name: 'sign_wood', color: '#7a5233', roughness: 0.85 });
   const postGeo = new THREE.CylinderGeometry(0.16, 0.2, 1, 8).translate(0, 0.5, 0);
-  const signs = new Map(); // island key → { g, board, name }
+  const signs = new Map(); // island key → { g, board, name, kind, decor, it }
+  const decor = createDecor(THREE);
   const key = it => `${Math.round(it.x)},${Math.round(it.z)}`;
 
   function texture(name) {
@@ -25,7 +30,7 @@ export function createIslandSigns(THREE, { scene, WL }) {
     g.fillText(name, w / 2, h / 2 + 4);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, aspect: w / h };
   }
-  function build(it, name, from) {
+  function build(it, name, from, kind) {
     const g = new THREE.Group(); g.name = 'island_sign'; g.userData.name = name;
     const { t, aspect } = texture(name), H = 2.2, W = H * aspect, s = Math.max(1, Math.min(2.2, it.r / 22));
     const face = new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, side: THREE.DoubleSide });
@@ -37,9 +42,12 @@ export function createIslandSigns(THREE, { scene, WL }) {
     // at the shore on the side the boat came from, facing out to sea
     const a = Math.atan2(from.z - it.z, from.x - it.x), rr = it.r * 0.62;
     g.position.set(it.x + Math.cos(a) * rr, WL + 0.6, it.z + Math.sin(a) * rr); g.rotation.y = Math.PI / 2 - a;
-    root.add(g); return { g, name, t, board };
+    // what the island is, a little round the shore from the board, facing the open water (the restaurant's jetty runs out onto it)
+    const d = decor.build(kind), a2 = a + 0.6, r2 = it.r * (kind === 'restaurant' ? 0.8 : 0.64);
+    d.position.set(it.x + Math.cos(a2) * r2, WL + (kind === 'restaurant' ? 0.45 : 0.6), it.z + Math.sin(a2) * r2); d.rotation.y = Math.PI / 2 - a2; d.scale.setScalar(s);
+    root.add(g, d); return { g, name, t, board, kind, decor: d, it, dock: { x: it.x + Math.cos(a2) * (r2 + 14 * s), z: it.z + Math.sin(a2) * (r2 + 14 * s) } };
   }
-  const drop = (k, s) => { root.remove(s.g); s.t.dispose(); s.board.geometry.dispose(); s.board.material[4].dispose(); signs.delete(k); };
+  const drop = (k, s) => { root.remove(s.g, s.decor); s.t.dispose(); s.board.geometry.dispose(); s.board.material[4].dispose(); signs.delete(k); };
 
   /** The islands near the boat (terrain.js, about once a second): boards on the nearest few, named from the map.
    *  `all`: every island known, so each label goes to its truly nearest island (the same names as the map screen). */
@@ -49,9 +57,13 @@ export function createIslandSigns(THREE, { scene, WL }) {
     const want = new Map(near.map(({ it }) => [key(it), it]));
     signs.forEach((s, k) => { if (!want.has(k)) drop(k, s); });
     const names = nameIslands([...want.values()], all);
-    want.forEach((it, k) => { const n = names.get(it)?.name; if (!n) return; const s = signs.get(k);
-      if (s && s.name === n) return; const from = s ? { x: s.g.position.x, z: s.g.position.z } : boat; if (s) drop(k, s);
-      signs.set(k, build(it, n, s ? { x: it.x + (from.x - it.x) * 10, z: it.z + (from.z - it.z) * 10 } : from)); });
+    want.forEach((it, k) => { const nm = names.get(it), n = nm?.name; if (!n) return; const kind = kindOf(nm.p), s = signs.get(k);
+      if (s && s.name === n && s.kind === kind) return; const from = s ? { x: s.g.position.x, z: s.g.position.z } : boat; if (s) drop(k, s);
+      signs.set(k, build(it, n, s ? { x: it.x + (from.x - it.x) * 10, z: it.z + (from.z - it.z) * 10 } : from, kind)); });
   }
-  return { update, count: () => signs.size };
+  return { update, count: () => signs.size,
+    /** The decorated islands near the boat: [{ name, kind, x, z, r, dock: {x, z} }] (island-visits.js). */
+    near: () => [...signs.values()].map(s => ({ name: s.name, kind: s.kind, x: s.it.x, z: s.it.z, r: s.it.r, dock: s.dock })),
+    /** The lights for the hour: night (0…1) and which kinds are open now. */
+    lights: (night, openKind) => decor.lights(night, openKind) };
 }
