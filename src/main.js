@@ -25,7 +25,8 @@ import { buildVoyager } from './boats/voyager.js';
 import { buildDryDock } from './boats/drydock.js';
 import { createBoatSounds } from './boat-sounds.js';
 import { askStartSpot } from './start-where.js';
-import { myLocation } from './geocode.js';
+import { myLocation, cityAt } from './geocode.js';
+import { setChart, chartFor } from './chart.js';
 import { planRoute } from './route.js';
 import { WIND, BASE as WIND_BASE, stepWind } from './wind.js';
 import { initBoatActions } from './boat-actions.js';
@@ -1385,19 +1386,33 @@ else document.getElementById('course-hint').textContent = 'Click anywhere on the
   const moved = () => Math.hypot(boat.position.x - last.x, boat.position.z - last.z) > 3 || Math.abs(yaw - last.h) > 0.15;
   setInterval(() => { if (moved()) save(false); }, 5000);
   // each time the captain comes back: start where they last sailed, or where they really are now (start-where.js)
-  if (local && !firstVisit) setTimeout(() => {
+  // the nearest open water to a point (not on an island, a shack or the station's shore)
+  const openWater = (x, z) => { const clear = (px, pz) => !terrain?.blocked(px, pz, 10) && !station.blocked(px, pz);
+    if (clear(x, z)) return { x, z };
+    for (let r = 15; r <= 600; r += 15) for (let a = 0; a < Math.PI * 2; a += 0.3) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (clear(px, pz)) return { x: px, z: pz }; }
+    return { x, z }; };
+  // just moved to the waters of the city you're in ("Where I am now" from another city): you start at your spot
+  let movedHere = false; try { movedHere = sessionStorage.getItem('sailo:start-here') === CHART.id; sessionStorage.removeItem('sailo:start-here'); } catch { /* storage blocked */ }
+  if (movedHere && local) [1600, 4500].forEach((ms, i) => setTimeout(() => { if (stats.dist > 2) return; const sp = openWater(boat.position.x, boat.position.z); picked = 'here';
+    if (Math.hypot(sp.x - boat.position.x, sp.z - boat.position.z) > 1) { place({ x: sp.x, z: sp.z, heading: yaw }); save(false); } // (once the islands round you are known)
+    if (!i) floatText(boat.position.clone().setY(boat.position.y + 9), `You\u2019re here \u00b7 ${CHART.name}`, '#7ff0c8'); }, ms));
+  if (local && !firstVisit && !movedHere) setTimeout(() => {
     const zn = geo.zoneAt(local.x, local.z);
     askStartSpot({ lastLabel: zn ? `Near ${zn.name}` : formatPosition(local.x, local.z),
       onLast: () => { picked = 'last'; if (lastSpot && Math.hypot(lastSpot.x - boat.position.x, lastSpot.z - boat.position.z) > 1) place(lastSpot); },
-      onHere: async () => {
+      onHere: async say => {
         let me; try { me = await myLocation(); } catch (e) { throw new Error(e?.code === 1 ? 'Location is turned off for Sailo. Allow it in your browser or device settings, or start where you last sailed.' : 'Couldn\u2019t find your location just now. Try again, or start where you last sailed.'); }
         const [x, z] = project(me.lat, me.lng);
-        if (Math.abs(x) > WORLD.half - 60 || Math.abs(z) > WORLD.half - 60) throw new Error(`You\u2019re outside ${CHART.name || 'this city'}\u2019s waters. Start where you last sailed, or pick your city in Settings.`);
-        // the nearest open water to where you are (not on an island, a shack or the station's shore)
-        const clear = (px, pz) => !terrain?.blocked(px, pz, 10) && !station.blocked(px, pz);
-        let spot = clear(x, z) ? { x, z } : null;
-        for (let r = 15; !spot && r <= 600; r += 15) for (let a = 0; a < Math.PI * 2 && !spot; a += 0.3) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (clear(px, pz)) spot = { x: px, z: pz }; }
-        spot ||= { x, z }; picked = 'here'; place({ x: spot.x, z: spot.z, heading: yaw }); save(false);
+        if (Math.abs(x) > WORLD.half - 60 || Math.abs(z) > WORLD.half - 60) { // another city: off to its waters, starting where you are
+          say?.('Finding your city\u2026'); let city = null; try { city = await cityAt(me.lat, me.lng); } catch { /* offline: named by the spot */ }
+          let c = chartFor(city || { name: 'Local', cc: '', lat: me.lat, lng: me.lng });
+          const kmTo = (a, b) => Math.hypot((a.lng - b.lng) * Math.cos(a.lat * Math.PI / 180), a.lat - b.lat) * 111.32;
+          if (kmTo(c, me) > WORLD.half / 1000 - 2) c = { ...c, id: `${c.id}-${me.lat.toFixed(2)}_${me.lng.toFixed(2)}`, lat: +me.lat.toFixed(5), lng: +me.lng.toFixed(5) }; // (out past the city's own waters: they're centred on you)
+          say?.(`Sailing to ${c.name}\u2026`); save(true); setChart(c);
+          // your spot in the new waters, as if you'd last sailed there (it opens there)
+          try { const pos = JSON.stringify({ chart: c, lat: me.lat, lng: me.lng, heading: yaw, t: Date.now() + 5000 }); localStorage.setItem('sailo:pos', pos); localStorage.setItem(`sailo:pos@${c.id}`, pos); sessionStorage.setItem('sailo:start-here', c.id); } catch { /* storage blocked */ }
+          location.reload(); return new Promise(() => {}); } // (the card stays up until the new waters load)
+        const spot = openWater(x, z); picked = 'here'; place({ x: spot.x, z: spot.z, heading: yaw }); save(false);
         floatText(boat.position.clone().setY(boat.position.y + 9), 'You\u2019re here', '#7ff0c8');
       } });
   }, 1600);
