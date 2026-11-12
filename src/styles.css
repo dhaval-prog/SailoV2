@@ -1149,27 +1149,34 @@ body.view-top.has-course #course-hint { opacity: 0; transform: translate(-50%, 1
 .map-sos-x { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; pointer-events: none; }
 .map-sos-t { fill: #fff; font-family: 'Nunito', system-ui, sans-serif; font-weight: 900; text-anchor: middle; paint-order: stroke; stroke: rgba(120, 0, 0, 0.6); stroke-width: 0.35em; stroke-linejoin: round; pointer-events: none; }
 
-/* "Where shall we start?" (start-where.js): each time a captain comes back */
-#start-where { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: rgba(6, 20, 26, 0.45);
-  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); opacity: 0; transition: opacity .25s; }
+/* "Where shall we start?" (start-where.js), in the Naked HUD style: no card, white type straight on the darkened,
+   blurred sea, the two choices split by hairlines with outline rings */
+#start-where { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(ellipse at 50% 45%, rgba(6, 18, 44, 0.55), rgba(4, 10, 28, 0.82)); -webkit-backdrop-filter: blur(14px) saturate(120%); backdrop-filter: blur(14px) saturate(120%);
+  opacity: 0; transition: opacity 0.26s ease; font-family: 'Nunito', system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px rgba(0, 20, 50, 0.6); }
 #start-where.in { opacity: 1; }
-#start-where .sw-card { width: min(380px, 100%); padding: 22px 18px 18px; border-radius: 24px; background: #fffaf0; color: #1d2b3a; box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
-  font: 400 14px/1.35 system-ui, sans-serif; transform: translateY(14px) scale(.98); transition: transform .3s cubic-bezier(.2, .8, .3, 1.2); }
+#start-where .sw-card { width: min(420px, 100%); padding: 0; border-radius: 0; background: none; box-shadow: none; transform: translateY(14px); transition: transform 0.4s cubic-bezier(0.3, 1.3, 0.5, 1); }
 #start-where.in .sw-card { transform: none; }
-#start-where h2 { margin: 0 4px 4px; font: 700 21px/1.2 system-ui, sans-serif; }
-#start-where .sw-sub { margin: 0 4px 14px; color: #6f7583; font-size: 13.5px; }
-#start-where .sw-opt { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(29, 43, 58, .12);
-  background: #fff; color: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
-#start-where .sw-opt:hover, #start-where .sw-opt:focus-visible { border-color: #0b8f9e; background: #f2fbfb; outline: none; }
-#start-where .sw-opt:active { transform: scale(.985); }
-#start-where .sw-opt.wait { opacity: .7; cursor: progress; }
-#start-where .sw-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #ffe9cc; color: #c25a00; }
-#start-where .sw-ico.here { background: #d8f3f2; color: #0b8f9e; }
-#start-where .sw-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-#start-where .sw-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-#start-where .sw-txt b { font-size: 15px; font-weight: 650; }
-#start-where .sw-txt small { color: #6f7583; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#start-where .sw-msg { margin: 12px 4px 0; color: #b42323; font-size: 13px; }
+#start-where h2 { margin: 0 0 6px; font: 900 30px/1.1 'Nunito', system-ui, sans-serif; letter-spacing: -0.01em; }
+#start-where .sw-sub { margin: 0 0 18px; color: rgba(255, 255, 255, 0.72); font: 700 14.5px/1.4 'Nunito', system-ui, sans-serif; }
+#start-where .sw-opt { width: 100%; display: flex; align-items: center; gap: 16px; margin: 0; padding: 16px 2px; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.16); border-radius: 0;
+  background: none; color: #fff; text-align: left; font: inherit; text-shadow: inherit; cursor: pointer; transition: transform 0.15s; }
+#start-where .sw-opt:last-of-type { border-bottom: 1px solid rgba(255, 255, 255, 0.16); }
+#start-where .sw-opt:hover b, #start-where .sw-opt:focus-visible b { color: #6EE7C5; }
+#start-where .sw-opt:focus-visible { outline: none; }
+#start-where .sw-opt:active { transform: translateX(3px); }
+#start-where .sw-opt.wait { cursor: progress; }
+#start-where .sw-opt.wait .sw-ico { animation: sw-pulse 1.1s ease-in-out infinite; }
+@keyframes sw-pulse { 50% { box-shadow: 0 0 0 8px rgba(110, 231, 197, 0); background: rgba(110, 231, 197, 0.18); } }
+#start-where .sw-ico { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: none; border: 1.5px solid rgba(255, 255, 255, 0.7); color: #fff; box-shadow: 0 0 0 0 rgba(110, 231, 197, 0.4); }
+#start-where .sw-ico.here { border-color: #6EE7C5; color: #6EE7C5; }
+#start-where .sw-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 20, 50, 0.5)); }
+#start-where .sw-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+#start-where .sw-txt b { font: 900 18px/1.2 'Nunito', system-ui, sans-serif; transition: color 0.15s; }
+#start-where .sw-txt small { color: rgba(255, 255, 255, 0.72); font: 700 13.5px/1.35 'Nunito', system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#start-where .sw-opt::after { content: ''; flex: none; width: 9px; height: 9px; margin-right: 4px; border-top: 2px solid rgba(255, 255, 255, 0.7); border-right: 2px solid rgba(255, 255, 255, 0.7); transform: rotate(45deg); transition: transform 0.15s, border-color 0.15s; }
+#start-where .sw-opt:hover::after { border-color: #6EE7C5; transform: translateX(3px) rotate(45deg); }
+#start-where .sw-msg { margin: 14px 0 0; color: #ffb39f; font: 700 13.5px/1.4 'Nunito', system-ui, sans-serif; }
 
 /* the top view's joystick (main.js): in the wheel's place while the wheel is hidden */
 #topjoy { position: fixed; z-index: 16; width: 150px; height: 150px; border-radius: 50%; touch-action: none; user-select: none; -webkit-user-select: none;

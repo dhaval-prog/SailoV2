@@ -7,7 +7,8 @@ const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 /**
  * opts.lastLabel   where the last spot is (a locality, or a position)
  * opts.onLast()    sail on from the last spot
- * opts.onHere()    start at the device's location: resolves when the boat's there, rejects with a message for the card
+ * opts.onHere(say) start at the device's location (another city's: its waters open there): resolves when the boat's
+ *                  there, rejects with a message for the card; say(text) shows how it's going
  */
 export function askStartSpot({ lastLabel, onLast, onHere }) {
   const el = document.createElement('div'); el.id = 'start-where'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'sw-title');
@@ -28,7 +29,7 @@ export function askStartSpot({ lastLabel, onLast, onHere }) {
   btns.forEach(b => b.addEventListener('click', async e => { e.stopPropagation(); if (busy) return;
     if (b.dataset.pick === 'last') { onLast?.(); close(); return; }
     busy = true; b.classList.add('wait'); b.querySelector('small').textContent = 'Finding you…'; msg.hidden = true;
-    try { await onHere(); close(); }
+    try { await onHere(t => { b.querySelector('small').textContent = t; }); close(); }
     catch (err) { busy = false; b.classList.remove('wait'); b.querySelector('small').textContent = 'Uses your device’s location'; msg.textContent = err?.message || 'Couldn’t find your location.'; msg.hidden = false; }
   }));
   setTimeout(() => btns[0].focus(), 50);
